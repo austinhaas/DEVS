@@ -10,75 +10,82 @@
    [des.model :refer [atomic? network?]]))
 
 (defn- flatten-model
-  "Returns a sequence of [parent k model]."
-  [parent k model]
-  (loop [open [[parent k model]]
+  "Returns a sequence of [path model], where path is a seq of keys
+  from the item to the root."
+  [root model]
+  (loop [open [[root model]]
          acc  (transient [])]
     (if (seq open)
-      (let [[[p k m] & open'] open]
+      (let [[[p m] & open'] open]
         (if (network? m)
-          (recur (concat open' (for [[k' m'] (:components m)] [k k' m']))
-                 (conj! acc [p k m]))
-          (recur open' (conj! acc [p k m]))))
+          (recur (concat open' (for [[k' m'] (:components m)] [(cons k' p) m']))
+                 (conj! acc [p m]))
+          (recur open' (conj! acc [p m]))))
       (persistent! acc))))
 
 (defn- init-atomic-model [p m t]
-  {:parent p
+  {:path   p
+   :parent (rest p)
    :model  m
    :state  (:initial-state m)
    :tl     t
    :tn     (+ t ((:time-advance-fn m) (:initial-state m)))})
 
 (defn- init-network-model [p m]
-  (assoc m :parent p))
+  {:path   p
+   :parent (rest p)
+   :model  m})
 
 (defn- compute [d] ((:output-fn (:model d)) (:state d)))
 
 (defn- find-receivers
   "Returns a sequence of [k ev]."
-  [A parent src ev]
-  ;; Note that parent here refers to the context for the event. This
-  ;; is important when an event arrives at a network boundary, because
-  ;; we need to know if we are going up out of the current network or
-  ;; down into a new network.
-  (loop [[s* r*] [[[parent src ev]] []]]
+  [A context src ev]
+  ;; Context is important when an event arrives at a network boundary,
+  ;; because we need to know if we are going up out of the current
+  ;; network or down into a new network.
+  (loop [[s* r*] [[[context src ev]] []]]
     (if (seq s*)
       (let [[[p s [port val]] & s*'] s*
             ;; Find initial set of receivers.
-            temp-r* (for [[d port'] (get-in A [p :connections s port])]
-                      (if (= d p)
-                        [(:parent (A d)) d [port' val]]
-                        [p d [port' val]]))]
+            temp-r* (for [[d port'] (get-in A [p :model :connections (first s) port])]
+                      (if (= d :N)
+                        [p p [port' val]]
+                        [p (cons d p) [port' val]]))]
         ;; Sort receivers into actual receivers and new senders for
         ;; networks forwarding events.
         (recur (reduce (fn [[s* r*] [p d ev]]
-                         (let [x (A d)
-                               m (:model x)]
+                         (let [m (:model (A d))]
                            (cond
-                             (atomic? m)  [s* (conj r* [d ev])]
-                             (= d p)      [(conj s* [(:parent (A d)) d ev]) r*]
-                             (nil? p)     [s* (conj r* [d ev])]
-                             (network? m) [(conj s* [d d ev]) r*])))
+                             (atomic? m)     [s* (conj r* [d ev])]
+                             (= d p)         (let [p' (:parent (A d))]
+                                               (if (or (nil? p') (empty? p'))
+                                                 [s* (conj r* [d ev])]
+                                                 [(conj s* [p' d ev]) r*]))
+                             (or (nil? p)
+                                 (empty? p)) [s* (conj r* [d ev])]
+                             (network? m)    [(conj s* [d (cons :N (rest d)) ev]) r*]
+                             :else           (assert false))))
                        [s*' r*]
                        temp-r*)))
       r*)))
 
-(defn- add-model [[A Q] parent k model t]
-  (reduce (fn [[A Q] [p k m]]
+(defn- add-model [[A Q] path model t]
+  (reduce (fn [[A Q] [p m]]
             (if (atomic? m)
               (let [s (init-atomic-model p m t)]
-                [(assoc A k s) (pq/add Q (:tn s) k)])
-              [(assoc A k (init-network-model p m)) Q]))
+                [(assoc A p s) (pq/add Q (:tn s) p)])
+              [(assoc A p (init-network-model p m)) Q]))
           [A Q]
-          (flatten-model parent k model)))
+          (flatten-model path model)))
 
-(defn- rem-model [[A Q] parent k model]
-  (reduce (fn [[A Q] [p k m]]
+(defn- rem-model [[A Q] path model]
+  (reduce (fn [[A Q] [p m]]
             (if (atomic? m)
-              [(dissoc A k) (pq/rem Q (:tn (A k)) k)]
-              [(dissoc A k) Q]))
+              [(dissoc A p) (pq/rem Q (:tn (A p)) p)]
+              [(dissoc A p) Q]))
           [A Q]
-          (flatten-model parent k model)))
+          (flatten-model path model)))
 
 (defn- update-sim [d t ev*]
   (let [{:keys [state model tl tn]} d
@@ -126,7 +133,7 @@
    :tn    nil})
 
 (defn init [sim t]
-  (let [[A Q] (add-model [{} (pq/priority-queue)] nil :N (:model sim) t)
+  (let [[A Q] (add-model [{} (pq/priority-queue)] (list :root) (:model sim) t)
         tl    t
         tn    (or (pq/peek-key Q) infinity)]
     (assoc sim :tl tl :tn tn :state [A Q])))
@@ -144,24 +151,22 @@
         k->ev*      (group first second [] input)
         receivers   (keys k->ev*)
         {rn true
-         ra false}  (group-by (comp network? A) receivers)
-        output      (k->ev* :N)
-
+         ra false}  (group-by (comp network? :model A) receivers)
         ;; This breaks b/c non-network change messages may not be vectors.
         ;; {ops true
-        ;;  out false} (group-by (comp boolean op-syms first second) (k->ev* :N))
+        ;;  out false} (group-by (comp boolean op-syms first second) (k->ev* :root))
         ops []
-        out (k->ev* :N)
+        out (k->ev* (list :root))
         [A' Q']     (-> [A (pq/pop Q)]
                         (update-sim* (into imminent ra) k->ev* t)
-                        (update-network* rn {:N ops} t))] ;; Need to know which network is being updated.
+                        (update-network* rn {(list :root) ops} t))]
     [(assoc sim :tl t :tn (or (pq/peek-key Q') infinity) :state [A' Q'])
      out]))
 
 (defn ext-update [sim x t]
   (assert (<= (:tl sim) t (:tn sim)) (format "(<= %s %s %s)" (:tl sim) t (:tn sim)))
   (let [[A Q]     (:state sim)
-        input     (for [ev x, [k' ev'] (find-receivers A :N :N ev)]
+        input     (for [ev x, [k' ev'] (find-receivers A (list :root) (list :root) ev)]
                     [k' ev'])
         k->ev*    (group first second [] input)
         receivers (keys k->ev*)
