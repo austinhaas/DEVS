@@ -11,7 +11,7 @@
            (= (tn sim) infinity))     'done
       (or (empty? ev*)
           (<= (tn sim) (ffirst ev*))) (let [[sim' out] (int-update sim (tn sim))]
-                                        (doseq [o out] (println (format "t:%s> %s" (tn sim) o)))
+                                        (doseq [o out] (println (format "[%s] %s" (tn sim) o)))
                                         (recur sim' ev*))
       (< (ffirst ev*) (tn sim))       (let [t               (ffirst ev*)
                                             [imminent ev*'] (split-with #(= (first %) t) ev*)]
