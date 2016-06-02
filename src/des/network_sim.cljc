@@ -4,6 +4,7 @@
    1st Open International Conference on Modeling & Simulation (OICMS). 2005.
    http://www.i3s.unice.fr/~muzy/Publications/oicms_revised_Nov_21_2005.pdf"
   (:require
+   [des.Simulator :refer [Simulator]]
    [des.priority-queue :as pq]
    [pt-lib.number :refer [infinity]]
    [pt-lib.coll :refer [group dissoc-in]]
@@ -136,58 +137,49 @@
 (defn- update-network* [[A Q] k* k->ev* t]
   (reduce (fn [[A Q] k] (update-network [A Q] k (k->ev* k) t)) [A Q] k*))
 
-(defn network-sim [model]
-  (assert (network? model))
-  {:model model
-   :state nil
-   :tl    nil
-   :tn    nil})
+(defrecord NetworkSimulator [model state tl tn]
+  Simulator
+  (init       [this t]
+    (let [[A Q] (add-model [{} (pq/priority-queue)] (list :root) model t)]
+      (NetworkSimulator. model [A Q] t (or (pq/peek-key Q) infinity))))
+  (int-update [this t]
+    (assert (= t tn) (format "(= %s %s)" t tn))
+    (let [[A Q]       state
+          imminent    (pq/peek Q)
+          output      (for [k  imminent
+                            ev (compute (A k))]
+                        [k ev])
+          input       (for [[k  ev ] output
+                            [k' ev'] (find-receivers A (:parent (A k)) k ev)]
+                        [k' ev'])
+          k->ev*      (group first second [] input)
+          receivers   (keys k->ev*)
+          {rn true
+           ra false}  (group-by (comp network? :model A) receivers)
+          {in  true
+           out false} (group-by #(= :internal (first %)) (k->ev* (list :root)))
+          k->ev*      (assoc k->ev* (list :root) in)
+          rn          (if (seq in)
+                        rn
+                        (remove #(= % (list :root)) rn))
 
-(defn init [sim t]
-  (let [[A Q] (add-model [{} (pq/priority-queue)] (list :root) (:model sim) t)
-        tl    t
-        tn    (or (pq/peek-key Q) infinity)]
-    (assoc sim :tl tl :tn tn :state [A Q])))
-
-(defn int-update [sim t]
-  (assert (= t (:tn sim)) (format "(= %s %s)" t (:tn sim)))
-  (let [[A Q]       (:state sim)
-        imminent    (pq/peek Q)
-        output      (for [k  imminent
-                          ev (compute (A k))]
-                      [k ev])
-        input       (for [[k  ev ] output
-                          [k' ev'] (find-receivers A (:parent (A k)) k ev)]
+          [A' Q']     (-> [A (pq/pop Q)]
+                          (update-sim* (into imminent ra) k->ev* t)
+                          (update-network* rn k->ev* t))]
+      [(NetworkSimulator. model [A' Q'] t (or (pq/peek-key Q') infinity))
+       out]))
+  (ext-update [this x t]
+    (assert (<= tl t tn) (format "(<= %s %s %s)" tl t tn))
+    (let [[A Q]     state
+          input     (for [ev x, [k' ev'] (find-receivers A (list :root) (list :root) ev)]
                       [k' ev'])
-        k->ev*      (group first second [] input)
-        receivers   (keys k->ev*)
-        {rn true
-         ra false}  (group-by (comp network? :model A) receivers)
-        {in  true
-         out false} (group-by #(= :internal (first %)) (k->ev* (list :root)))
-        k->ev*      (assoc k->ev* (list :root) in)
-        rn          (if (seq in)
-                      rn
-                      (remove #(= % (list :root)) rn))
+          k->ev*    (group first second [] input)
+          receivers (keys k->ev*)
+          [A' Q']   (update-sim* [A Q] receivers k->ev* t)]
+      (NetworkSimulator. model [A' Q'] t (or (pq/peek-key Q') infinity))))
+  (tl         [this] tl)
+  (tn         [this] tn))
 
-        [A' Q']     (-> [A (pq/pop Q)]
-                        (update-sim* (into imminent ra) k->ev* t)
-                        (update-network* rn k->ev* t))]
-    [(assoc sim :tl t :tn (or (pq/peek-key Q') infinity) :state [A' Q'])
-     out]))
-
-(defn ext-update [sim x t]
-  (assert (<= (:tl sim) t (:tn sim)) (format "(<= %s %s %s)" (:tl sim) t (:tn sim)))
-  (let [[A Q]     (:state sim)
-        input     (for [ev x, [k' ev'] (find-receivers A (list :root) (list :root) ev)]
-                    [k' ev'])
-        k->ev*    (group first second [] input)
-        receivers (keys k->ev*)
-        [A' Q']   (update-sim* [A Q] receivers k->ev* t)]
-    (assoc sim :tl t :tn (or (pq/peek-key Q') infinity) :state [A' Q'])))
-#_
-(defn con-update [sim x t]
-  (ext-update (int-update sim) x 0))
-
-(defn tl [sim] (:tl sim))
-(defn tn [sim] (:tn sim))
+(defn network-simulator [model]
+  (assert (network? model))
+  (NetworkSimulator. model nil nil nil))

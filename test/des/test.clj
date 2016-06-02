@@ -5,11 +5,10 @@
    [clojure.core.async :as async :refer [chan go <! timeout close! >!]]
    [pt-lib.number :refer [infinity]]
    [des.model :refer [model network]]
-   [des.atomic-sim :refer [atomic-sim]]
-   [des.network-sim :refer [network-sim]]
+   [des.atomic-sim :refer [atomic-simulator]]
+   [des.network-sim :refer [network-simulator]]
    [des.real-time-system :refer [real-time-system]]
-   [des.fast-as-possible-system :refer [fast-as-possible-system]]
-   [des.fast-as-possible-system-atomic :refer [fast-as-possible-system-atomic]]))
+   [des.fast-as-possible-system :refer [fast-as-possible-system]]))
 
 (defn generator [period]
   (model ["active" period]
@@ -237,7 +236,7 @@
 ;;---
 #_
 (do
-  (def sim (network-sim network-1))
+  (def sim (network-simulator network-1))
 
   (def chan-in  (chan 100))
   (def chan-out (chan 100))
@@ -263,6 +262,6 @@
 #_(close! chan-in)
 
 #_
-(fast-as-possible-system (network-sim network-1) 0 (for [i (range 10)] [1 ['in1 i]]))
+(fast-as-possible-system (network-simulator network-1) 0 (for [i (range 10)] [1 ['in1 i]]))
 #_
-(fast-as-possible-system-atomic (atomic-sim (queue :queue [1 2])) 0 [[1 ['add 5]]])
+(fast-as-possible-system (atomic-simulator (queue :queue [1 2])) 0 [[1 ['add 5]]])

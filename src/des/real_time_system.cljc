@@ -3,7 +3,7 @@
    [clojure.core.async :as async :refer [timeout close! alts! go >! chan]]
    [pt-lib.number :refer [infinity]]
    [pt-lib.date :refer [now]]
-   [des.network-sim :refer [init int-update ext-update tl tn]]))
+   [des.Simulator :refer [init int-update ext-update tl tn]]))
 
 (defn real-time-system [sim start-time chan-in chan-out]
   (go
