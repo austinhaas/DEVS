@@ -1,4 +1,4 @@
-(ns des.network-sim
+(ns des.network-simulator
   "Muzy, Alexander, and James J. Nutaro. \"Algorithms for efficient
    implementations of the DEVS & DSDEVS abstract simulators.\"
    1st Open International Conference on Modeling & Simulation (OICMS). 2005.

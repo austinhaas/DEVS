@@ -5,8 +5,8 @@
    [clojure.core.async :as async :refer [chan go <! timeout close! >!]]
    [pt-lib.number :refer [infinity]]
    [des.model :refer [model network]]
-   [des.atomic-sim :refer [atomic-simulator]]
-   [des.network-sim :refer [network-simulator]]
+   [des.atomic-simulator :refer [atomic-simulator]]
+   [des.network-simulator :refer [network-simulator]]
    [des.real-time-system :refer [real-time-system]]
    [des.fast-as-possible-system :refer [fast-as-possible-system]]))
 

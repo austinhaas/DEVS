@@ -1,4 +1,4 @@
-(ns des.atomic-sim
+(ns des.atomic-simulator
   (:require
    [des.Simulator :refer [Simulator]]
    [des.model :refer [atomic?]]))
