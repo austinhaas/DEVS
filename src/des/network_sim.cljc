@@ -48,24 +48,34 @@
     (if (seq s*)
       (let [[[p s [port val]] & s*'] s*
             ;; Find initial set of receivers.
-            temp-r* (for [[d port'] (get-in A [p :model :connections (first s) port])]
+            k       (if (= p s)
+                      :N
+                      (first s))
+            temp-r* (for [[d port'] (get-in A [p :model :connections k port])]
                       (if (= d :N)
                         [p p [port' val]]
                         [p (cons d p) [port' val]]))]
+
+        ;; We probably don't want this; we may want some models the
+        ;; emit messages even if they're aren't any receivers.
+        (assert (seq temp-r*) (format "Couldn't find receivers for k: %s port: %s in %s " k port (get-in A [p :model :connections])))
+
         ;; Sort receivers into actual receivers and new senders for
         ;; networks forwarding events.
         (recur (reduce (fn [[s* r*] [p d ev]]
                          (let [m (:model (A d))]
                            (cond
                              (atomic? m)     [s* (conj r* [d ev])]
-                             (= d p)         (let [p' (:parent (A d))]
-                                               (if (or (nil? p') (empty? p'))
+                             (= d p)         (let [p' (:parent (A d))
+                                                   [port val] ev]
+                                               (if (or (nil? p') (empty? p')
+                                                       (= port :internal))
                                                  [s* (conj r* [d ev])]
                                                  [(conj s* [p' d ev]) r*]))
                              (or (nil? p)
                                  (empty? p)) [s* (conj r* [d ev])]
                              (network? m)    [(conj s* [d (cons :N (rest d)) ev]) r*]
-                             :else           (assert false))))
+                             :else           (assert false (A d)))))
                        [s*' r*]
                        temp-r*)))
       r*)))
@@ -106,27 +116,28 @@
    [A' Q']))
 
 (defn- update-network [[A Q] k ev* t]
-  (reduce (fn [A [port val]]
+  (reduce (fn [[A Q] [port val]]
             (case (first val)
               :add-model      (let [[_ k' m] val
-                                    A'     (assoc-in A [k :components k'] m)]
-                                (add-model [A' Q] k k' m t))
+                                    A' (assoc-in A [k :model :components k'] m)]
+                                (add-model [A' Q] (cons k' k) m t))
               :rem-model      (let [[_ k' m] val
-                                    A'     (dissoc-in A [k :components k'])]
-                                (rem-model [A' Q] k k' m))
-              :add-connection (let [[_ sk sp dk dp] val]
-                                [(assoc-in A [k :connections sk sp dk] dp) Q])
-              :rem-connection (let [[_ sk sp dk dp] val]
-                                [(dissoc-in A [k :connections sk sp dk] dp) Q])))
+                                    A' (dissoc-in A [k :model :components k'])]
+                                (rem-model [A' Q] (cons k' k) m))
+              :add-connection (let [[_ sk sp dk dp] val
+                                    A' (assoc-in A [k :model :connections sk sp dk] dp)]
+                                [A' Q])
+              :rem-connection (let [[_ sk sp dk dp] val
+                                    A' (dissoc-in A [k :model :connections sk sp dk])]
+                                [A' Q])))
           [A Q]
           ev*))
 
 (defn- update-network* [[A Q] k* k->ev* t]
   (reduce (fn [[A Q] k] (update-network [A Q] k (k->ev* k) t)) [A Q] k*))
 
-(def op-syms #{:add-model :rem-model :add-connection :rem-connection})
-
 (defn network-sim [model]
+  (assert (network? model))
   {:model model
    :state nil
    :tl    nil
@@ -152,14 +163,16 @@
         receivers   (keys k->ev*)
         {rn true
          ra false}  (group-by (comp network? :model A) receivers)
-        ;; This breaks b/c non-network change messages may not be vectors.
-        ;; {ops true
-        ;;  out false} (group-by (comp boolean op-syms first second) (k->ev* :root))
-        ops []
-        out (k->ev* (list :root))
+        {in  true
+         out false} (group-by #(= :internal (first %)) (k->ev* (list :root)))
+        k->ev*      (assoc k->ev* (list :root) in)
+        rn          (if (seq in)
+                      rn
+                      (remove #(= % (list :root)) rn))
+
         [A' Q']     (-> [A (pq/pop Q)]
                         (update-sim* (into imminent ra) k->ev* t)
-                        (update-network* rn {(list :root) ops} t))]
+                        (update-network* rn k->ev* t))]
     [(assoc sim :tl t :tn (or (pq/peek-key Q') infinity) :state [A' Q'])
      out]))
 
@@ -172,6 +185,9 @@
         receivers (keys k->ev*)
         [A' Q']   (update-sim* [A Q] receivers k->ev* t)]
     (assoc sim :tl t :tn (or (pq/peek-key Q') infinity) :state [A' Q'])))
+#_
+(defn con-update [sim x t]
+  (ext-update (int-update sim) x 0))
 
 (defn tl [sim] (:tl sim))
 (defn tn [sim] (:tn sim))

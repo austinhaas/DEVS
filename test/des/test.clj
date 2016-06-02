@@ -5,8 +5,11 @@
    [clojure.core.async :as async :refer [chan go <! timeout close! >!]]
    [pt-lib.number :refer [infinity]]
    [des.model :refer [model network]]
+   [des.atomic-sim :refer [atomic-sim]]
    [des.network-sim :refer [network-sim]]
-   [des.real-time-system :refer [real-time-system]]))
+   [des.real-time-system :refer [real-time-system]]
+   [des.fast-as-possible-system :refer [fast-as-possible-system]]
+   [des.fast-as-possible-system-atomic :refer [fast-as-possible-system-atomic]]))
 
 (defn generator [period]
   (model ["active" period]
@@ -27,8 +30,9 @@
      (let [[phase sigma inport store Sw] s]
        ["passive" infinity inport store Sw]))
    (fn [s e x]
+     (assert (= 1 (count x)))
      (let [[phase sigma inport store Sw] s
-           [p v]                         x]
+           [p v]                         (first x)]
        (if (= phase "passive")
          ["busy" processing-time p v (not Sw)]
          [phase (- sigma e) inport store Sw])))
@@ -66,7 +70,7 @@
        sigma))))
 
 (def n (network
-        {:delay-1 (simple-delay-component 5000)}
+        {:delay-1 (simple-delay-component 2000)}
         {:N       {'in  {:delay-1 'in}}
          :delay-1 {'out {:N       'out}}}))
 
@@ -91,20 +95,174 @@
                     'out1 {:delay-2b 'in}}
           :delay-2b {'out  {:delay-3 'in}}}))
 
-(def sim (network-sim n1))
+;;---
 
-(def chan-in  (chan 1))
-(def chan-out (chan 1))
+(def server simple-delay-component)
 
-(real-time-system sim 0 chan-in chan-out)
+(defn queue [k s*]
+  (letfn [(add-server [s k']
+            (update s :output conj
+                    [:internal [:add-model k' (server 1000)]]
+                    [:internal [:add-connection k ['out k'] k' 'in]]
+                    [:internal [:add-connection k' 'out k ['in k']]]))
+          (rem-server [s k']
+            (update s :output conj
+                    [:internal [:rem-model k' (server 1000)]]
+                    [:internal [:rem-connection k ['out k'] k' 'in]]
+                    [:internal [:rem-connection k' 'out k ['in k']]]))
+          (idle [s k']
+            (update s :idle conj k'))
+          (maybe-process-next [s]
+            (if (and (seq (:idle s)) (seq (:Q s)))
+              (-> s
+                  (update :Q rest)
+                  (update :idle rest)
+                  (update :output conj [['out (first (:idle s))] (first (:Q s))]))
+              s))
+          (enqueue [s v]
+            (update s :Q conj v))
+          (send [s v]
+            (update s :output conj ['out v]))
+          (dispatch [s ev]
+            ;; This wouldn't work for some reason.
+            #_(match ev
+                ['add k]    (-> s (add-server k) (idle k) maybe-process-next)
+                ['remove]   (-> s (rem-server (first (:idle s))) (update :idle rest))
+                ['in v]     (-> s (enqueue v) maybe-process-next)
+                [['in k] v] (-> s (send v) (idle k) maybe-process-next))
+            (let [[port v] ev]
+              (case port
+                add    (-> s (add-server v) (idle v) maybe-process-next)
+                remove (-> s (rem-server (first (:idle s))) (update :idle rest)
+                           (update :output conj ['send (first (:idle s))]))
+                in     (-> s (enqueue v) maybe-process-next)
+                (case (first port)
+                  in (-> s (send v) (idle (second port)) maybe-process-next)))))]
+    (model
+     ;; Initial state.
+     (let [Q []]
+       {:idle s* :Q Q :sigma 0 :output [['init [(count Q) (count s*)]]]})
+     (fn int-update [s]
+       (assoc s :sigma infinity :output []))
+     (fn ext-update [s e x]
+       (let [s' (-> (reduce dispatch s x)
+                    ;; Assuming every external event results in an output message.
+                    (assoc :sigma 0))]
+         (update s' :output conj ['size [(count (:Q s')) (count (:idle s'))]])))
+     nil
+     :output
+     :sigma)))
 
-(go (loop []
-      (let [v (<! chan-out)]
-        (if v
-          (do (println "> " v)
-              (recur))
-          (println 'done)))))
+(defn node [servers]
+  (network
+   (reduce (fn [m k] (assoc m k (server 1000)))
+           {:queue (queue :queue servers)}
+           servers)
+   (reduce (fn [m k]
+             (-> m
+                 (assoc-in [:queue ['out k] k] 'in)
+                 (assoc-in [k 'out :queue] ['in k])))
+           {:N        {'in     {:queue    'in}
+                       'remove {:queue    'remove}
+                       'add    {:queue    'add}}
+            :queue    {'size   {:N        'size}
+                       'init   {:N        'init}
+                       'send   {:N        'send}
+                       'out    {:N        'out}
+                       :internal {:N :internal}}}
+           servers)))
 
-#_(go (>! chan-in [['in 1]]))
+(defn control [threshold]
+  (letfn [(update-size [s k q-size idle-size]
+            (-> s
+                (assoc-in [:queue-sizes k] q-size)
+                (assoc-in [:idle-sizes  k] idle-size)))
+          (maybe-move [s]
+            ;; If there is an idle server in node-i, and (size of the
+            ;; queue in node-j - number of servers in transit to
+            ;; node-j) > T, then move an idle server from node-i to
+            ;; node-j.
+            (let [[k1-q       k2-q      ] (:queue-sizes   s)
+                  [k1-idle    k2-idle   ] (:idle-sizes    s)
+                  [k1-transit k2-transit] (:in-transit-to s)]
+              (cond
+                (and (> k1-idle 0) (> (- k2-q k2-transit) threshold)) (-> s
+                                                                          (update :output conj [['ask 0] nil])
+                                                                          (update-in [:in-transit-to 1] inc))
+                (and (> k2-idle 0) (> (- k1-q k1-transit) threshold)) (-> s
+                                                                          (update :output conj [['ask 1] nil])
+                                                                          (update-in [:in-transit-to 0] inc))
+                :else s)))]
+    (model
+     {:output      []
+      :sigma       infinity
+      :queue-sizes [0 0]
+      :idle-sizes  [0 0]}
+     (fn int-update [s]
+       (assoc s :sigma infinity :output []))
+     (fn ext-update [s e x]
+       (let [s (assoc s :in-transit-to [0 0])]
+         (-> (reduce (fn [s ev]
+                       (let [[port [q-size idle-size]] ev]
+                         (case port
+                           init1 (update-size s 0 q-size idle-size)
+                           init2 (update-size s 1 q-size idle-size)
+                           size1 (update-size s 0 q-size idle-size)
+                           size2 (update-size s 1 q-size idle-size))))
+                     (assoc s :sigma 0)
+                     x)
+             maybe-move)))
+     nil
+     :output
+     :sigma)))
+
+(def network-1
+  (network
+   {:control (control 10)
+    :node-1  (node [1 2])
+    :node-2  (node [3 4])}
+   {:N       {'in1     {:node-1  'in}
+              'in2     {:node-2  'in}}
+    :control {['ask 0] {:node-1  'remove}
+              ['ask 1] {:node-2  'remove}}
+    :node-1  {'size    {:control 'size1}
+              'init    {:control 'init1}
+              'send    {:node-2  'add}
+              'out     {:N       'out}}
+    :node-2  {'size    {:control 'size2}
+              'init    {:control 'init2}
+              'send    {:node-1  'add}
+              'out     {:N       'out}}}))
+
+;;---
+#_
+(do
+  (def sim (network-sim network-1))
+
+  (def chan-in  (chan 100))
+  (def chan-out (chan 100))
+
+  (real-time-system sim 0 chan-in chan-out)
+
+  (go (loop []
+        (let [v (<! chan-out)]
+          (if v
+            (do (println (format "> %s" v))
+                (recur))
+            (println 'done))))))
+
+#_
+(go
+  (dotimes [i 10]
+    (>! chan-in [['in1 i]])))
+
+#_
+(go
+  (>! chan-in [['in1 1]]))
 
 #_(close! chan-in)
+
+#_
+(fast-as-possible-system (network-sim network-1) 0 (for [i (range 10)] [1 ['in1 i]]))
+#_
+(fast-as-possible-system-atomic (atomic-sim (queue :queue [1 2])) 0 [[1 ['add 5]]])
