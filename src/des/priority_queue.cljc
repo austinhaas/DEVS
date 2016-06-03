@@ -1,7 +1,7 @@
 (ns des.priority-queue
   "A priority queue implementation.
 
-   Keys should be integers. Lower values precede higher values.
+   Keys are sorted by compare.
 
    All values with the highest priority are returned as a set.
 
@@ -10,8 +10,8 @@
      - Duplicate key-val pairs are ignored.
 
    This implementation is intended to be used in cases where delete
-  and update are required, and values will map to relatively few
-  priorities."
+  and update are required; and the range of current keys is relatively
+  small, so many values map to the same key."
   (:refer-clojure :exclude [rem update peek pop])
   (:require [pt-lib.number :refer [infinity]]))
 
