@@ -11,4 +11,4 @@
    :output-fn       output-fn
    :time-advance-fn time-advance-fn})
 
-(defn atomic?  [model] (= ::atomic  (:type model)))
+(defn atomic? [model] (= ::atomic (:type model)))
