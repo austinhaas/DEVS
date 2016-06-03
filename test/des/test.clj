@@ -4,26 +4,28 @@
    [clojure.core.match :refer [match]]
    [clojure.core.async :as async :refer [chan go <! timeout close! >!]]
    [pt-lib.number :refer [infinity]]
-   [des.model :refer [model network]]
+   [des.atomic-model :refer [atomic-model]]
+   [des.network-model :refer [network-model]]
    [des.atomic-simulator :refer [atomic-simulator]]
    [des.network-simulator :refer [network-simulator]]
    [des.real-time-system :refer [real-time-system]]
    [des.fast-as-possible-system :refer [fast-as-possible-system]]))
 
 (defn generator [period]
-  (model ["active" period]
-         (fn [s] (let [[phase sigma] s]
-                   ["active" period]))
-         nil
-         nil
-         (fn [s] (let [[phase sigma] s]
-                   (case phase
-                     "active" [['out 1]])))
-         (fn [s] (let [[phase sigma] s]
-                   sigma))))
+  (atomic-model
+   ["active" period]
+   (fn [s] (let [[phase sigma] s]
+             ["active" period]))
+   nil
+   nil
+   (fn [s] (let [[phase sigma] s]
+             (case phase
+               "active" [['out 1]])))
+   (fn [s] (let [[phase sigma] s]
+             sigma))))
 
 (defn switch [processing-time]
-  (model
+  (atomic-model
    ["passive" infinity 'in #{} true]
    (fn [s]
      (let [[phase sigma inport store Sw] s]
@@ -48,7 +50,7 @@
        sigma))))
 
 (defn simple-delay-component [processing-time]
-  (model
+  (atomic-model
    ["passive" infinity 1]
    (fn [s]
      (let [[phase sigma store] s]
@@ -68,19 +70,19 @@
      (let [[phase sigma store] s]
        sigma))))
 
-(def n (network
+(def n (network-model
         {:delay-1 (simple-delay-component 2000)}
         {:N       {'in  {:delay-1 'in}}
          :delay-1 {'out {:N       'out}}}))
 
-(def n1 (network
+(def n1 (network-model
          {:delay-1 (simple-delay-component 1000)
           :delay-2 (simple-delay-component 1000)}
          {:N       {'in  {:delay-1 'in}}
           :delay-1 {'out {:delay-2 'in}}
           :delay-2 {'out {:N       'out}}}))
 
-(def n2 (network
+(def n2 (network-model
          {:gen     (generator 1000)
           :delay-1b (simple-delay-component 1000)
           :delay-2b (simple-delay-component 2000)
@@ -137,7 +139,7 @@
                 in     (-> s (enqueue v) maybe-process-next)
                 (case (first port)
                   in (-> s (send v) (idle (second port)) maybe-process-next)))))]
-    (model
+    (atomic-model
      ;; Initial state.
      (let [Q []]
        {:idle s* :Q Q :sigma 0 :output [['init [(count Q) (count s*)]]]})
@@ -153,7 +155,7 @@
      :sigma)))
 
 (defn node [servers]
-  (network
+  (network-model
    (reduce (fn [m k] (assoc m k (server 1000)))
            {:queue (queue :queue servers)}
            servers)
@@ -192,7 +194,7 @@
                                                                           (update :output conj [['ask 1] nil])
                                                                           (update-in [:in-transit-to 0] inc))
                 :else s)))]
-    (model
+    (atomic-model
      {:output      []
       :sigma       infinity
       :queue-sizes [0 0]
@@ -216,7 +218,7 @@
      :sigma)))
 
 (def network-1
-  (network
+  (network-model
    {:control (control 10)
     :node-1  (node [1 2])
     :node-2  (node [3 4])}

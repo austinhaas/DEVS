@@ -8,7 +8,8 @@
    [des.priority-queue :as pq]
    [pt-lib.number :refer [infinity]]
    [pt-lib.coll :refer [group dissoc-in]]
-   [des.model :refer [atomic? network?]]))
+   [des.atomic-model :refer [atomic?]]
+   [des.network-model :refer [network?]]))
 
 (defn- flatten-model
   "Returns a sequence of [path model], where path is a seq of keys

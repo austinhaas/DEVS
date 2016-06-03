@@ -1,7 +1,7 @@
 (ns des.atomic-simulator
   (:require
    [des.Simulator :refer [Simulator]]
-   [des.model :refer [atomic?]]))
+   [des.atomic-model :refer [atomic?]]))
 
 (defrecord AtomicSimulator [model state tl tn]
   Simulator
