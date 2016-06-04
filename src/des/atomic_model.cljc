@@ -1,6 +1,8 @@
 (ns des.atomic-model)
 
-(defn atomic-model [initial-state int-update-fn ext-update-fn con-update-fn output-fn time-advance-fn]
+(defn atomic-model [initial-state
+                    int-update-fn ext-update-fn con-update-fn
+                    output-fn time-advance-fn]
   {:type            ::atomic
    :initial-state   initial-state
    :int-update-fn   int-update-fn

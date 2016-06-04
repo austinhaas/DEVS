@@ -3,11 +3,15 @@
    [clojure.test :refer :all]
    [clojure.core.match :refer [match]]
    [clojure.core.async :as async :refer [chan go <! timeout close! >!]]
+   [pt-lib.coll :refer [dissoc-in]]
    [pt-lib.number :refer [infinity]]
    [des.atomic-model :refer [atomic-model]]
+   [des.executive-model :refer [executive-model]]
    [des.network-model :refer [network-model]]
+   [des.executive-network-model :refer [executive-network-model]]
    [des.atomic-simulator :refer [atomic-simulator]]
-   [des.network-simulator :refer [network-simulator]]
+   ;;[des.network-simulator :refer [network-simulator]]
+   [des.executive-network-simulator :refer [network-simulator flatten-model]]
    [des.real-time-system :refer [real-time-system]]
    [des.fast-as-possible-system :refer [fast-as-possible-system]]))
 
@@ -69,19 +73,19 @@
    (fn [s]
      (let [[phase sigma store] s]
        sigma))))
-
+#_
 (def n (network-model
         {:delay-1 (simple-delay-component 2000)}
         {:N       {'in  {:delay-1 'in}}
          :delay-1 {'out {:N       'out}}}))
-
+#_
 (def n1 (network-model
          {:delay-1 (simple-delay-component 1000)
           :delay-2 (simple-delay-component 1000)}
          {:N       {'in  {:delay-1 'in}}
           :delay-1 {'out {:delay-2 'in}}
           :delay-2 {'out {:N       'out}}}))
-
+#_
 (def n2 (network-model
          {:gen     (generator 1000)
           :delay-1b (simple-delay-component 1000)
@@ -99,7 +103,7 @@
 ;;---
 
 (def server simple-delay-component)
-
+#_
 (defn queue [k s*]
   (letfn [(add-server [s k']
             (update s :output conj
@@ -153,7 +157,7 @@
      nil
      :output
      :sigma)))
-
+#_
 (defn node [servers]
   (network-model
    (reduce (fn [m k] (assoc m k (server 1000)))
@@ -172,6 +176,66 @@
                        'out    {:N        'out}
                        :internal {:N :internal}}}
            servers)))
+
+(defn queue [k s*]
+  (letfn [(add-server [s k']
+            (-> s
+                (assoc-in [:components k'] (server 1000))
+                (assoc-in [:connections k ['out k'] k'] 'in)
+                (assoc-in [:connections k' 'out k] ['in k'])))
+          (rem-server [s k']
+            (-> s
+                (dissoc-in [:components k'])
+                (dissoc-in [:connections k ['out k'] k'])
+                (dissoc-in [:connections k' 'out k])))
+          (idle [s k']
+            (update s :idle conj k'))
+          (maybe-process-next [s]
+            (if (and (seq (:idle s)) (seq (:Q s)))
+              (-> s
+                  (update :Q rest)
+                  (update :idle rest)
+                  (update :output conj [['out (first (:idle s))] (first (:Q s))]))
+              s))
+          (enqueue [s v]
+            (update s :Q conj v))
+          (send [s v]
+            (update s :output conj ['out v]))
+          (dispatch [s ev]
+            (let [[port v] ev]
+              (case port
+                add    (-> s (add-server v) (idle v) maybe-process-next)
+                remove (-> s (rem-server (first (:idle s))) (update :idle rest)
+                           (update :output conj ['send (first (:idle s))]))
+                in     (-> s (enqueue v) maybe-process-next)
+                (case (first port)
+                  in (-> s (send v) (idle (second port)) maybe-process-next)))))]
+    (executive-model
+     ;; Initial state.
+     (let [Q []
+           S {:idle s* :Q Q :sigma 0 :output [['init [(count Q) (count s*)]]]
+              :components  {}
+              :connections {:N {'in     {k  'in}
+                                'remove {k  'remove}
+                                'add    {k  'add}}
+                            k  {'size   {:N 'size}
+                                'init   {:N 'init}
+                                'send   {:N 'send}
+                                'out    {:N 'out}}}}]
+       (reduce add-server S s*))
+     (fn int-update [s]
+       (assoc s :sigma infinity :output []))
+     (fn ext-update [s e x]
+       (let [s' (-> (reduce dispatch s x)
+                    ;; Assuming every external event results in an output message.
+                    (assoc :sigma 0))]
+         (update s' :output conj ['size [(count (:Q s')) (count (:idle s'))]])))
+     nil
+     :output
+     :sigma)))
+
+(defn node [servers]
+  (executive-network-model :queue (queue :queue servers)))
 
 (defn control [threshold]
   (letfn [(update-size [s k q-size idle-size]
@@ -216,7 +280,7 @@
      nil
      :output
      :sigma)))
-
+#_
 (def network-1
   (network-model
    {:control (control 10)
@@ -234,6 +298,28 @@
               'init    {:control 'init2}
               'send    {:node-1  'add}
               'out     {:N       'out}}}))
+
+(def network-1
+  (executive-network-model
+   :network-1
+   (executive-model
+    {:components  {:control (control 5)
+                   :node-1  (node [1 2])
+                   :node-2  (node [3 4])}
+     :connections {:N       {'in1     {:node-1  'in}
+                             'in2     {:node-2  'in}}
+                   :control {['ask 0] {:node-1  'remove}
+                             ['ask 1] {:node-2  'remove}}
+                   :node-1  {'size    {:control 'size1}
+                             'init    {:control 'init1}
+                             'send    {:node-2  'add}
+                             'out     {:N       'out}}
+                   :node-2  {'size    {:control 'size2}
+                             'init    {:control 'init2}
+                             'send    {:node-1  'add}
+                             'out     {:N       'out}}}}
+    nil nil nil
+    nil (constantly infinity))))
 
 ;;---
 #_
@@ -264,6 +350,10 @@
 #_(close! chan-in)
 
 #_
-(fast-as-possible-system (network-simulator network-1) 0 (for [i (range 10)] [1 ['in1 i]]))
+(fast-as-possible-system (network-simulator network-1) 0 (for [i (range 50)] [1 ['in1 i]]))
+
 #_
 (fast-as-possible-system (atomic-simulator (queue :queue [1 2])) 0 [[1 ['add 5]]])
+
+#_
+(clojure.pprint/pprint (map first (flatten-model () network-1)))
