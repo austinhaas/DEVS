@@ -4,7 +4,7 @@
    1st Open International Conference on Modeling & Simulation (OICMS). 2005.
    http://www.i3s.unice.fr/~muzy/Publications/oicms_revised_Nov_21_2005.pdf"
   (:require
-   [clojure.set :refer [union difference]]
+   [clojure.set :refer [difference]]
    [des.Simulator :refer [Simulator]]
    [des.priority-queue :as pq]
    [pt-lib.number :refer [infinity]]
@@ -139,28 +139,15 @@
           [A' Q']    (-> [A (pq/pop Q)]
                          (update-sim* (into imminent ra) k->ev*' t)
                          (update-sim* re k->ev*' t))
-
+          out        (k->ev* ())
           ;; Update network structures.
-          #_#_D          (reduce (fn [acc k]
-                               (let [m (A k)]
-                                 (reduce-kv (fn [acc k' m']
-                                              (conj acc [(cons k' (:parent m)) m']))
-                                            acc
-                                            (:components (:state m)))))
-                             #{}
-                             re)
-
-          D          (set (for [k re, [k' m] (:components (:state (A k)))] [(cons k' (rest k)) m]))
+          D          (set (for [k re, [k' m] (:components (:state (A  k)))] [(cons k' (rest k)) m]))
           D'         (set (for [k re, [k' m] (:components (:state (A' k)))] [(cons k' (rest k)) m]))
-
-          D-add      (difference D' D)
-          D-rem      (difference D D')
-
+          D-add      (difference D' D )
+          D-rem      (difference D  D')
           [A' Q']    (-> [A' Q']
                          (rem-model* D-rem)
-                         (add-model* D-add t))
-
-          out        (k->ev* ())]
+                         (add-model* D-add t))]
       [(NetworkSimulator. model [A' Q'] t (or (pq/peek-key Q') infinity))
        out]))
   (ext-update [this x t]
