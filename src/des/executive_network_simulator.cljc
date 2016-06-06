@@ -13,7 +13,7 @@
    [des.executive-model :refer [executive?]]
    [des.executive-network-model :refer [network?]]))
 
-(defn flatten-model
+(defn- flatten-model
   "Returns a sequence of [path model], where path is a seq of keys
   from the item to the root."
   [root model]
