@@ -7,11 +7,9 @@
    [pt-lib.number :refer [infinity]]
    [des.atomic-model :refer [atomic-model]]
    [des.executive-model :refer [executive-model]]
-   [des.network-model :refer [network-model]]
    [des.executive-network-model :refer [executive-network-model]]
    [des.atomic-simulator :refer [atomic-simulator]]
-   ;;[des.network-simulator :refer [network-simulator]]
-   [des.executive-network-simulator :refer [network-simulator flatten-model]]
+   [des.executive-network-simulator :refer [network-simulator]]
    [des.real-time-system :refer [real-time-system]]
    [des.fast-as-possible-system :refer [fast-as-possible-system]]))
 
@@ -280,24 +278,6 @@
      nil
      :output
      :sigma)))
-#_
-(def network-1
-  (network-model
-   {:control (control 10)
-    :node-1  (node [1 2])
-    :node-2  (node [3 4])}
-   {:N       {'in1     {:node-1  'in}
-              'in2     {:node-2  'in}}
-    :control {['ask 0] {:node-1  'remove}
-              ['ask 1] {:node-2  'remove}}
-    :node-1  {'size    {:control 'size1}
-              'init    {:control 'init1}
-              'send    {:node-2  'add}
-              'out     {:N       'out}}
-    :node-2  {'size    {:control 'size2}
-              'init    {:control 'init2}
-              'send    {:node-1  'add}
-              'out     {:N       'out}}}))
 
 (def network-1
   (executive-network-model
@@ -322,7 +302,7 @@
     nil (constantly infinity))))
 
 ;;---
-#_
+
 (do
   (def sim (network-simulator network-1))
 
@@ -332,28 +312,20 @@
   (real-time-system sim 0 chan-in chan-out)
 
   (go (loop []
-        (let [v (<! chan-out)]
-          (if v
-            (do (println (format "> %s" v))
-                (recur))
-            (println 'done))))))
+        (if-let [v (<! chan-out)]
+          (do (println (format "[%s] %s" (first v) (second v)))
+              (recur))
+          (println 'done))))
+
+  (go (dotimes [i 10]
+        (>! chan-in [['in1 i]]))))
 
 #_
 (go
   (dotimes [i 10]
     (>! chan-in [['in1 i]])))
 
-#_
-(go
-  (>! chan-in [['in1 1]]))
-
 #_(close! chan-in)
 
 #_
-(fast-as-possible-system (network-simulator network-1) 0 (for [i (range 50)] [1 ['in1 i]]))
-
-#_
-(fast-as-possible-system (atomic-simulator (queue :queue [1 2])) 0 [[1 ['add 5]]])
-
-#_
-(clojure.pprint/pprint (map first (flatten-model () network-1)))
+(fast-as-possible-system (network-simulator network-1) 0 (for [i (range 10)] [1 ['in1 i]]))
