@@ -1,8 +1,8 @@
 (ns des.Simulator)
 
 (defprotocol Simulator
-  (init       [this t])
-  (int-update [this t])
-  (ext-update [this x t])
-  (tl         [this])
-  (tn         [this]))
+  (init       [sim t])
+  (int-update [sim t])
+  (ext-update [sim x t])
+  (tl         [sim])
+  (tn         [sim]))
