@@ -101,79 +101,6 @@
 ;;---
 
 (def server simple-delay-component)
-#_
-(defn queue [k s*]
-  (letfn [(add-server [s k']
-            (update s :output conj
-                    [:internal [:add-model k' (server 1000)]]
-                    [:internal [:add-connection k ['out k'] k' 'in]]
-                    [:internal [:add-connection k' 'out k ['in k']]]))
-          (rem-server [s k']
-            (update s :output conj
-                    [:internal [:rem-model k' (server 1000)]]
-                    [:internal [:rem-connection k ['out k'] k' 'in]]
-                    [:internal [:rem-connection k' 'out k ['in k']]]))
-          (idle [s k']
-            (update s :idle conj k'))
-          (maybe-process-next [s]
-            (if (and (seq (:idle s)) (seq (:Q s)))
-              (-> s
-                  (update :Q rest)
-                  (update :idle rest)
-                  (update :output conj [['out (first (:idle s))] (first (:Q s))]))
-              s))
-          (enqueue [s v]
-            (update s :Q conj v))
-          (send [s v]
-            (update s :output conj ['out v]))
-          (dispatch [s ev]
-            ;; This wouldn't work for some reason.
-            #_(match ev
-                ['add k]    (-> s (add-server k) (idle k) maybe-process-next)
-                ['remove]   (-> s (rem-server (first (:idle s))) (update :idle rest))
-                ['in v]     (-> s (enqueue v) maybe-process-next)
-                [['in k] v] (-> s (send v) (idle k) maybe-process-next))
-            (let [[port v] ev]
-              (case port
-                add    (-> s (add-server v) (idle v) maybe-process-next)
-                remove (-> s (rem-server (first (:idle s))) (update :idle rest)
-                           (update :output conj ['send (first (:idle s))]))
-                in     (-> s (enqueue v) maybe-process-next)
-                (case (first port)
-                  in (-> s (send v) (idle (second port)) maybe-process-next)))))]
-    (atomic-model
-     ;; Initial state.
-     (let [Q []]
-       {:idle s* :Q Q :sigma 0 :output [['init [(count Q) (count s*)]]]})
-     (fn int-update [s]
-       (assoc s :sigma infinity :output []))
-     (fn ext-update [s e x]
-       (let [s' (-> (reduce dispatch s x)
-                    ;; Assuming every external event results in an output message.
-                    (assoc :sigma 0))]
-         (update s' :output conj ['size [(count (:Q s')) (count (:idle s'))]])))
-     nil
-     :output
-     :sigma)))
-#_
-(defn node [servers]
-  (network-model
-   (reduce (fn [m k] (assoc m k (server 1000)))
-           {:queue (queue :queue servers)}
-           servers)
-   (reduce (fn [m k]
-             (-> m
-                 (assoc-in [:queue ['out k] k] 'in)
-                 (assoc-in [k 'out :queue] ['in k])))
-           {:N        {'in     {:queue    'in}
-                       'remove {:queue    'remove}
-                       'add    {:queue    'add}}
-            :queue    {'size   {:N        'size}
-                       'init   {:N        'init}
-                       'send   {:N        'send}
-                       'out    {:N        'out}
-                       :internal {:N :internal}}}
-           servers)))
 
 (defn queue [k s*]
   (letfn [(add-server [s k']
@@ -302,7 +229,7 @@
     nil (constantly infinity))))
 
 ;;---
-
+#_
 (do
   (def sim (network-simulator network-1))
 
