@@ -255,4 +255,8 @@
 #_(close! chan-in)
 
 #_
-(fast-as-possible-system (network-simulator network-1) 0 (for [i (range 10)] [1 ['in1 i]]))
+(fast-as-possible-system
+ (network-simulator network-1)
+ 0
+ infinity
+ (for [i (range 10)] [1 ['in1 i]]))
