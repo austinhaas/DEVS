@@ -19,8 +19,8 @@
 
 (defn priority-queue
   "Returns a new priority queue with supplied values."
-  [& keyvals]
-  (reduce add (sorted-map) keyvals))
+  ([] (sorted-map))
+  ([& keyvals] (reduce (fn [m [k v]] (add m k v)) (sorted-map) (partition 2 keyvals))))
 
 (defn add
   "Add v to priority-queue, pq, with priority k, unless k is nil or
