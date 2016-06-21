@@ -1,5 +1,5 @@
-(ns des.executive-model
-  (:require [des.atomic-model :refer [atomic-model]]))
+(ns devs.executive-model
+  (:require [devs.atomic-model :refer [atomic-model]]))
 
 (defn executive-model [initial-state
                        int-update-fn ext-update-fn con-update-fn

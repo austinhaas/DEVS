@@ -1,4 +1,4 @@
-(ns des.priority-queue
+(ns devs.priority-queue
   "A priority queue implementation.
 
    Keys are sorted by compare.

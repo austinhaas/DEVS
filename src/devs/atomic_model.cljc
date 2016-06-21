@@ -1,4 +1,4 @@
-(ns des.atomic-model)
+(ns devs.atomic-model)
 
 (defn atomic-model [initial-state
                     int-update-fn ext-update-fn con-update-fn

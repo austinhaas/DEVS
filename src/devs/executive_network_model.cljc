@@ -1,4 +1,4 @@
-(ns des.executive-network-model)
+(ns devs.executive-network-model)
 
 (defn executive-network-model [executive-name executive-model]
   {:type            ::network

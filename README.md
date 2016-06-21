@@ -1,4 +1,4 @@
-# des
+# devs
 
 A discrete-event system based on the DEVS formalism.
 

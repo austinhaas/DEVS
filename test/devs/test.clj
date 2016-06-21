@@ -1,17 +1,17 @@
-(ns des.test
+(ns devs.test
   (:require
    [clojure.test :refer :all]
    [clojure.core.match :refer [match]]
    [clojure.core.async :as async :refer [chan go <! timeout close! >!]]
    [pt-lib.coll :refer [dissoc-in]]
    [pt-lib.number :refer [infinity]]
-   [des.atomic-model :refer [atomic-model]]
-   [des.executive-model :refer [executive-model]]
-   [des.executive-network-model :refer [executive-network-model]]
-   [des.atomic-simulator :refer [atomic-simulator]]
-   [des.executive-network-simulator :refer [network-simulator]]
-   [des.real-time-system :refer [real-time-system]]
-   [des.fast-as-possible-system :refer [fast-as-possible-system]]))
+   [devs.atomic-model :refer [atomic-model]]
+   [devs.executive-model :refer [executive-model]]
+   [devs.executive-network-model :refer [executive-network-model]]
+   [devs.atomic-simulator :refer [atomic-simulator]]
+   [devs.executive-network-simulator :refer [network-simulator]]
+   [devs.real-time-system :refer [real-time-system]]
+   [devs.fast-as-possible-system :refer [fast-as-possible-system]]))
 
 (defn generator [period]
   (atomic-model

@@ -1,7 +1,7 @@
-(ns des.fast-as-possible-system
+(ns devs.fast-as-possible-system
   (:require
    [pt-lib.number :refer [infinity]]
-   [des.Simulator :refer [init int-update ext-update tl tn]]))
+   [devs.Simulator :refer [init int-update ext-update tl tn]]))
 
 (defn fast-as-possible-system [sim start-time end-time ev*]
   (loop [sim (init sim start-time)
