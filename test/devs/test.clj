@@ -71,34 +71,8 @@
    (fn [s]
      (let [[phase sigma store] s]
        sigma))))
-#_
-(def n (network-model
-        {:delay-1 (simple-delay-component 2000)}
-        {:N       {'in  {:delay-1 'in}}
-         :delay-1 {'out {:N       'out}}}))
-#_
-(def n1 (network-model
-         {:delay-1 (simple-delay-component 1000)
-          :delay-2 (simple-delay-component 1000)}
-         {:N       {'in  {:delay-1 'in}}
-          :delay-1 {'out {:delay-2 'in}}
-          :delay-2 {'out {:N       'out}}}))
-#_
-(def n2 (network-model
-         {:gen     (generator 1000)
-          :delay-1b (simple-delay-component 1000)
-          :delay-2b (simple-delay-component 2000)
-          :delay-3 n1
-          :switch  (switch 1000)}
-         {:N       {'in   {:switch  'in}}
-          :delay-1b {'out  {:N       'out1}}
-          :delay-3 {'out  {:N       'out2}}
-          :gen     {'out  {:switch  'in}}
-          :switch  {'out  {:delay-1b 'in}
-                    'out1 {:delay-2b 'in}}
-          :delay-2b {'out  {:delay-3 'in}}}))
 
-;;---
+;;; Example from Theory of Modeling and Simulation, 2nd Ed., pp. 237-240.
 
 (def server simple-delay-component)
 
