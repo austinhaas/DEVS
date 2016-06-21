@@ -55,7 +55,7 @@
                              (= d ())            [s* (conj r* [d ev])]
                              (= d p)             [(conj s* [(:parent (A d)) d ev]) r*]
                              (network? m)        [(conj s* [d (cons :N (rest d)) ev]) r*]
-                             :else               (assert false [p d ev]))))
+                             :else               (assert false (format "No receivers for ev: %s" ev)))))
                        [s*' r*]
                        temp-r*)))
       r*)))
