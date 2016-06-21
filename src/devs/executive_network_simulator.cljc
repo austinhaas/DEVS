@@ -5,13 +5,13 @@
    http://www.i3s.unice.fr/~muzy/Publications/oicms_revised_Nov_21_2005.pdf"
   (:require
    [clojure.set :refer [difference]]
-   [des.Simulator :refer [Simulator]]
-   [des.priority-queue :as pq]
+   [devs.Simulator :refer [Simulator]]
+   [devs.priority-queue :as pq]
    [pt-lib.number :refer [infinity]]
    [pt-lib.coll :refer [group]]
-   [des.atomic-model :refer [atomic?]]
-   [des.executive-model :refer [executive?]]
-   [des.executive-network-model :refer [network?]]))
+   [devs.atomic-model :refer [atomic?]]
+   [devs.executive-model :refer [executive?]]
+   [devs.executive-network-model :refer [network?]]))
 
 (defn- flatten-model
   "Returns a sequence of [path model], where path is a seq of keys
