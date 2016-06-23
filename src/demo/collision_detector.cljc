@@ -52,18 +52,9 @@
     (if (<= u0 u1) u1 -1)))
 
 (defn- sli->events [sli h]
-  ;; (println "sli-events: " h)
-  ;; (println "  intersections: " (sli/intersections sli))
-  ;; (println "    separations: " (sli/separations sli))
-
   (letfn [(convert [a]
             (let [[alr aur] (sli/lookup-rev sli a)
                   [alf auf] (sli/lookup-fwd sli a)
-
-                  ;; _ (println "r: " [alr aur])
-                  ;; _ (println "f: " [alf auf])
-
-
                   aer       (/ (- aur alr) 2)
                   aef       (/ (- auf alf) 2)
                   A0        [(+ alr aer)]
