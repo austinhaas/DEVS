@@ -1,6 +1,5 @@
 (ns demo.collision-detector
   (:require
-   [clojure.set :refer [difference]]
    [pt-lib.math :refer [abs]]
    [pt-lib.number :refer [infinity]]
    [pt-lib.physics.integration :refer [euler-step]]
