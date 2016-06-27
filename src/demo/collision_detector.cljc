@@ -1,5 +1,6 @@
 (ns demo.collision-detector
   (:require
+   [pt-lib.match :refer [match]]
    [pt-lib.math :refer [abs]]
    [pt-lib.number :refer [infinity]]
    [pt-lib.physics.integration :refer [euler-step]]
@@ -120,12 +121,11 @@
            vel         (:vel s)
            sli1        (sli/collapse-rev (:sli s))
            sli2        (sli-move* sli1 vel (- step-size sigma)) ;; There shouldn't be any collision events here.
-           [vel' sli3] (reduce (fn [[vel sli] [[port i] val]]
-                                 (case port
-                                   :add (let [[p v e] val]
-                                          [(assoc vel i v) (sli/add-interval sli i [(- p e) (+ p e)])])
-                                   :rem [(dissoc vel i) (sli/rem-interval sli i)]
-                                   :vel [(assoc vel i val) sli]))
+           [vel' sli3] (reduce (fn [[vel sli] ev]
+                                 (match ev
+                                   [[:add k] [p v e]] [(assoc  vel k v) (sli/add-interval sli k [(- p e) (+ p e)])]
+                                   [[:rem k] nil]     [(dissoc vel k)   (sli/rem-interval sli k)]
+                                   [[:vel k] v]       [(assoc  vel k v) sli]))
                                [vel (sli/collapse-fwd sli2)]
                                x)
            ev1*        (sli->events sli3 0)
