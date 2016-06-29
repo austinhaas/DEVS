@@ -14,8 +14,8 @@
   (executive-network-model
    :collision-network
    (executive-model
-    {:components  {:int   (mult-integrator 1)
-                   :c-det (collision-detector 1)
+    {:components  {:int   (mult-integrator 1000)
+                   :c-det (collision-detector 1000)
                    :c-res (collision-responder2)}
      :connections {:N     {[:add :a]   {:int   [:add :a]
                                         :c-det [:add :a]
@@ -23,20 +23,29 @@
                            [:add :b]   {:int   [:add :b]
                                         :c-det [:add :b]
                                         :c-res [:add :b]}
+                           [:add :c]   {:int   [:add :c]
+                                        :c-det [:add :c]
+                                        :c-res [:add :c]}
                            [:vel :a]   {:int   [:vel :a]
                                         :c-det [:vel :a]
                                         :c-res [:vel :a]}
                            [:vel :b]   {:int   [:vel :b]
                                         :c-det [:vel :b]
-                                        :c-res [:vel :b]}}
+                                        :c-res [:vel :b]}
+                           [:vel :c]   {:int   [:vel :c]
+                                        :c-det [:vel :c]
+                                        :c-res [:vel :c]}}
                    :int   {[:pos :a]   {:N     [:pos :a]}
-                           [:pos :b]   {:N     [:pos :b]}}
+                           [:pos :b]   {:N     [:pos :b]}
+                           [:pos :c]   {:N     [:pos :c]}}
                    :c-det {:coll-start {:c-res :coll-start
                                         :N     :coll-start}
                            :coll-end   {:N     :coll-end}}
                    :c-res {[:vel :a]   {:int   [:vel :a]
                                         :c-det [:vel :a]}
                            [:vel :b]   {:int   [:vel :b]
-                                        :c-det [:vel :b]}}}}
+                                        :c-det [:vel :b]}
+                           [:vel :c]   {:int   [:vel :c]
+                                        :c-det [:vel :c]}}}}
     nil nil nil nil
     (constantly infinity))))

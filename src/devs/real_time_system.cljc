@@ -61,7 +61,7 @@
     (cond
       (= (tn sim) t) (let [[sim' ev*'] (int-update sim t)]
                        (recur sim' ev* (into out ev*')))
-      (seq ev*)      (recur (ext-update sim (first ev*) t) (rest ev*) out)
+      (seq ev*)      (recur (ext-update sim ev* t) [] out)
       :else          [sim out])))
 
 ;; I believe this version correctly sequences internal and external
@@ -92,8 +92,10 @@
                           (if (> (now) wc-t)
                             acc
                             (let [[v ch] (alts! [chan-in (timeout 1)] :priority true)]
-                              (if (and (= ch chan-in) (nil? v))
-                                acc
+                              (if (nil? v)
+                                (if (= ch chan-in)
+                                  acc
+                                  (recur acc))
                                 (recur (conj acc v))))))
                   [sim' ev*'] (update-sim sim sim-t ev*)]
               (doseq [ev ev*'] (>! chan-out [[(- wc-t wc-start) sim-t] ev]))
