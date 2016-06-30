@@ -31,7 +31,13 @@
                            [:vel :b]   {:int   [:vel :b]
                                         :c-det [:vel :b]}
                            [:vel :c]   {:int   [:vel :c]
-                                        :c-det [:vel :c]}}
+                                        :c-det [:vel :c]}
+                           [:rem :a]   {:int   [:rem :a]
+                                        :c-det [:rem :a]}
+                           [:rem :b]   {:int   [:rem :b]
+                                        :c-det [:rem :b]}
+                           [:rem :c]   {:int   [:rem :c]
+                                        :c-det [:rem :c]}}
                    :int   {[:pos :a]   {:N     [:pos :a]}
                            [:pos :b]   {:N     [:pos :b]}
                            [:pos :c]   {:N     [:pos :c]}}
@@ -101,6 +107,33 @@
 #_(close! chan-in)
 
 (deftest collision-network-tests-1
+  (testing "2 particles. Both Stationary. Initially intersecting."
+    (is (eq? (fast-as-possible-system
+              (network-simulator (collision-network-1))
+              0
+              2
+              [[0 [[:add :a] [0 0 1]]]
+               [0 [[:add :b] [0 0 1]]]])
+             [[0 [[:pos :a] 0]]
+              [0 [[:pos :b] 0]]
+              [0 [:coll-start #{:b :a}]]
+              [1 [[:pos :a] 0]]
+              [1 [[:pos :b] 0]]])))
+  (testing "2 particles. One moving. Initially intersecting."
+    (is (eq? (fast-as-possible-system
+              (network-simulator (collision-network-1))
+              0
+              3
+              [[0 [[:add :a] [0 1 1]]]
+               [0 [[:add :b] [0 0 1]]]])
+             [[0 [[:pos :a] 0]]
+              [0 [[:pos :b] 0]]
+              [0 [:coll-start #{:b :a}]]
+              [1 [[:pos :a] 1]]
+              [1 [[:pos :b] 0]]
+              [2 [[:pos :a] 2]]
+              [2 [[:pos :b] 0]]
+              [2 [:coll-end #{:b :a}]]])))
   (testing "2 particles. One moving. One stationary. No response."
     (is (eq? (fast-as-possible-system
               (network-simulator (collision-network-1))
@@ -144,7 +177,74 @@
               [3.000 [[:pos :b] 2]]
               [3.500 [:coll-end #{:b :a}]]
               [4.000 [[:pos :a] 4]]
-              [4.000 [[:pos :b] 1]]]))))
+              [4.000 [[:pos :b] 1]]])))
+    (testing "3 particles. One moving. No response."
+    (is (eq? (fast-as-possible-system
+              (network-simulator (collision-network-1))
+              0
+              8
+              [[0 [[:add :a] [0 1 1]]]
+               [0 [[:add :b] [3 0 1]]]
+               [0 [[:add :c] [5 0 1]]]])
+             [[0 [[:pos :a] 0]]
+              [0 [[:pos :b] 3]]
+              [0 [[:pos :c] 5]]
+              [1 [[:pos :a] 1]]
+              [1 [[:pos :b] 3]]
+              [1 [[:pos :c] 5]]
+              [1 [:coll-start #{:b :a}]]
+              [2 [[:pos :a] 2]]
+              [2 [[:pos :b] 3]]
+              [2 [[:pos :c] 5]]
+              [3 [[:pos :a] 3]]
+              [3 [[:pos :b] 3]]
+              [3 [[:pos :c] 5]]
+              [3 [:coll-start #{:c :a}]]
+              [4 [[:pos :a] 4]]
+              [4 [[:pos :b] 3]]
+              [4 [[:pos :c] 5]]
+              [5 [:coll-end #{:b :a}]]
+              [5 [[:pos :a] 5]]
+              [5 [[:pos :b] 3]]
+              [5 [[:pos :c] 5]]
+              [6 [[:pos :a] 6]]
+              [6 [[:pos :b] 3]]
+              [6 [[:pos :c] 5]]
+              [7 [:coll-end #{:c :a}]]
+              [7 [[:pos :a] 7]]
+              [7 [[:pos :b] 3]]
+              [7 [[:pos :c] 5]]])))
+  (testing "3 particles. One moving. The others overlapping. No response."
+    (is (eq? (fast-as-possible-system
+              (network-simulator (collision-network-1))
+              0
+              6
+              [[0 [[:add :a] [0 1 1]]]
+               [0 [[:add :b] [3 0 1]]]
+               [0 [[:add :c] [3 0 1]]]])
+             [[0 [[:pos :a] 0]]
+              [0 [[:pos :b] 3]]
+              [0 [[:pos :c] 3]]
+              [0 [:coll-start #{:c :b}]]
+              [1 [[:pos :a] 1]]
+              [1 [[:pos :b] 3]]
+              [1 [[:pos :c] 3]]
+              [1 [:coll-start #{:b :a}]]
+              [1 [:coll-start #{:c :a}]]
+              [2 [[:pos :a] 2]]
+              [2 [[:pos :b] 3]]
+              [2 [[:pos :c] 3]]
+              [3 [[:pos :a] 3]]
+              [3 [[:pos :b] 3]]
+              [3 [[:pos :c] 3]]
+              [4 [[:pos :a] 4]]
+              [4 [[:pos :b] 3]]
+              [4 [[:pos :c] 3]]
+              [5 [:coll-end #{:b :a}]]
+              [5 [[:pos :a] 5]]
+              [5 [[:pos :b] 3]]
+              [5 [[:pos :c] 3]]
+              [5 [:coll-end #{:c :a}]]]))))
 
 (deftest collision-network-tests-2
   (testing "2 particles. One moving. One stationary. Response."
@@ -185,3 +285,39 @@
               [3 [[:pos :b] 5]]
               [4 [[:pos :a] -1]]
               [4 [[:pos :b] 6]]]))))
+
+(deftest collision-network-tests-3
+  (testing "2 particles. Both Stationary. Initially intersecting. One object removed."
+    (is (eq? (fast-as-possible-system
+              (network-simulator (collision-network-1))
+              0
+              4
+              [[0 [[:add :a] [0 0 1]]]
+               [0 [[:add :b] [0 0 1]]]
+               [2 [[:rem :a]]]])
+             [[0 [[:pos :a] 0]]
+              [0 [[:pos :b] 0]]
+              [0 [:coll-start #{:b :a}]]
+              [1 [[:pos :a] 0]]
+              [1 [[:pos :b] 0]]
+              [2 [:coll-end #{:b :a}]]
+              [2 [[:pos :a] 0]]
+              [2 [[:pos :b] 0]]
+              [3 [[:pos :b] 0]]])))
+  (testing "2 particles. One moving. One object removed at expected :coll-start."
+    (is (eq? (fast-as-possible-system
+              (network-simulator (collision-network-1))
+              0
+              4
+              [[0 [[:add :a] [0 1 1]]]
+               [0 [[:add :b] [4 0 1]]]
+               [2 [[:rem :a]]]])
+             [[0 [[:pos :a] 0]]
+              [0 [[:pos :b] 4]]
+              [1 [[:pos :a] 1]]
+              [1 [[:pos :b] 4]]
+              [2 [:coll-start #{:b :a}]]
+              [2 [:coll-end #{:b :a}]]
+              [2 [[:pos :a] 2]]
+              [2 [[:pos :b] 4]]
+              [3 [[:pos :b] 4]]]))))
