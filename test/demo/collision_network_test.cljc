@@ -284,7 +284,35 @@
               [3 [[:pos :a] 0]]
               [3 [[:pos :b] 5]]
               [4 [[:pos :a] -1]]
-              [4 [[:pos :b] 6]]]))))
+              [4 [[:pos :b] 6]]])))
+  (testing "3 particles. One moving. Two stationary and overlapping. Response."
+    (is (eq? (fast-as-possible-system
+              (network-simulator (collision-network-2))
+              0
+              5
+              [[0 [[:add :a] [0 1 1]]]
+               [0 [[:add :b] [4 0 1]]]
+               [0 [[:add :c] [4 0 1]]]])
+             [[0 [[:pos :a] 0]]
+              [0 [[:pos :b] 4]]
+              [0 [[:pos :c] 4]]
+              [0 [:coll-start #{:c :b}]]
+              [1 [[:pos :a] 1]]
+              [1 [[:pos :b] 4]]
+              [1 [[:pos :c] 4]]
+              [2 [[:pos :a] 2]]
+              [2 [[:pos :b] 4]]
+              [2 [[:pos :c] 4]]
+              [2 [:coll-start #{:b :a}]]
+              [2 [:coll-start #{:c :a}]]
+              [2 [:coll-end #{:b :a}]]
+              [2 [:coll-end #{:c :a}]]
+              [3 [[:pos :a] 1]]
+              [3 [[:pos :b] 4]]
+              [3 [[:pos :c] 4]]
+              [4 [[:pos :a] 0]]
+              [4 [[:pos :b] 4]]
+              [4 [[:pos :c] 4]]]))))
 
 (deftest collision-network-tests-3
   (testing "2 particles. Both Stationary. Initially intersecting. One object removed."
