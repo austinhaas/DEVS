@@ -43,29 +43,31 @@
             (atomic-simulator (mult-integrator 100))
             0
             400
-            [[0 [[:add :a] [0 1]]]])
+            [[0 [[:add :a] [0 1 0]]]])
            [[0   [[:pos :a] 0]]
             [100 [[:pos :a] 100]]
             [200 [[:pos :a] 200]]
             [300 [[:pos :a] 300]]]))
 
   (is (eq? (fast-as-possible-system
-            (atomic-simulator (integrator :a 0 1 100 0))
+            (atomic-simulator (mult-integrator 100))
             0
             400
-            [[100 [:vel 2]]])
-           [[0   [:pos [:a 0]]]
-            [100 [:pos [:a 100]]]
-            [200 [:pos [:a 300]]]
-            [300 [:pos [:a 500]]]]))
+            [[0   [[:add :a] [0 1 0]]]
+             [100 [[:vel :a] 2]]])
+           [[0   [[:pos :a] 0]]
+            [100 [[:pos :a] 100]]
+            [200 [[:pos :a] 300]]
+            [300 [[:pos :a] 500]]]))
 
   (is (eq? (fast-as-possible-system
-            (atomic-simulator (integrator :a 0 1 100 0))
+            (atomic-simulator (mult-integrator 100))
             0
             500
-            [[120 [:vel -1]]])
-           [[0   [:pos [:a 0]]]
-            [100 [:pos [:a 100]]]
-            [200 [:pos [:a 40]]]
-            [300 [:pos [:a -60]]]
-            [400 [:pos [:a -160]]]])))
+            [[0   [[:add :a] [0 1 0]]]
+             [120 [[:vel :a] -1]]])
+           [[0   [[:pos :a] 0]]
+            [100 [[:pos :a] 100]]
+            [200 [[:pos :a] 40]]
+            [300 [[:pos :a] -60]]
+            [400 [[:pos :a] -160]]])))
