@@ -17,8 +17,8 @@
                        [:add [k p v e]]  [(assoc vel k v) out]
                        [:vel [k v]]      [(assoc vel k v) out]
                        [:coll-start val] (let [[a b] (vec val)
-                                               va    (get-in s [:vel a])
-                                               vb    (get-in s [:vel b])]
+                                               va    (vel a)
+                                               vb    (vel b)]
                                            [vel (conj out
                                                       [:vel [a (* -1 va)]]
                                                       [:vel [b (* -1 vb)]])])))
