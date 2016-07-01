@@ -12,8 +12,8 @@
            (atomic-simulator (collision-detector 1))
            0
            4
-           [[0 [[:add :a] [0 0 1]]]
-            [0 [[:add :b] [0 2 1]]]])
+           [[0 [:add [:a 0 0 1]]]
+            [0 [:add [:b 0 2 1]]]])
           [[0 [:coll-start #{:a :b}]]
            [1 [:coll-end   #{:a :b}]]]))
 
@@ -21,7 +21,7 @@
             (atomic-simulator (collision-detector 1))
             0
             10
-            [[0 [[:add :a] [0 0 1]]]
-             [0 [[:add :b] [5 -2 1]]]])
+            [[0 [:add [:a 0 0 1]]]
+             [0 [:add [:b 5 -2 1]]]])
            [[1.5 [:coll-start #{:a :b}]]
             [3.5 [:coll-end   #{:a :b}]]])))

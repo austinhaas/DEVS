@@ -161,11 +161,11 @@
            ;; Incorporate new data.
            [vel' sl3 d3] (reduce (fn [[vel sl d] ev]
                                    (match ev
-                                     [[:add k] [p v e]] (let [[sl' d'] (sl/add-interval sl k [(- p e) (+ p e)])]
-                                                          [(assoc vel k v) sl' (merge-with into d d')])
-                                     [[:rem k] nil]     (let [[sl' d'] (sl/rem-interval sl k)]
-                                                          [(dissoc vel k) sl' (merge-with into d d')])
-                                     [[:vel k] v]       [(assoc vel k v) sl d]))
+                                     [:add [k p v e]] (let [[sl' d'] (sl/add-interval sl k [(- p e) (+ p e)])]
+                                                        [(assoc vel k v) sl' (merge-with into d d')])
+                                     [:rem k]         (let [[sl' d'] (sl/rem-interval sl k)]
+                                                        [(dissoc vel k) sl' (merge-with into d d')])
+                                     [:vel [k v]]       [(assoc vel k v) sl d]))
                                  [vel sl2 {}]
                                  x)
            ;; Project to the next int-update time.
