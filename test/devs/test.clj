@@ -1,3 +1,7 @@
+
+;;; This was an old demo of a dynamic system. It hasn't been updated
+;;; to work with the current code base.
+
 (ns devs.test
   (:require
    [clojure.test :refer :all]
