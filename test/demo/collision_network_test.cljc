@@ -59,46 +59,6 @@
     nil nil nil nil
     (constantly infinity))))
 
-;; First attempt at a dynamic network.
-#_(defn collision-network-0 []
-  (executive-network-model
-   :net
-   (executive-model
-    {:output [] :sigma infinity
-     :components  {:int   (mult-integrator 1)
-                   :c-det (collision-detector 1)}
-     :connections {:N     {:add        {:net :add}
-                           :rem        {:net :rem}}
-                   :c-det {:coll-start {:N   :coll-start}
-                           :coll-end   {:N   :coll-end}}}}
-    (fn int-update [s] (assoc s :output [] :sigma infinity))
-    (fn ext-update [s e x]
-      (reduce (fn [s ev]
-                (match ev
-                  [:add [k p v e]] (-> s
-                                       (assoc-in [:connections :N   [:vel k] :int]   [:vel k])
-                                       (assoc-in [:connections :N   [:vel k] :c-det] [:vel k])
-                                       (assoc-in [:connections :net [:add k] :int]   [:add k])
-                                       (assoc-in [:connections :net [:add k] :c-det] [:add k])
-                                       (assoc-in [:connections :net [:rem k] :int]   [:rem k])
-                                       (assoc-in [:connections :net [:rem k] :c-det] [:rem k])
-                                       (assoc-in [:connections :int [:pos k] :N]     [:pos k])
-                                       (update   :output conj [[:add k] [p v e]]))
-                  [:rem k]         (-> s
-                                       (dissoc-in [:connections :N   [:vel k] :int]   )
-                                       (dissoc-in [:connections :N   [:vel k] :c-det] )
-                                       (dissoc-in [:connections :net [:add k] :int]   )
-                                       (dissoc-in [:connections :net [:add k] :c-det] )
-                                       (dissoc-in [:connections :net [:rem k] :int]   )
-                                       (dissoc-in [:connections :net [:rem k] :c-det] )
-                                       (dissoc-in [:connections :int [:pos k] :N]     )
-                                       (update    :output conj [[:rem k] nil]))))
-              (assoc s :sigma 0)
-              x))
-    nil
-    :output
-    :sigma)))
-
 #_
 (do
   (def sim (network-simulator (collision-network-1)))
