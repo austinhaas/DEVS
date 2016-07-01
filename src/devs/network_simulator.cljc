@@ -1,4 +1,4 @@
-(ns devs.executive-network-simulator
+(ns devs.network-simulator
   "Muzy, Alexander, and James J. Nutaro. \"Algorithms for efficient
    implementations of the DEVS & DSDEVS abstract simulators.\"
    1st Open International Conference on Modeling & Simulation (OICMS). 2005.
@@ -11,7 +11,7 @@
    [pt-lib.coll :refer [group]]
    [devs.atomic-model :refer [atomic?]]
    [devs.executive-model :refer [executive?]]
-   [devs.executive-network-model :refer [network?]]))
+   [devs.network-model :refer [network?]]))
 
 (defn- flatten-model
   "Returns a sequence of [path model], where path is a seq of keys

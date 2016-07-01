@@ -6,18 +6,18 @@
    [pt-lib.match :refer [match]]
    [pt-lib.number :refer [infinity]]
    [devs.executive-model :refer [executive-model]]
-   [devs.executive-network-model :refer [executive-network-model]]
+   [devs.network-model :refer [network-model]]
    [devs.atomic-model :refer [atomic-model]]
    [demo.integrator :refer [mult-integrator]]
    [demo.collision-detector :refer [collision-detector]]
    [demo.collision-responder :refer [collision-responder]]
    [clojure.core.async :as async :refer [chan go <! timeout close! >! onto-chan]]
-   [devs.executive-network-simulator :refer [network-simulator]]
+   [devs.network-simulator :refer [network-simulator]]
    [devs.fast-as-possible-system :refer [fast-as-possible-system]]
    [devs.real-time-system :refer [real-time-system]]))
 
 (defn collision-network-1 []
-  (executive-network-model
+  (network-model
    :net
    (executive-model
     {:components  {:int   (mult-integrator 1)
@@ -35,7 +35,7 @@
     (constantly infinity))))
 
 (defn collision-network-2 []
-   (executive-network-model
+   (network-model
    :net
    (executive-model
     {:components  {:int   (mult-integrator 1)
