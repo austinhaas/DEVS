@@ -2,7 +2,7 @@
   (:require
    [pt-lib.match :refer [match]]
    [pt-lib.number :refer [infinity]]
-   [devs.atomic-model :refer [atomic-model]]))
+   [devs.models :refer [atomic-model]]))
 
 (defn collision-responder []
   (atomic-model

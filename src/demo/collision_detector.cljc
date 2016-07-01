@@ -5,7 +5,7 @@
    [pt-lib.number :refer [infinity]]
    [pt-lib.physics.integration :refer [euler-step]]
    [pt-lib.collision.sweep-list :as sl]
-   [devs.atomic-model :refer [atomic-model]]))
+   [devs.models :refer [atomic-model]]))
 
 ;; http://www.gamasutra.com/view/feature/131790/simple_intersection_tests_for_games.php?page=3
 

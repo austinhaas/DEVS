@@ -3,7 +3,7 @@
    [pt-lib.match :refer [match]]
    [pt-lib.coll :refer [group]]
    [pt-lib.physics.integration :refer [euler-step]]
-   [devs.atomic-model :refer [atomic-model]]))
+   [devs.models :refer [atomic-model]]))
 
 (defn integrator [k pos vel h offset]
   (atomic-model

@@ -9,9 +9,7 @@
    [devs.priority-queue :as pq]
    [pt-lib.number :refer [infinity]]
    [pt-lib.coll :refer [group]]
-   [devs.atomic-model :refer [atomic?]]
-   [devs.executive-model :refer [executive?]]
-   [devs.network-model :refer [network?]]))
+   [devs.models :refer [atomic? executive? network?]]))
 
 (defn- flatten-model
   "Returns a sequence of [path model], where path is a seq of keys
@@ -50,12 +48,11 @@
         (recur (reduce (fn [[s* r*] [p d ev]]
                          (let [m (:model (A d))]
                            (cond
-                             (or (atomic? m)
-                                 (executive? m)) [s* (conj r* [d ev])]
-                             (= d ())            [s* (conj r* [d ev])]
-                             (= d p)             [(conj s* [(:parent (A d)) d ev]) r*]
-                             (network? m)        [(conj s* [d (cons :N (rest d)) ev]) r*]
-                             :else               (assert false (format "No receivers for ev: %s" ev)))))
+                             (atomic? m)  [s* (conj r* [d ev])]
+                             (= d ())     [s* (conj r* [d ev])]
+                             (= d p)      [(conj s* [(:parent (A d)) d ev]) r*]
+                             (network? m) [(conj s* [d (cons :N (rest d)) ev]) r*]
+                             :else        (assert false (format "No receivers for ev: %s" ev)))))
                        [s*' r*]
                        temp-r*)))
       r*)))
