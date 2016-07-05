@@ -33,7 +33,7 @@
     (constantly infinity))))
 
 (defn collision-network-2 []
-   (network-model
+  (network-model
    :net
    (executive-model
     {:components  {:int   (mult-integrator 1)
