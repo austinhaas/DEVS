@@ -1,7 +1,7 @@
 
 ;;; This was an old demo of a dynamic system. It hasn't been updated
 ;;; to work with the current code base.
-
+(comment
 (ns devs.test
   (:require
    [clojure.test :refer :all]
@@ -238,3 +238,4 @@
  0
  infinity
  (for [i (range 10)] [1 ['in1 i]]))
+)
