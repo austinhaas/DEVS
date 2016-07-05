@@ -99,7 +99,8 @@
   (let [{:keys [state model tl tn]} d
         state' (if (= t tn)
                  (if (seq ev*)
-                   ((:con-update-fn model) state ev*)
+                   (let [e (- t tl)]
+                     ((:con-update-fn model) state e ev*))
                    ((:int-update-fn model) state))
                  (let [e (- t tl)]
                    ((:ext-update-fn model) state e ev*)))]
