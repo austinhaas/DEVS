@@ -57,13 +57,18 @@
                        temp-r*)))
       r*)))
 
+(defn- checked-time-advance [m s]
+  (let [sigma ((:time-advance-fn m) s)]
+    (assert (>= sigma 0))
+    sigma))
+
 (defn- init-atomic-model [path m t]
   {:path   path
    :parent (rest path)
    :model  m
    :state  (:initial-state m)
    :tl     t
-   :tn     (+ t ((:time-advance-fn m) (:initial-state m)))})
+   :tn     (+ t (checked-time-advance m (:initial-state m)))})
 
 (defn- init-network-model [p m]
   {:path   p
@@ -107,7 +112,7 @@
     (assoc d
            :state state'
            :tl    t
-           :tn    (+ t ((:time-advance-fn model) state')))))
+           :tn    (+ t (checked-time-advance model state')))))
 
 (defn- update-sim* [[A Q] k* k->ev* t]
   (let [A' (reduce (fn [A k] (update A k update-sim t (k->ev* k))) A k*)
