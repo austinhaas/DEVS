@@ -149,7 +149,7 @@
              events  (->> (sl->events sl1 sl2 d)
                           ;; relative -> absolute time
                           (map (fn [[t ev]] [(* t step-size) ev]))
-                          vec)]
+                          aggregate-events)]
          (assoc s :sl sl2 :events events :t 0))))
    (fn ext-update [s e x]
      (let [vel           (:vel s)
@@ -189,19 +189,15 @@
                               ;; Offset time.
                               (map (fn [[t' ev]] [(+ t t') ev])))
            ;; Aggregate events occuring at the same time.
-           ;;   This is probably how events should be organized all the time.
-           events1'      (aggregate-events events1)
            events2'      (aggregate-events events2)
            events3'      (aggregate-events events3)
            events4'      (aggregate-events events4)
-           events'       (reduce merge-events [events1' events2' events3' events4'])
-           ;; De-aggregate events.
-           events''      (for [[t s] events', ev s] [t ev])]
-       (assoc s :vel vel' :sl sl4 :t t :events events'')))
+           events'       (reduce merge-events [events1 events2' events3' events4'])]
+       (assoc s :vel vel' :sl sl4 :t t :events events')))
    nil
    (fn [s]
      (if (seq (:events s))
-       [(second (first (:events s)))]
+       (second (first (:events s)))
        []))
    (fn [s]
      (if (seq (:events s))
