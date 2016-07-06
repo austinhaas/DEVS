@@ -9,7 +9,10 @@
    [devs.priority-queue :as pq]
    [pt-lib.number :refer [infinity]]
    [pt-lib.coll :refer [group]]
-   [devs.models :refer [atomic? executive? network?]]))
+   [devs.models :refer [atomic? executive? network?
+                        initial-state int-update-fn ext-update-fn con-update-fn output-fn time-advance-fn
+                        get-components get-connections
+                        exec-name exec-model]]))
 
 (defn- flatten-model
   "Returns a sequence of [path model], where path is a seq of keys
@@ -20,9 +23,9 @@
     (if (seq open)
       (let [[[p m] & open'] open]
         (if (network? m)
-          (recur (concat open' (for [[k' m'] (get-in m [:executive-model :initial-state :components])]
+          (recur (concat open' (for [[k' m'] (get-components (initial-state (exec-model m)))]
                                  [(cons k' p) m']))
-                 (-> acc (conj! [p m]) (conj! [(cons (:executive-name m) p) (:executive-model m)])))
+                 (-> acc (conj! [p m]) (conj! [(cons (exec-name m) p) (exec-model m)])))
           (recur open' (conj! acc [p m]))))
       (persistent! acc))))
 
@@ -37,12 +40,12 @@
       (let [[[p s [port val]] & s*'] s*
             ;; Find initial set of receivers.
             k           (if (= p s) :N (first s))
-            exec-name   (get-in A [p :model :executive-name])
+            exec-name   (exec-name (get-in A [p :model]))
             exec-model  (A (cons exec-name p))
-            temp-r*     (for [[d port'] (get-in exec-model [:state :connections k port])]
-                          (if (= d :N)
-                            [p p [port' val]]
-                            [p (cons d p) [port' val]]))]
+            temp-r*     (for [[d port' t] (get-connections (:state exec-model) k port)]
+                          (let [d'   (if (= d :N) p (cons d p))
+                                val' (t val)]
+                            [p d' [port' val']]))]
         ;; Sort receivers into actual receivers and new senders for
         ;; networks forwarding events.
         (recur (reduce (fn [[s* r*] [p d ev]]
@@ -58,7 +61,7 @@
       r*)))
 
 (defn- checked-time-advance [m s]
-  (let [sigma ((:time-advance-fn m) s)]
+  (let [sigma ((time-advance-fn m) s)]
     (assert (>= sigma 0))
     sigma))
 
@@ -66,9 +69,9 @@
   {:path   path
    :parent (rest path)
    :model  m
-   :state  (:initial-state m)
+   :state  (initial-state m)
    :tl     t
-   :tn     (+ t (checked-time-advance m (:initial-state m)))})
+   :tn     (+ t (checked-time-advance m (initial-state m)))})
 
 (defn- init-network-model [p m]
   {:path   p
@@ -98,17 +101,17 @@
 (defn- rem-model* [[A Q] p-m*]
   (reduce (fn [[A Q] [p m]] (rem-model [A Q] p m)) [A Q] p-m*))
 
-(defn- compute [d] ((:output-fn (:model d)) (:state d)))
+(defn- compute [d] ((output-fn (:model d)) (:state d)))
 
 (defn- update-sim [d t ev*]
   (let [{:keys [state model tl tn]} d
         state' (if (= t tn)
                  (if (seq ev*)
                    (let [e (- t tl)]
-                     ((:con-update-fn model) state e ev*))
-                   ((:int-update-fn model) state))
+                     ((con-update-fn model) state e ev*))
+                   ((int-update-fn model) state))
                  (let [e (- t tl)]
-                   ((:ext-update-fn model) state e ev*)))]
+                   ((ext-update-fn model) state e ev*)))]
     (assoc d
            :state state'
            :tl    t
@@ -144,8 +147,8 @@
                          (update-sim* re k->ev*' t))
           out        (k->ev* ())
           ;; Update network structures.
-          D          (set (for [k re, [k' m] (:components (:state (A  k)))] [(cons k' (rest k)) m]))
-          D'         (set (for [k re, [k' m] (:components (:state (A' k)))] [(cons k' (rest k)) m]))
+          D          (set (for [k re, [k' m] (get-components (:state (A  k)))] [(cons k' (rest k)) m]))
+          D'         (set (for [k re, [k' m] (get-components (:state (A' k)))] [(cons k' (rest k)) m]))
           D-add      (difference D' D )
           D-rem      (difference D  D')
           [A' Q']    (-> [A' Q']

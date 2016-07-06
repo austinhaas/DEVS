@@ -5,7 +5,7 @@
    [pt-lib.coll :refer [dissoc-in]]
    [pt-lib.match :refer [match]]
    [pt-lib.number :refer [infinity]]
-   [devs.models :refer [atomic-model executive-model network-model]]
+   [devs.models :refer [atomic-model executive-model network-model add-component add-connection]]
    [demo.integrator :refer [mult-integrator]]
    [demo.collision-detector :refer [collision-detector]]
    [demo.collision-responder :refer [collision-responder]]
@@ -14,48 +14,33 @@
    [devs.fast-as-possible-system :refer [fast-as-possible-system]]
    [devs.real-time-system :refer [real-time-system]]))
 
-(defn collision-network-1 []
-  (network-model
-   :net
-   (executive-model
-    {:components  {:int   (mult-integrator 1)
-                   :c-det (collision-detector 1)}
-     :connections {:N     {:add        {:int   :add
-                                        :c-det :add}
-                           :rem        {:int   :rem
-                                        :c-det :rem}
-                           :vel        {:int   :vel
-                                        :c-det :vel}}
-                   :int   {:pos        {:N   :pos}}
-                   :c-det {:coll-start {:N   :coll-start}
-                           :coll-end   {:N   :coll-end}}}}
-    nil nil nil nil
-    (constantly infinity))))
+(def s1 (-> {}
+            (add-component :int   (mult-integrator 1))
+            (add-component :c-det (collision-detector 1))
+            (add-connection :N     :add        :int   :add (fn [[k p v e]] [k p v]))
+            (add-connection :N     :add        :c-det :add)
+            (add-connection :N     :rem        :int   :rem)
+            (add-connection :N     :rem        :c-det :rem)
+            (add-connection :N     :vel        :int   :vel)
+            (add-connection :N     :vel        :c-det :vel)
+            (add-connection :int   :pos        :N     :pos)
+            (add-connection :c-det :coll-start :N     :coll-start)
+            (add-connection :c-det :coll-end   :N     :coll-end)))
 
-(defn collision-network-2 []
-  (network-model
-   :net
-   (executive-model
-    {:components  {:int   (mult-integrator 1)
-                   :c-det (collision-detector 1)
-                   :c-res (collision-responder)}
-     :connections {:N     {:add        {:int   :add
-                                        :c-det :add
-                                        :c-res :add}
-                           :rem        {:int   :rem
-                                        :c-det :rem
-                                        :c-res :rem}
-                           :vel        {:int   :vel
-                                        :c-det :vel
-                                        :c-res :vel}}
-                   :int   {:pos        {:N     :pos}}
-                   :c-det {:coll-start {:N     :coll-start
-                                        :c-res :coll-start}
-                           :coll-end   {:N     :coll-end}}
-                   :c-res {:vel        {:int   :vel
-                                        :c-det :vel}}}}
-    nil nil nil nil
-    (constantly infinity))))
+(def s2 (-> s1
+            (add-component :c-res (collision-responder))
+            (add-connection :N     :add        :c-res :add)
+            (add-connection :N     :rem        :c-res :rem)
+            (add-connection :N     :vel        :c-res :vel)
+            (add-connection :c-det :coll-start :c-res :coll-start)
+            (add-connection :c-res :vel        :int   :vel)
+            (add-connection :c-res :vel        :c-det :vel)))
+
+(defn exec-1 [name] (executive-model s1 nil nil nil nil (constantly infinity)))
+(defn exec-2 [name] (executive-model s2 nil nil nil nil (constantly infinity)))
+
+(defn collision-network-1 [] (network-model :net (exec-1 :net)))
+(defn collision-network-2 [] (network-model :net (exec-2 :net)))
 
 #_
 (do

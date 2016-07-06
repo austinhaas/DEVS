@@ -43,7 +43,7 @@
             (atomic-simulator (mult-integrator 100))
             0
             400
-            [[0 [:add [:a 0 1 0]]]])
+            [[0 [:add [:a 0 1]]]])
            [[0   [:pos [:a 0]]]
             [100 [:pos [:a 100]]]
             [200 [:pos [:a 200]]]
@@ -53,7 +53,7 @@
             (atomic-simulator (mult-integrator 100))
             0
             400
-            [[0   [:add [:a 0 1 0]]]
+            [[0   [:add [:a 0 1]]]
              [100 [:vel [:a 2]]]])
            [[0   [:pos [:a 0]]]
             [100 [:pos [:a 100]]]
@@ -64,7 +64,7 @@
             (atomic-simulator (mult-integrator 100))
             0
             500
-            [[0   [:add [:a 0 1 0]]]
+            [[0   [:add [:a 0 1]]]
              [120 [:vel [:a -1]]]])
            [[0   [:pos [:a 0]]]
             [100 [:pos [:a 100]]]

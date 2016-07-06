@@ -61,22 +61,22 @@
            [pos1 pos2 vel out]
            (reduce (fn [[pos1 pos2 vel out] ev]
                      (match ev
-                       [:add [k p v e]] [(assoc pos1 k p)
-                                         (assoc pos2 k (euler-step v p sigma))
+                       [:add [k p v]] [(assoc pos1 k p)
+                                       (assoc pos2 k (euler-step v p sigma))
+                                       (assoc vel  k v)
+                                       (if (= sigma h)
+                                         (conj out [:pos [k p]])
+                                         out)]
+                       [:rem k]       [(dissoc pos1 k) (dissoc pos2 k) (dissoc vel k) out]
+                       [:vel [k v]]   (let [v' ((:vel  s) k)
+                                            p  ((:pos1 s) k)
+                                            p1 (euler-step v' p e)]
+                                        [(assoc pos1 k p1)
+                                         (assoc pos2 k (euler-step v p1 sigma))
                                          (assoc vel  k v)
-                                         (if (= sigma h)
-                                           (conj out [:pos [k p]])
-                                           out)]
-                       [:rem k]         [(dissoc pos1 k) (dissoc pos2 k) (dissoc vel k) out]
-                       [:vel [k v]]     (let [v' ((:vel  s) k)
-                                              p  ((:pos1 s) k)
-                                              p1 (euler-step v' p e)]
-                                          [(assoc pos1 k p1)
-                                           (assoc pos2 k (euler-step v p1 sigma))
-                                           (assoc vel  k v)
-                                           (if (and (= sigma h) (not= p1 p))
-                                             (conj out [:pos [k p1]])
-                                             out)])))
+                                         (if (and (= sigma h) (not= p1 p))
+                                           (conj out [:pos [k p1]])
+                                           out)])))
                    [(:pos1 s) (:pos2 s) (:vel s) []]
                    x)]
        (assoc s
