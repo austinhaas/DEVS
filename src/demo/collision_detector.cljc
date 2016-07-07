@@ -1,55 +1,10 @@
 (ns demo.collision-detector
   (:require
    [pt-lib.match :refer [match]]
-   [pt-lib.math :refer [abs]]
    [pt-lib.physics.integration :refer [euler-step]]
+   [pt-lib.collision.collision :refer [time-of-collision time-of-separation]]
    [pt-lib.collision.sweep-list :as sl]
    [devs.models :refer [atomic-model]]))
-
-;; http://www.gamasutra.com/view/feature/131790/simple_intersection_tests_for_games.php?page=3
-
-(defn- overlaps? [A Ea B Eb]
-  ;; A is the center. Ea is the extent in each axis.
-  (every? true? (map (fn [a ea b eb] (<= (abs (- b a)) (+ ea eb))) A Ea B Eb)))
-
-(defn- time-of-collision%
-  [a a' ea b b' eb]
-  (let [;; Displacement of a and b.
-        va (- a' a)
-        vb (- b' b)
-        ;; The problem is solved in a's frame of reference.
-        v  (- vb va)
-        a0 (- a ea)
-        a1 (+ a ea)
-        b0 (- b eb)
-        b1 (+ b eb)
-        l  (cond
-             (and (< a1 b0) (< v 0)) (/ (- a1 b0) v)
-             (and (< b1 a0) (> v 0)) (/ (- a0 b1) v)
-             :else                   0)
-        u  (cond
-             (and (> b1 a0) (< v 0)) (/ (- a0 b1) v)
-             (and (> a1 b0) (> v 0)) (/ (- a1 b0) v)
-             :else                   1)]
-    [l u]))
-
-(defn- time-of-collision [A0 A1 Ea B0 B1 Eb]
-  (let [xs (map time-of-collision% A0 A1 Ea B0 B1 Eb)
-        ;; Possible first and last times of overlap.
-        u0 (apply max (map first  xs))
-        u1 (apply min (map second xs))]
-    ;; They could have only collided if the first time of overlap
-    ;; occured before the last time of overlap.
-    (if (<= u0 u1) u0 -1)))
-
-(defn- time-of-separation [A0 A1 Ea B0 B1 Eb]
-  (let [xs (map time-of-collision% A0 A1 Ea B0 B1 Eb)
-        ;; Possible first and last times of overlap.
-        u0 (apply max (map first  xs))
-        u1 (apply min (map second xs))]
-    ;; They could have only collided if the first time of overlap
-    ;; occured before the last time of overlap.
-    (if (<= u0 u1) u1 -1)))
 
 (defn- convert-segment
   "Converts a segment given as [lower-bound upper-bound] to [center extent]."
