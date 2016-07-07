@@ -2,7 +2,6 @@
   (:require
    [pt-lib.match :refer [match]]
    [pt-lib.math :refer [abs]]
-   [pt-lib.number :refer [infinity]]
    [pt-lib.physics.integration :refer [euler-step]]
    [pt-lib.collision.sweep-list :as sl]
    [devs.models :refer [atomic-model]]))
