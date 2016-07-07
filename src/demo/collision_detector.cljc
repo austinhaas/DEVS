@@ -133,7 +133,7 @@
                                                    [(assoc vel k v) sl' (merge-with into d d')])
                                 [:rem k]         (let [[sl' d'] (sl/rem-interval sl k)]
                                                    [(dissoc vel k) sl' (merge-with into d d')])
-                                [:vel [k v]]       [(assoc vel k v) sl d]))
+                                [:vel [k v]]     [(assoc vel k v) sl d]))
                             [(:vel s) sl1 {}]
                             events)
         events'    (->> (sl->events sl1 sl2 d)
