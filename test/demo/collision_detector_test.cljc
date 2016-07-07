@@ -4,7 +4,6 @@
    [test-util :refer [eq? pprint-ev*]]
    [devs.atomic-simulator :refer [atomic-simulator]]
    [devs.fast-as-possible-system :refer [fast-as-possible-system]]
-   [demo.integrator :refer [integrator]]
    [demo.collision-detector :refer [collision-detector]]))
 
 (deftest collision-detector-test
