@@ -72,7 +72,7 @@
                 [i [(+ a d) (+ b d)]])))
        (sl/update-interval* sl)))
 
-(defn aggregate-events [events]
+(defn- aggregate-events [events]
   (reduce (fn [acc [t ev]]
             (if (empty? acc)
               (conj acc [t #{ev}])
@@ -84,7 +84,7 @@
           events))
 
 ;; Numerical precision may compromise this algorithm.
-(defn merge-events [e1 e2]
+(defn- merge-events [e1 e2]
   (loop [e1  (seq e1)
          e2  (seq e2)
          acc []]
@@ -153,22 +153,21 @@
                               reverse
                               (map (fn [[t ev]] [(- sigma t) ev]))
                               ;; Offset time.
-                              (map (fn [[t' ev]] [(+ t t') ev])))
+                              (map (fn [[t' ev]] [(+ t t') ev]))
+                              aggregate-events)
            events3       (->> (sl->events sl2 sl3 d3)
                               ;; relative -> absolute time
                               (map (fn [[t ev]] [(* t 0) ev]))
                               ;; Offset time.
-                              (map (fn [[t' ev]] [(+ t t') ev])))
+                              (map (fn [[t' ev]] [(+ t t') ev]))
+                              aggregate-events)
            events4       (->> (sl->events sl3 sl4 d4)
                               ;; relative -> absolute time
                               (map (fn [[t ev]] [(* t sigma) ev]))
                               ;; Offset time.
-                              (map (fn [[t' ev]] [(+ t t') ev])))
-           ;; Aggregate events occuring at the same time.
-           events2'      (aggregate-events events2)
-           events3'      (aggregate-events events3)
-           events4'      (aggregate-events events4)
-           events'       (reduce merge-events [events1 events2' events3' events4'])]
+                              (map (fn [[t' ev]] [(+ t t') ev]))
+                              aggregate-events)
+           events'       (reduce merge-events [events1 events2 events3 events4])]
        (assoc s :vel vel' :sl sl4 :t t :events events')))
    nil
    (fn [s]
