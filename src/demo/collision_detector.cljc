@@ -13,16 +13,17 @@
   ;; A is the center. Ea is the extent in each axis.
   (every? true? (map (fn [a ea b eb] (<= (abs (- b a)) (+ ea eb))) A Ea B Eb)))
 
-(defn- time-of-collision% [A A' Ea B B' Eb]
-  (let [;; Displacement of A and B.
-        va (- A' A)
-        vb (- B' B)
-        ;; The problem is solved in A's frame of reference.
+(defn- time-of-collision%
+  [a a' ea b b' eb]
+  (let [;; Displacement of a and b.
+        va (- a' a)
+        vb (- b' b)
+        ;; The problem is solved in a's frame of reference.
         v  (- vb va)
-        a0 (- A Ea)
-        a1 (+ A Ea)
-        b0 (- B Eb)
-        b1 (+ B Eb)
+        a0 (- a ea)
+        a1 (+ a ea)
+        b0 (- b eb)
+        b1 (+ b eb)
         l  (cond
              (and (< a1 b0) (< v 0)) (/ (- a1 b0) v)
              (and (< b1 a0) (> v 0)) (/ (- a0 b1) v)
@@ -51,17 +52,20 @@
     ;; occured before the last time of overlap.
     (if (<= u0 u1) u1 -1)))
 
+(defn- convert-segment
+  "Converts a segment given as [lower-bound upper-bound] to [center extent]."
+  [[lb ub]]
+  (assert (<= lb ub))
+  (let [e (/ (- ub lb) 2)]
+    [(+ lb e) e]))
+
 (defn- sl->events [sl1 sl2 delta]
   (letfn [(convert [a]
             (let [[alr aur] (sl/lookup sl1 a)
                   [alf auf] (sl/lookup sl2 a)
-                  aer       (/ (- aur alr) 2)
-                  aef       (/ (- auf alf) 2)
-                  A0        [(+ alr aer)]
-                  A1        [(+ alf aef)]
-                  Ea        [aer]]
-              ;;(assert (= aer aef) "time-of-collision/separation assume ext doesn't change.")
-              [A0 A1 Ea]))]
+                  [A0 Ea]   (convert-segment [alr aur])
+                  [A1 _]    (convert-segment [alf auf])]
+              [[A0] [A1] [Ea]]))]
     (let [add* (for [[a b] (map vec (:add delta))]
                  (if (and (sl/lookup sl1 a)
                           (sl/lookup sl1 b))
@@ -122,7 +126,6 @@
                       :else     (let [smap {:coll-start :coll-end :coll-end :coll-start}
                                       s1'  (->> s1
                                                 (map #(replace smap %))
-
                                                 set)
                                       s2'  (set (map #(replace smap %) s2))
                                       s    (clojure.set/union
