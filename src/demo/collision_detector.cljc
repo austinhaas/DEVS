@@ -63,11 +63,6 @@
     (->> (concat add* rem*)
          (sort-by first))))
 
-(defn- absolute->delta-time [events]
-  (->> events
-       (reduce (fn [[acc x] [t ev]] [(conj acc [(- t x) ev]) t]) [[] 0])
-       first))
-
 (defn- sl-move* [sl i->vel h]
   (->> i->vel
        (remove (comp zero? second))
