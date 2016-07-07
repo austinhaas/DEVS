@@ -60,30 +60,54 @@
     [(+ lb e) e]))
 
 (defn- sl->events [sl1 sl2 delta]
-  (letfn [(convert [a]
-            (let [[alr aur] (sl/lookup sl1 a)
-                  [alf auf] (sl/lookup sl2 a)
-                  [A0 Ea]   (convert-segment [alr aur])
-                  [A1 _]    (convert-segment [alf auf])]
-              [[A0] [A1] [Ea]]))]
-    (let [add* (for [[a b] (map vec (:add delta))]
-                 (if (and (sl/lookup sl1 a)
-                          (sl/lookup sl1 b))
-                   (let [[A0 A1 Ea] (convert a)
-                         [B0 B1 Eb] (convert b)
-                         t          (time-of-collision A0 A1 Ea B0 B1 Eb)]
-                     [t [:coll-start #{a b}]])
-                   [0 [:coll-start #{a b}]]))
-          rem* (for [[a b] (map vec (:rem delta))]
-                 (if (and (sl/lookup sl2 a)
-                          (sl/lookup sl2 b))
-                   (let [[A0 A1 Ea] (convert a)
-                         [B0 B1 Eb] (convert b)
-                         t          (time-of-separation A0 A1 Ea B0 B1 Eb)]
-                     [t [:coll-end #{a b}]])
-                   [0 [:coll-end #{a b}]]))]
-      (->> (concat add* rem*)
-           (sort-by first)))))
+  (let [add* (for [[a b] (map vec (:add delta))]
+               (let [A  (sl/lookup sl1 a)
+                     B  (sl/lookup sl1 b)
+                     A' (sl/lookup sl2 a)
+                     B' (sl/lookup sl2 b)]
+                 (if (and A B)
+                   (let [[a0 ea] (convert-segment A)
+                         [a1 _ ] (convert-segment A')
+                         [b0 eb] (convert-segment B)
+                         [b1 _ ] (convert-segment B')
+                         A0      [a0]
+                         A1      [a1]
+                         Ea      [ea]
+                         B0      [b0]
+                         B1      [b1]
+                         Eb      [eb]
+                         t       (time-of-collision A0 A1 Ea B0 B1 Eb)]
+                     ;; Consider using a deferred computation, in case
+                     ;; clients don't need the additional info.
+                     (let [ax (+ a0 (* (- a1 a0) t))
+                           bx (+ b0 (* (- b1 b0) t))]
+                       [t [:coll-start {a [ax ea] b [bx eb]}]]))
+                   [0 [:coll-start {a (convert-segment A')
+                                    b (convert-segment B')}]])))
+        rem* (for [[a b] (map vec (:rem delta))]
+               (let [A  (sl/lookup sl1 a)
+                     B  (sl/lookup sl1 b)
+                     A' (sl/lookup sl2 a)
+                     B' (sl/lookup sl2 b)]
+                 (if (and A' B')
+                   (let [[a0 ea] (convert-segment A)
+                         [a1 _ ] (convert-segment A')
+                         [b0 eb] (convert-segment B)
+                         [b1 _ ] (convert-segment B')
+                         A0      [a0]
+                         A1      [a1]
+                         Ea      [ea]
+                         B0      [b0]
+                         B1      [b1]
+                         Eb      [eb]
+                         t       (time-of-separation A0 A1 Ea B0 B1 Eb)]
+                     (let [ax (+ a0 (* (- a1 a0) t))
+                           bx (+ b0 (* (- b1 b0) t))]
+                       [t [:coll-end {a [ax ea] b [bx eb]}]]))
+                   [0 [:coll-end {a (convert-segment A)
+                                  b (convert-segment B)}]])))]
+    (->> (concat add* rem*)
+         (sort-by first))))
 
 (defn- absolute->delta-time [events]
   (->> events
