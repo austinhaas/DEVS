@@ -1,10 +1,20 @@
 (ns demo.collision-detector
   (:require
+   [pt-lib.coll :refer [group]]
    [pt-lib.match :refer [match]]
    [pt-lib.physics.integration :refer [euler-step]]
    [pt-lib.collision.collision :refer [time-of-collision time-of-separation]]
    [pt-lib.collision.sweep-list :as sl]
    [devs.models :refer [atomic-model]]))
+
+(defn- sl-move* [sl i->vel h]
+  (->> i->vel
+       (remove (comp zero? second))
+       (map (fn [[i v]]
+              (let [[a b] (sl/lookup sl i)
+                    d     (euler-step v 0 h)] ;; displacement
+                [i [(+ a d) (+ b d)]])))
+       (sl/update-interval* sl)))
 
 (defn- convert-segment
   "Converts a segment given as [lower-bound upper-bound] to [center extent]."
@@ -63,26 +73,6 @@
     (->> (concat add* rem*)
          (sort-by first))))
 
-(defn- sl-move* [sl i->vel h]
-  (->> i->vel
-       (remove (comp zero? second))
-       (map (fn [[i v]]
-              (let [[a b] (sl/lookup sl i)
-                    d     (euler-step v 0 h)] ;; displacement
-                [i [(+ a d) (+ b d)]])))
-       (sl/update-interval* sl)))
-
-(defn- aggregate-events [events]
-  (reduce (fn [acc [t ev]]
-            (if (empty? acc)
-              (conj acc [t #{ev}])
-              (let [[t' s] (peek acc)]
-                (if (= t t')
-                  (conj (pop acc) [t (conj s ev)])
-                  (conj acc [t #{ev}])))))
-          []
-          events))
-
 ;; Numerical precision may compromise this algorithm.
 (defn- merge-events [e1 e2]
   (loop [e1  (seq e1)
@@ -125,7 +115,7 @@
              events  (->> (sl->events sl1 sl2 d)
                           ;; relative -> absolute time
                           (map (fn [[t ev]] [(* t step-size) ev]))
-                          aggregate-events)]
+                          (group first second #{}))]
          (assoc s :sl sl2 :events events :t 0))))
    (fn ext-update [s e x]
      (let [vel           (:vel s)
@@ -154,19 +144,19 @@
                               (map (fn [[t ev]] [(- sigma t) ev]))
                               ;; Offset time.
                               (map (fn [[t' ev]] [(+ t t') ev]))
-                              aggregate-events)
+                              (group first second #{}))
            events3       (->> (sl->events sl2 sl3 d3)
                               ;; relative -> absolute time
                               (map (fn [[t ev]] [(* t 0) ev]))
                               ;; Offset time.
                               (map (fn [[t' ev]] [(+ t t') ev]))
-                              aggregate-events)
+                              (group first second #{}))
            events4       (->> (sl->events sl3 sl4 d4)
                               ;; relative -> absolute time
                               (map (fn [[t ev]] [(* t sigma) ev]))
                               ;; Offset time.
                               (map (fn [[t' ev]] [(+ t t') ev]))
-                              aggregate-events)
+                              (group first second #{}))
            events'       (reduce merge-events [events1 events2 events3 events4])]
        (assoc s :vel vel' :sl sl4 :t t :events events')))
    nil
