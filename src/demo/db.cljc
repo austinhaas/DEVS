@@ -122,7 +122,7 @@
                                           (assoc  :sigma  0))))
                  [[:query id] pmap] (let [r (db/query (:db s) pmap)]
                                       (-> s
-                                          (update :output conj [[:query-response id] pmap r])
+                                          (update :output conj [[:query-response id] [pmap r]])
                                           (assoc  :sigma  0)))
                  [[:sub   id] [pmap fmap]] (let [sub  [id pmap fmap]
                                                  subs (subs-insert (:subs s) sub)
