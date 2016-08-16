@@ -55,9 +55,7 @@
                                        newf (db/apply-fmap fmap new)
                                        [in-a in-b] (diff-map oldf newf)]
                                    (if (or (seq in-a) (seq in-b))
-                                     (conj acc {:pmap pmap
-                                                :fmap fmap
-                                                :old  old
+                                     (conj acc {:old  old
                                                 :new  new
                                                 :oldf in-a
                                                 :newf in-b})
@@ -66,7 +64,7 @@
                              []
                              (map vector old* new*))]
               (if (seq x*)
-                (conj acc [[:sub-response id] x*])
+                (conj acc [[:sub-response id] [[pmap fmap] x*]])
                 acc)))
           []
           sub*))
