@@ -38,7 +38,9 @@
                   bv (get b k)]
               (cond
                 (= av bv)       [in-a in-b]
-                (contains? a k) [(assoc in-a k av) in-b]
+                (contains? a k) (if (contains? b k)
+                                  [(assoc in-a k av) (assoc in-b k bv)]
+                                  [(assoc in-a k av) in-b])
                 (contains? b k) [in-a (assoc in-b k bv)]
                 :else           [(assoc in-a k av) (assoc in-b k bv)])))
           [{} {}]
