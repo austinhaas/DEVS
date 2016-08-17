@@ -83,6 +83,9 @@
           (update :output into out*)
           (assoc  :sigma  0)))))
 
+(defn- db-insert* [s x]
+  (reduce db-insert s (map (fn [[port m]] m) x)))
+
 (defn- db-delete [s pmap]
   (let [db    (:db s)
         old*  (db/query db pmap)
@@ -98,6 +101,9 @@
           (assoc  :db     db')
           (update :output into out*)
           (assoc  :sigma  0)))))
+
+(defn- db-delete* [s x]
+  (reduce db-delete s (map (fn [[port pmap]] pmap) x)))
 
 (defn- db-modify [s m pmap]
   (let [db   (:db s)
@@ -116,11 +122,23 @@
           (update :output into out*)
           (assoc  :sigma  0)))))
 
+(defn- db-modify* [s x]
+  (reduce (fn [s [port m pmap]]
+            (db-modify s m pmap))
+          s
+          x))
+
 (defn- db-query [s id pmap]
   (let [r (db/query (:db s) pmap)]
     (-> s
         (update :output conj [[:query-response id] [pmap r]])
         (assoc  :sigma  0))))
+
+(defn- db-query* [s x]
+  (reduce (fn [s [[port id] pmap]]
+            (db-query s id pmap))
+          s
+          x))
 
 (defn- db-sub [s id pmap fmap]
   (let [sub  [id pmap fmap]
@@ -136,9 +154,23 @@
           (update :output into out*)
           (assoc  :sigma  0)))))
 
+(defn- db-sub* [s x]
+  (reduce (fn [s [[port id] [pmap fmap]]]
+            (db-sub s id pmap fmap))
+          s
+          x))
+
 (defn- db-unsub [s id pmap fmap]
   (let [sub [id pmap fmap]]
     (update s :subs subs-delete sub)))
+
+(defn- db-unsub* [s x]
+  (reduce (fn [s [[port id] [pmap fmap]]]
+            (db-unsub s id pmap fmap))
+          s
+          x))
+
+(defn- port-sym [ev] (if (vector? (first ev)) (ffirst ev) (first ev)))
 
 (defn db [primary-key & other-indices]
   (atomic-model
@@ -149,16 +181,14 @@
     :key    primary-key}
    (fn int-update [s] (assoc s :output [] :sigma infinity))
    (fn ext-update [s e x]
-     (reduce (fn [s msg]
-               (match msg
-                 [:insert m]               (db-insert s m)
-                 [:delete pmap]            (db-delete s pmap)
-                 [:modify m pmap]          (db-modify s m pmap)
-                 [[:query id] pmap]        (db-query s id pmap)
-                 [[:sub   id] [pmap fmap]] (db-sub s id pmap fmap)
-                 [[:unsub id] [pmap fmap]] (db-unsub s id pmap fmap)))
-             s
-             x))
+     (let [m (group-by port-sym x)]
+       (-> s
+           (db-insert* (:insert m))
+           (db-delete* (:delete m))
+           (db-modify* (:modify m))
+           (db-query*  (:query  m))
+           (db-sub*    (:sub    m))
+           (db-unsub*  (:unsub  m)))))
    nil
    :output
    :sigma))
