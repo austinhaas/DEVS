@@ -11,7 +11,7 @@
    [demo.collision-responder :refer [collision-responder]]
    [clojure.core.async :as async :refer [chan go <! timeout close! >! onto-chan]]
    [devs.network-simulator :refer [network-simulator]]
-   [devs.fast-as-possible-system :refer [fast-as-possible-system]]
+   [devs.immediate-system :refer [immediate-system]]
    [devs.real-time-system :refer [real-time-system]]))
 
 (def s1 (-> {}
@@ -65,7 +65,7 @@
 
 (deftest collision-network-tests-1
   (testing "2 particles. Both Stationary. Initially intersecting."
-    (is (eq? (fast-as-possible-system
+    (is (eq? (immediate-system
               (network-simulator (collision-network-1))
               0
               2
@@ -77,7 +77,7 @@
               [1 [:pos [:a 0]]]
               [1 [:pos [:b 0]]]])))
   (testing "2 particles. One moving. Initially intersecting."
-    (is (eq? (fast-as-possible-system
+    (is (eq? (immediate-system
               (network-simulator (collision-network-1))
               0
               3
@@ -92,7 +92,7 @@
               [2 [:pos [:b 0]]]
               [2 [:coll-end {:b [0 1], :a [2 1]}]]])))
   (testing "2 particles. One moving. One stationary. No response."
-    (is (eq? (fast-as-possible-system
+    (is (eq? (immediate-system
               (network-simulator (collision-network-1))
               0
               8
@@ -117,7 +117,7 @@
               [7 [:pos [:a 7]]]
               [7 [:pos [:b 4]]]])))
   (testing "2 particles. Both moving. No response."
-    (is (eq? (fast-as-possible-system
+    (is (eq? (immediate-system
               (network-simulator (collision-network-1))
               0
               5
@@ -136,7 +136,7 @@
               [4.000 [:pos [:a 4]]]
               [4.000 [:pos [:b 1]]]])))
   (testing "3 particles. One moving. No response."
-    (is (eq? (fast-as-possible-system
+    (is (eq? (immediate-system
               (network-simulator (collision-network-1))
               0
               8
@@ -172,7 +172,7 @@
               [7 [:pos [:b 3]]]
               [7 [:pos [:c 5]]]])))
   (testing "3 particles. One moving. The others overlapping. No response."
-    (is (eq? (fast-as-possible-system
+    (is (eq? (immediate-system
               (network-simulator (collision-network-1))
               0
               6
@@ -205,7 +205,7 @@
 
 (deftest collision-network-tests-2
   (testing "2 particles. One moving. One stationary. Response."
-    (is (eq? (fast-as-possible-system
+    (is (eq? (immediate-system
               (network-simulator (collision-network-2))
               0
               5
@@ -224,7 +224,7 @@
               [4 [:pos [:a 0]]]
               [4 [:pos [:b 4]]]])))
   (testing "2 particles. Both moving. Response."
-    (is (eq? (fast-as-possible-system
+    (is (eq? (immediate-system
               (network-simulator (collision-network-2))
               0
               5
@@ -243,7 +243,7 @@
               [4 [:pos [:a -1]]]
               [4 [:pos [:b 6]]]])))
   (testing "3 particles. One moving. Two stationary and overlapping. Response."
-    (is (eq? (fast-as-possible-system
+    (is (eq? (immediate-system
               (network-simulator (collision-network-2))
               0
               5
@@ -273,7 +273,7 @@
 
 (deftest collision-network-tests-3
   (testing "2 particles. Both Stationary. Initially intersecting. One object removed."
-    (is (eq? (fast-as-possible-system
+    (is (eq? (immediate-system
               (network-simulator (collision-network-1))
               0
               4
@@ -290,7 +290,7 @@
               [2 [:pos [:b 0]]]
               [3 [:pos [:b 0]]]])))
   (testing "2 particles. One moving. One object removed at expected :coll-start."
-    (is (eq? (fast-as-possible-system
+    (is (eq? (immediate-system
               (network-simulator (collision-network-1))
               0
               4

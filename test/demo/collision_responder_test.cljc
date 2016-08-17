@@ -3,11 +3,11 @@
    [clojure.test :refer :all]
    [test-util :refer [eq?]]
    [devs.atomic-simulator :refer [atomic-simulator]]
-   [devs.fast-as-possible-system :refer [fast-as-possible-system]]
+   [devs.immediate-system :refer [immediate-system]]
    [demo.collision-responder :refer [collision-responder]]))
 
 (deftest collision-responder-test
-  (is (eq? (fast-as-possible-system (atomic-simulator (collision-responder))
+  (is (eq? (immediate-system (atomic-simulator (collision-responder))
                                     0
                                     400
                                     [[0 [:vel [:a 1]]]

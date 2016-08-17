@@ -3,11 +3,11 @@
    [clojure.test :refer :all]
    [test-util :refer [eq?]]
    [devs.atomic-simulator :refer [atomic-simulator]]
-   [devs.fast-as-possible-system :refer [fast-as-possible-system]]
+   [devs.immediate-system :refer [immediate-system]]
    [demo.integrator :refer [integrator mult-integrator]]))
 
 (deftest integrator-tests
-  (is (eq? (fast-as-possible-system
+  (is (eq? (immediate-system
             (atomic-simulator (integrator :a 0 1 100 0))
             0
             400
@@ -17,7 +17,7 @@
             [200 [:pos [:a 200]]]
             [300 [:pos [:a 300]]]]))
 
-  (is (eq? (fast-as-possible-system
+  (is (eq? (immediate-system
             (atomic-simulator (integrator :a 0 1 100 0))
             0
             400
@@ -27,7 +27,7 @@
             [200 [:pos [:a 300]]]
             [300 [:pos [:a 500]]]]))
 
-  (is (eq? (fast-as-possible-system
+  (is (eq? (immediate-system
             (atomic-simulator (integrator :a 0 1 100 0))
             0
             500
@@ -39,7 +39,7 @@
             [400 [:pos [:a -160]]]])))
 
 (deftest mult-integrator-tests
-  (is (eq? (fast-as-possible-system
+  (is (eq? (immediate-system
             (atomic-simulator (mult-integrator 100))
             0
             400
@@ -49,7 +49,7 @@
             [200 [:pos [:a 200]]]
             [300 [:pos [:a 300]]]]))
 
-  (is (eq? (fast-as-possible-system
+  (is (eq? (immediate-system
             (atomic-simulator (mult-integrator 100))
             0
             400
@@ -60,7 +60,7 @@
             [200 [:pos [:a 300]]]
             [300 [:pos [:a 500]]]]))
 
-  (is (eq? (fast-as-possible-system
+  (is (eq? (immediate-system
             (atomic-simulator (mult-integrator 100))
             0
             500

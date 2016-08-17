@@ -15,7 +15,7 @@
    [devs.atomic-simulator :refer [atomic-simulator]]
    [devs.executive-network-simulator :refer [network-simulator]]
    [devs.real-time-system :refer [real-time-system]]
-   [devs.fast-as-possible-system :refer [fast-as-possible-system]]))
+   [devs.immediate-system :refer [immediate-system]]))
 
 (defn generator [period]
   (atomic-model
@@ -233,7 +233,7 @@
 #_(close! chan-in)
 
 #_
-(fast-as-possible-system
+(immediate-system
  (network-simulator network-1)
  0
  infinity

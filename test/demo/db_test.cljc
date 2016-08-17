@@ -3,7 +3,7 @@
    [clojure.test :refer :all]
    [test-util :refer [eq?]]
    [devs.atomic-simulator :refer [atomic-simulator]]
-   [devs.fast-as-possible-system :refer [fast-as-possible-system]]
+   [devs.immediate-system :refer [immediate-system]]
    [demo.db :refer [db]]))
 
 (defn- normalize-results [results]
@@ -12,7 +12,7 @@
         results))
 
 (def f #(-> (atomic-simulator (db :id :x))
-            (fast-as-possible-system 0 1000 %)
+            (immediate-system 0 1000 %)
             normalize-results))
 
 (deftest db-basic-tests
