@@ -69,75 +69,94 @@
           []
           sub*))
 
+(defn- db-insert [s m]
+  (let [db   (:db s)
+        db'  (db/insert db m)
+        old* [{}] ;; No old for insert!
+        new* [m]
+        sub* (subs-query (:subs s) (keys m))
+        out* (process-sub* sub* old* new*)]
+    (if (empty? out*)
+      (assoc s :db db')
+      (-> s
+          (assoc  :db     db')
+          (update :output into out*)
+          (assoc  :sigma  0)))))
+
+(defn- db-delete [s pmap]
+  (let [db    (:db s)
+        old*  (db/query db pmap)
+        e*    (map (:key s) old*)
+        db'   (db/delete-by-id* db e*)
+        new*  (repeat {}) ;; No new for delete!
+        attr* (distinct (mapcat keys old*))
+        sub*  (subs-query (:subs s) attr*)
+        out*  (process-sub* sub* old* new*)]
+    (if (empty? out*)
+      (assoc s :db db')
+      (-> s
+          (assoc  :db     db')
+          (update :output into out*)
+          (assoc  :sigma  0)))))
+
+(defn- db-modify [s m pmap]
+  (let [db   (:db s)
+        old* (db/query db pmap)
+        e*   (map (:key s) old*)
+        db'  (db/modify-by-id* db m e*)
+        ;; The modified db is not queried w/ pmap, because
+        ;; the modified values may no longer satisfy pmap.
+        new* (db/query-by-id* db' e*)
+        sub* (subs-query (:subs s) (keys m))
+        out* (process-sub* sub* old* new*)]
+    (if (empty? out*)
+      (assoc s :db db')
+      (-> s
+          (assoc  :db     db')
+          (update :output into out*)
+          (assoc  :sigma  0)))))
+
+(defn- db-query [s id pmap]
+  (let [r (db/query (:db s) pmap)]
+    (-> s
+        (update :output conj [[:query-response id] [pmap r]])
+        (assoc  :sigma  0))))
+
+(defn- db-sub [s id pmap fmap]
+  (let [sub  [id pmap fmap]
+        subs (subs-insert (:subs s) sub)
+        old* (repeat {})
+        new* (db/query (:db s) pmap)
+        sub* [sub]
+        out* (process-sub* sub* old* new*)]
+    (if (empty? out*)
+      (assoc s :subs subs)
+      (-> s
+          (assoc  :subs   subs)
+          (update :output into out*)
+          (assoc  :sigma  0)))))
+
+(defn- db-unsub [s id pmap fmap]
+  (let [sub [id pmap fmap]]
+    (update s :subs subs-delete sub)))
+
 (defn db [primary-key & other-indices]
   (atomic-model
    {:db     (apply db/init primary-key other-indices)
     :subs   (subs-init)
     :output []
-    :sigma  infinity}
+    :sigma  infinity
+    :key    primary-key}
    (fn int-update [s] (assoc s :output [] :sigma infinity))
    (fn ext-update [s e x]
      (reduce (fn [s msg]
                (match msg
-                 [:insert m]      (let [db   (:db s)
-                                        db'  (db/insert db m)
-                                        old* [{}] ;; No old for insert!
-                                        new* [m]
-                                        sub* (subs-query (:subs s) (keys m))
-                                        out* (process-sub* sub* old* new*)]
-                                    (if (empty? out*)
-                                      (assoc s :db db')
-                                      (-> s
-                                          (assoc  :db     db')
-                                          (update :output into out*)
-                                          (assoc  :sigma  0))))
-                 [:delete pmap]   (let [db    (:db s)
-                                        old*  (db/query db pmap)
-                                        e*    (map primary-key old*)
-                                        db'   (db/delete-by-id* db e*)
-                                        new*  (repeat {}) ;; No new for delete!
-                                        attr* (distinct (mapcat keys old*))
-                                        sub*  (subs-query (:subs s) attr*)
-                                        out*  (process-sub* sub* old* new*)]
-                                    (if (empty? out*)
-                                      (assoc s :db db')
-                                      (-> s
-                                          (assoc  :db     db')
-                                          (update :output into out*)
-                                          (assoc  :sigma  0))))
-                 [:modify m pmap] (let [db   (:db s)
-                                        old* (db/query db pmap)
-                                        e*   (map primary-key old*)
-                                        db'  (db/modify-by-id* db m e*)
-                                        ;; The modified db is not queried w/ pmap, because
-                                        ;; the modified values may no longer satisfy pmap.
-                                        new* (db/query-by-id* db' e*)
-                                        sub* (subs-query (:subs s) (keys m))
-                                        out* (process-sub* sub* old* new*)]
-                                    (if (empty? out*)
-                                      (assoc s :db db')
-                                      (-> s
-                                          (assoc  :db     db')
-                                          (update :output into out*)
-                                          (assoc  :sigma  0))))
-                 [[:query id] pmap] (let [r (db/query (:db s) pmap)]
-                                      (-> s
-                                          (update :output conj [[:query-response id] [pmap r]])
-                                          (assoc  :sigma  0)))
-                 [[:sub   id] [pmap fmap]] (let [sub  [id pmap fmap]
-                                                 subs (subs-insert (:subs s) sub)
-                                                 old* (repeat {})
-                                                 new* (db/query (:db s) pmap)
-                                                 sub* [sub]
-                                                 out* (process-sub* sub* old* new*)]
-                                             (if (empty? out*)
-                                               (assoc s :subs subs)
-                                               (-> s
-                                                   (assoc  :subs   subs)
-                                                   (update :output into out*)
-                                                   (assoc  :sigma  0))))
-                 [[:unsub id] [pmap fmap]] (let [sub [id pmap fmap]]
-                                             (update s :subs subs-delete sub))))
+                 [:insert m]               (db-insert s m)
+                 [:delete pmap]            (db-delete s pmap)
+                 [:modify m pmap]          (db-modify s m pmap)
+                 [[:query id] pmap]        (db-query s id pmap)
+                 [[:sub   id] [pmap fmap]] (db-sub s id pmap fmap)
+                 [[:unsub id] [pmap fmap]] (db-unsub s id pmap fmap)))
              s
              x))
    nil
