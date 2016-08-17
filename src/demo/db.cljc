@@ -123,7 +123,7 @@
           (assoc  :sigma  0)))))
 
 (defn- db-modify* [s x]
-  (reduce (fn [s [port m pmap]]
+  (reduce (fn [s [port [m pmap]]]
             (db-modify s m pmap))
           s
           x))

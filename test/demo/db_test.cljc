@@ -78,7 +78,7 @@
 
   (testing "Modify by primary key."
     (is (eq? (f [[0  [:insert {:id :a :x 0 :y 1}]]
-                 [10 [:modify {:x 1} {:id :a}]]
+                 [10 [:modify [{:x 1} {:id :a}]]]
                  [20 [[:query :q] {:id :a}]]])
              [[20 [[:query-response :q] [{:id :a} #{{:id :a :x 1 :y 1}}]]]])))
 
@@ -86,7 +86,7 @@
     (is (eq? (f [[0  [:insert {:id :a :x 0 :y 1}]]
                  [0  [:insert {:id :b :x 0 :y 1}]]
                  [0  [:insert {:id :c :x 1 :y 2}]]
-                 [10 [:modify {:x 1} {:x 0}]]
+                 [10 [:modify [{:x 1} {:x 0}]]]
                  [20 [[:query :q] {:x 1}]]])
              [[20 [[:query-response :q] [{:x 1} #{{:id :a :x 1 :y 1}
                                                   {:id :b :x 1 :y 1}
@@ -96,7 +96,7 @@
     (is (eq? (f [[0  [:insert {:id :a :x 0 :y 1}]]
                  [0  [:insert {:id :b :x 0 :y 1}]]
                  [0  [:insert {:id :c :x 1 :y 2}]]
-                 [10 [:modify {:x 1} {:y 1}]]
+                 [10 [:modify [{:x 1} {:y 1}]]]
                  [20 [[:query :q] {:x 1}]]])
              [[20 [[:query-response :q] [{:x 1} #{{:id :a :x 1 :y 1}
                                                   {:id :b :x 1 :y 1}
@@ -107,12 +107,12 @@
                [10 [:insert {:id :a :x 0 :y 1}]]
                [10 [:insert {:id :b :x 0 :y 1}]]
                [10 [:insert {:id :c :x 1 :y 2}]]
-               [20 [:modify {:y 2} {:x 0}]]
+               [20 [:modify [{:y 2} {:x 0}]]]
                [30 [[:sub :r] [{} {:y odd?}]]]
-               [40 [:modify {:y 3} {:id :a}]]
+               [40 [:modify [{:y 3} {:id :a}]]]
                [50 [:delete {:id :b}]]
                [60 [[:unsub :q] [{:x 0} {:y identity}]]]
-               [70 [:modify {:y 4} {:id :a}]]])
+               [70 [:modify [{:y 4} {:id :a}]]]])
            [[10 [[:sub-response :q] [[{:x 0} {:y identity}]
                                      #{{:old {}
                                         :new {:id :a, :x 0, :y 1}
