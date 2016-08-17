@@ -3,74 +3,91 @@
    [clojure.set :refer [union difference]]
    [pt-lib.coll :refer [group]]
    [pt-lib.match :refer [match]]
-   [pt-lib.physics.integration :refer [euler-step]]
-   [pt-lib.collision.collision :refer [time-of-collision time-of-separation]]
+   [pt-lib.geometry.2D.rect :as r]
+   [pt-lib.physics.integration :refer [first-order-euler]]
    [pt-lib.collision.sweep-list :as sl]
    [devs.models :refer [atomic-model]]))
 
-(defn- sl-move* [sl i->vel h]
-  (->> i->vel
-       (remove (comp zero? second))
-       (map (fn [[i v]]
-              (let [[a b] (sl/lookup sl i)
-                    d     (euler-step v 0 h)] ;; displacement
-                [i [(+ a d) (+ b d)]])))
-       (sl/update-interval* sl)))
+(defn- intervals [s]
+  (sl/lookup* (:sl s)))
 
-(defn- convert-segment
-  "Converts a segment given as [lower-bound upper-bound] to [center extent]."
+(defn- nonzero-vels [s]
+  (remove (comp zero? second) (:vel s)))
+
+(defn- project-interval [v [a b] h]
+  (let [d (first-order-euler v 0 h)] ;; displacement
+    [(+ a d) (+ b d)]))
+
+(defn- project-intervals [k->vel k->interval h]
+  (for [[k v] k->vel]
+    [k (project-interval v (k->interval k) h)]))
+
+(defn- convert-interval
+  "Converts an interval given as [lower-bound upper-bound] to [center extent]."
   [[lb ub]]
   (assert (<= lb ub))
   (let [e (/ (- ub lb) 2)]
     [(+ lb e) e]))
 
-(defn- sl->events [sl1 sl2 delta]
-  (let [add* (for [[a b] (map vec (:add delta))]
-               (let [A  (sl/lookup sl1 a)
-                     B  (sl/lookup sl1 b)
-                     A' (sl/lookup sl2 a)
-                     B' (sl/lookup sl2 b)]
-                 (if (and A B)
-                   (let [[a0 ea] (convert-segment A)
-                         [a1 _ ] (convert-segment A')
-                         [b0 eb] (convert-segment B)
-                         [b1 _ ] (convert-segment B')
-                         A0      [a0]
-                         A1      [a1]
-                         Ea      [ea]
-                         B0      [b0]
-                         B1      [b1]
-                         Eb      [eb]
-                         t       (time-of-collision A0 A1 Ea B0 B1 Eb)]
-                     ;; Consider using a deferred computation, in case
-                     ;; clients don't need the additional info.
-                     (let [ax (+ a0 (* (- a1 a0) t))
-                           bx (+ b0 (* (- b1 b0) t))]
-                       [t [:coll-start {a [ax ea] b [bx eb]}]]))
-                   [0 [:coll-start {a (convert-segment A')
-                                    b (convert-segment B')}]])))
-        rem* (for [[a b] (map vec (:rem delta))]
-               (let [A  (sl/lookup sl1 a)
-                     B  (sl/lookup sl1 b)
-                     A' (sl/lookup sl2 a)
-                     B' (sl/lookup sl2 b)]
-                 (if (and A' B')
-                   (let [[a0 ea] (convert-segment A)
-                         [a1 _ ] (convert-segment A')
-                         [b0 eb] (convert-segment B)
-                         [b1 _ ] (convert-segment B')
-                         A0      [a0]
-                         A1      [a1]
-                         Ea      [ea]
-                         B0      [b0]
-                         B1      [b1]
-                         Eb      [eb]
-                         t       (time-of-separation A0 A1 Ea B0 B1 Eb)]
-                     (let [ax (+ a0 (* (- a1 a0) t))
-                           bx (+ b0 (* (- b1 b0) t))]
-                       [t [:coll-end {a [ax ea] b [bx eb]}]]))
-                   [0 [:coll-end {a (convert-segment A)
-                                  b (convert-segment B)}]])))]
+(defn- maybe-convert-interval [x]
+  (and x (convert-interval x)))
+
+(defn- add-collision-details [sl1 sl2 [a b]]
+  {a {:prev (maybe-convert-interval (sl/lookup sl1 a))
+      :next (maybe-convert-interval (sl/lookup sl2 a))}
+   b {:prev (maybe-convert-interval (sl/lookup sl1 b))
+      :next (maybe-convert-interval (sl/lookup sl2 b))}})
+
+(defn- find-time-of-collision [rec]
+  (let [[[a {prev-a :prev
+             next-a :next}]
+         [b {prev-b :prev
+             next-b :next}]] (vec rec)]
+    (if (and prev-a prev-b)
+      (let [[a0 ea] prev-a
+            [a1 _ ] next-a
+            [b0 eb] prev-b
+            [b1 _ ] next-b
+            A0      [a0]
+            A1      [a1]
+            Ea      [ea]
+            B0      [b0]
+            B1      [b1]
+            Eb      [eb]]
+        (time-of-collision A0 A1 Ea B0 B1 Eb))
+      0)))
+
+(defn- find-time-of-separation [rec]
+  (let [[[a {prev-a :prev
+             next-a :next}]
+         [b {prev-b :prev
+             next-b :next}]] (vec rec)]
+    (if (and next-a next-b)
+      (let [[a0 ea] prev-a
+            [a1 _ ] next-a
+            [b0 eb] prev-b
+            [b1 _ ] next-b
+            A0      [a0]
+            A1      [a1]
+            Ea      [ea]
+            B0      [b0]
+            B1      [b1]
+            Eb      [eb]]
+        (time-of-separation A0 A1 Ea B0 B1 Eb))
+      0)))
+
+;; Consider using a deferred computation, in case
+;; clients don't need the additional info.
+;; let [ax (+ a0 (* (- a1 a0) t))
+;;      bx (+ b0 (* (- b1 b0) t))]
+
+(defn- delta->events [sl1 sl2 delta]
+  (let [add* (for [x (:add delta)]
+               (let [rec (add-collision-details sl1 sl2 (vec x))]
+                 [(find-time-of-collision rec) [:coll-start rec]]))
+        rem* (for [x (:rem delta)]
+               (let [rec (add-collision-details sl1 sl2 (vec x))]
+                 [(find-time-of-separation rec) [:coll-end rec]]))]
     (->> (concat add* rem*)
          (sort-by first)
          (group first second #{}))))
@@ -105,19 +122,21 @@
                                       (recur (rest e1) (rest e2) acc)
                                       (recur (rest e1) (rest e2) (conj acc [t1 s]))))))))))
 
-(defn- move-fwd [s t h]
+(defn- project [s t h]
   (let [sl1     (:sl s)
-        [sl2 d] (sl-move* sl1 (:vel s) h)
-        events  (->> (sl->events sl1 sl2 d)
+        [sl2 d] (->> (project-intervals (nonzero-vels s) (intervals s) h)
+                     (sl/update-interval* sl1))
+        events  (->> (delta->events sl1 sl2 d)
                      (scale-time h)
                      (offset-time t)
                      (merge-events (:events s)))]
     (assoc s :sl sl2 :events events :t t)))
 
-(defn- move-rev [s t h]
+(defn- rollback [s t h]
   (let [sl1     (:sl s)
-        [sl2 d] (sl-move* sl1 (:vel s) (- h))
-        events  (->> (sl->events sl1 sl2 d)
+        [sl2 d] (->> (project-intervals (nonzero-vels s) (intervals s) (- h))
+                     (sl/update-interval* sl1))
+        events  (->> (delta->events sl1 sl2 d)
                      (scale-time h)
                      reverse
                      (offset-time (- h))
@@ -125,7 +144,7 @@
                      (merge-events (:events s)))]
     (assoc s :sl sl2 :events events :t t)))
 
-(defn apply-events [s events t]
+(defn ingest [s events t]
   (let [sl1         (:sl s)
         [vel sl2 d] (reduce (fn [[vel sl d] ev]
                               (match ev
@@ -136,7 +155,7 @@
                                 [:vel [k v]]     [(assoc vel k v) sl d]))
                             [(:vel s) sl1 {}]
                             events)
-        events'    (->> (sl->events sl1 sl2 d)
+        events'    (->> (delta->events sl1 sl2 d)
                         (scale-time 0)
                         (offset-time t)
                         (merge-events (:events s)))]
@@ -154,14 +173,21 @@
          (-> s
              (update :events rest)
              (assoc  :t      t)))
-       (move-fwd s 0 step-size)))
+       (project s 0 step-size)))
    (fn ext-update [s e x]
-     (let [t     (+ (:t s) e)
-           sigma (- step-size t)]
+     (let [t         (+ (:t s) e)
+           sigma     (- step-size t)
+           port->ev* (group first second [] x)
+           ;; vel depends on :add and :rem, too.
+
+           vel'      (reduce (fn [m [k v]] (assoc m k v))
+                             (:vel s)
+                             (port->ev* :vel))]
        (-> s
-           (move-rev t sigma)
-           (apply-events x t)
-           (move-fwd t sigma))))
+           (rollback t sigma)
+           (assoc :vel vel')
+           (ingest x t)
+           (project t sigma))))
    nil
    (fn [s]
      (if (seq (:events s))
