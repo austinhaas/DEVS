@@ -2,8 +2,8 @@
   (:require
    [clojure.test :refer :all]
    [test-util :refer [eq?]]
-   [devs.atomic-simulator :refer [atomic-simulator]]
-   [devs.immediate-system :refer [immediate-system]]
+   [pettomato.devs.atomic-simulator :refer [atomic-simulator]]
+   [pettomato.devs.immediate-system :refer [immediate-system]]
    [demo.publisher :refer [publisher]]))
 
 (defn- normalize-results [results]

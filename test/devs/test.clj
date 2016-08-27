@@ -2,20 +2,20 @@
 ;;; This was an old demo of a dynamic system. It hasn't been updated
 ;;; to work with the current code base.
 (comment
-(ns devs.test
+(ns pettomato.devs.test
   (:require
    [clojure.test :refer :all]
    [clojure.core.match :refer [match]]
    [clojure.core.async :as async :refer [chan go <! timeout close! >!]]
    [pettomato.lib.coll :refer [dissoc-in]]
    [pettomato.lib.number :refer [infinity]]
-   [devs.atomic-model :refer [atomic-model]]
-   [devs.executive-model :refer [executive-model]]
-   [devs.executive-network-model :refer [executive-network-model]]
-   [devs.atomic-simulator :refer [atomic-simulator]]
-   [devs.executive-network-simulator :refer [network-simulator]]
-   [devs.real-time-system :refer [real-time-system]]
-   [devs.immediate-system :refer [immediate-system]]))
+   [pettomato.devs.atomic-model :refer [atomic-model]]
+   [pettomato.devs.executive-model :refer [executive-model]]
+   [pettomato.devs.executive-network-model :refer [executive-network-model]]
+   [pettomato.devs.atomic-simulator :refer [atomic-simulator]]
+   [pettomato.devs.executive-network-simulator :refer [network-simulator]]
+   [pettomato.devs.real-time-system :refer [real-time-system]]
+   [pettomato.devs.immediate-system :refer [immediate-system]]))
 
 (defn generator [period]
   (atomic-model

@@ -1,4 +1,4 @@
-(ns devs.models
+(ns pettomato.devs.models
   (:require
    [pettomato.lib.coll :refer [dissoc-in]]))
 

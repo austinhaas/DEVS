@@ -1,4 +1,4 @@
-(defproject devs "0.1.0-SNAPSHOT"
+(defproject pettomato/devs "0.1.0-SNAPSHOT"
   :description "A discrete-event simulation system based on the DEVS formalism."
   :url "http://pettomato.com"
   :license {:name "Eclipse Public License"

@@ -7,13 +7,13 @@
    [pettomato.lib.geometry.2D.vect :as v]
    [pettomato.lib.number :refer [infinity]]
    [pettomato.lib.physics.integration :refer [verlet-2d]]
-   [devs.models :refer [atomic-model executive-model network-model register connect]]
+   [pettomato.devs.models :refer [atomic-model executive-model network-model register connect]]
    [demo.db :refer [db]]
    [demo.publisher :refer [publisher]]
    [demo.collision-detector :refer [collision-detector]]
-   [devs.network-simulator :refer [network-simulator]]
-   [devs.immediate-system :refer [immediate-system]]
-   [devs.real-time-system :refer [real-time-system]]))
+   [pettomato.devs.network-simulator :refer [network-simulator]]
+   [pettomato.devs.immediate-system :refer [immediate-system]]
+   [pettomato.devs.real-time-system :refer [real-time-system]]))
 
 (defn clock [h]
   (atomic-model

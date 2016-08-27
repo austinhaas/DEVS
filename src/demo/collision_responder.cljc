@@ -2,7 +2,7 @@
   (:require
    [pettomato.lib.match :refer [match]]
    [pettomato.lib.number :refer [infinity]]
-   [devs.models :refer [atomic-model]]))
+   [pettomato.devs.models :refer [atomic-model]]))
 
 (defn collision-responder []
   (atomic-model

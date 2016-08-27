@@ -2,7 +2,7 @@
   (:require
    [pettomato.lib.db :as db]
    [pettomato.lib.number :refer [infinity]]
-   [devs.models :refer [atomic-model]]))
+   [pettomato.devs.models :refer [atomic-model]]))
 
 ;; Subscriptions are stored in a map, indexed by the attributes
 ;; contained in the pmap component of the sub.

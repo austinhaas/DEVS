@@ -2,8 +2,8 @@
   (:require
    [clojure.test :refer :all]
    [test-util :refer [eq? pprint-ev*]]
-   [devs.atomic-simulator :refer [atomic-simulator]]
-   [devs.immediate-system :refer [immediate-system]]
+   [pettomato.devs.atomic-simulator :refer [atomic-simulator]]
+   [pettomato.devs.immediate-system :refer [immediate-system]]
    [demo.collision-detector :refer [collision-detector]]))
 
 

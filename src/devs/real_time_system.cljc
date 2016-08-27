@@ -1,9 +1,9 @@
-(ns devs.real-time-system
+(ns pettomato.devs.real-time-system
   (:require
    [clojure.core.async :as async :refer [timeout close! alts! go <! >! chan]]
    [pettomato.lib.number :refer [infinity]]
    [pettomato.lib.date :refer [now]]
-   [devs.Simulator :refer [init int-update ext-update tl tn]]))
+   [pettomato.devs.Simulator :refer [init int-update ext-update tl tn]]))
 
 (defn timeout-inf [msecs]
   (if (< msecs infinity)

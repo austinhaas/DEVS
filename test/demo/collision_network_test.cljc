@@ -5,14 +5,14 @@
    [pettomato.lib.coll :refer [dissoc-in]]
    [pettomato.lib.match :refer [match]]
    [pettomato.lib.number :refer [infinity]]
-   [devs.models :refer [atomic-model executive-model network-model add-component add-connection]]
+   [pettomato.devs.models :refer [atomic-model executive-model network-model add-component add-connection]]
    [demo.integrator :refer [mult-integrator]]
    [demo.collision-detector :refer [collision-detector]]
    [demo.collision-responder :refer [collision-responder]]
    [clojure.core.async :as async :refer [chan go <! timeout close! >! onto-chan]]
-   [devs.network-simulator :refer [network-simulator]]
-   [devs.immediate-system :refer [immediate-system]]
-   [devs.real-time-system :refer [real-time-system]]))
+   [pettomato.devs.network-simulator :refer [network-simulator]]
+   [pettomato.devs.immediate-system :refer [immediate-system]]
+   [pettomato.devs.real-time-system :refer [real-time-system]]))
 
 (def s1 (-> {}
             (add-component :int   (mult-integrator 1))

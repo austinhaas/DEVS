@@ -6,7 +6,7 @@
    [pettomato.lib.geometry.2D.rect :as r]
    [pettomato.lib.geometry.2D.point :as pt]
    [pettomato.lib.collision.sweep-list-2d-cache :as sl]
-   [devs.models :refer [atomic-model]]))
+   [pettomato.devs.models :refer [atomic-model]]))
 
 ;;; Collision priority-queue.
 

@@ -1,15 +1,15 @@
-(ns devs.network-simulator
+(ns pettomato.devs.network-simulator
   "Muzy, Alexander, and James J. Nutaro. \"Algorithms for efficient
    implementations of the DEVS & DSDEVS abstract simulators.\"
    1st Open International Conference on Modeling & Simulation (OICMS). 2005.
    http://www.i3s.unice.fr/~muzy/Publications/oicms_revised_Nov_21_2005.pdf"
   (:require
    [clojure.set :refer [difference]]
-   [devs.Simulator :refer [Simulator]]
-   [devs.priority-queue :as pq]
+   [pettomato.devs.Simulator :refer [Simulator]]
+   [pettomato.devs.priority-queue :as pq]
    [pettomato.lib.number :refer [infinity]]
    [pettomato.lib.coll :refer [group]]
-   [devs.models :refer [atomic? executive? network?
+   [pettomato.devs.models :refer [atomic? executive? network?
                         initial-state int-update-fn ext-update-fn con-update-fn output-fn time-advance-fn
                         get-components get-connections
                         exec-name exec-model]]))

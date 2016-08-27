@@ -1,4 +1,4 @@
-(ns devs.priority-queue
+(ns pettomato.devs.priority-queue
   "A priority queue implementation.
 
    Keys are sorted by compare.

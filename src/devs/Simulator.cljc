@@ -1,4 +1,4 @@
-(ns devs.Simulator)
+(ns pettomato.devs.Simulator)
 
 (defprotocol Simulator
   (init       [sim t])

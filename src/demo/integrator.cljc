@@ -3,7 +3,7 @@
    [pettomato.lib.match :refer [match]]
    [pettomato.lib.coll :refer [group]]
    [pettomato.lib.physics.integration :refer [first-order-euler]]
-   [devs.models :refer [atomic-model]]))
+   [pettomato.devs.models :refer [atomic-model]]))
 
 (defn integrator [k pos vel h offset]
   (atomic-model
