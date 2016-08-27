@@ -1,9 +1,11 @@
 (ns pettomato.devs.real-time-system
   (:require
-   [clojure.core.async :as async :refer [timeout close! alts! go <! >! chan]]
+   #?(:clj [clojure.core.async :as async :refer [timeout close! alts! go <! >! chan]]
+      :cljs [cljs.core.async :as async :refer [timeout close! alts! <! >! chan]])
    [pettomato.lib.number :refer [infinity]]
    [pettomato.lib.date :refer [now]]
-   [pettomato.devs.Simulator :refer [init int-update ext-update tl tn]]))
+   [pettomato.devs.Simulator :refer [init int-update ext-update tl tn]])
+  #?(:cljs (:require-macros [cljs.core.async.macros :refer [go go-loop]])))
 
 (defn timeout-inf [msecs]
   (if (< msecs infinity)
