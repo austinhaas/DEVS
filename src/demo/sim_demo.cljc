@@ -7,7 +7,7 @@
    [pt-lib.geometry.2D.vect :as v]
    [pt-lib.number :refer [infinity]]
    [pt-lib.physics.integration :refer [verlet-2d]]
-   [devs.models :refer [atomic-model executive-model network-model add-component add-connection]]
+   [devs.models :refer [atomic-model executive-model network-model register connect]]
    [demo.db :refer [db]]
    [demo.publisher :refer [publisher]]
    [demo.collision-detector :refer [collision-detector]]
@@ -58,18 +58,18 @@
    :cdet-net
    (executive-model
     (-> {}
-        (add-component :cdet (collision-detector h (constantly true)))
-        (add-component :sub  (collision-detector-subscriber))
-        (add-connection :N    [:sub-response :db]  :sub  [:sub-response :db])
-        (add-connection :N    [:sub-response :pub] :sub  [:sub-response :pub])
-        (add-connection :sub  [:sub :db]    :N    [:sub :db])
-        (add-connection :sub  [:sub :pub]   :N    [:sub :pub])
-        (add-connection :sub  :insert       :cdet :insert)
-        (add-connection :sub  :delete       :cdet :delete)
-        (add-connection :sub  :modify       :cdet :modify)
-        (add-connection :sub  :tick         :cdet :tick)
-        (add-connection :cdet :coll-start   :N    :coll-start)
-        (add-connection :cdet :coll-end     :N    :coll-end))
+        (register :cdet (collision-detector h (constantly true)))
+        (register :sub  (collision-detector-subscriber))
+        (connect :N    [:sub-response :db]  :sub  [:sub-response :db])
+        (connect :N    [:sub-response :pub] :sub  [:sub-response :pub])
+        (connect :sub  [:sub :db]    :N    [:sub :db])
+        (connect :sub  [:sub :pub]   :N    [:sub :pub])
+        (connect :sub  :insert       :cdet :insert)
+        (connect :sub  :delete       :cdet :delete)
+        (connect :sub  :modify       :cdet :modify)
+        (connect :sub  :tick         :cdet :tick)
+        (connect :cdet :coll-start   :N    :coll-start)
+        (connect :cdet :coll-end     :N    :coll-end))
     nil nil nil nil
     (constantly infinity))))
 
@@ -170,52 +170,52 @@
 
 (defn exec [name h]
   (executive-model (-> {}
-                       (add-component :clock (clock h))
-                       (add-component :pub   (publisher))
-                       (add-component :db    (db :id))
-                       (add-component :cdet  (collision-detector-network h))
-                       (add-component :cres  (collision-responder))
-                       (add-component :obj-1 (game-object :obj-1 [0 0] [1 0] 1 [0 0 4 4] :alpha h))
-                       (add-component :obj-2 (game-object :obj-2 [6 0] [0 0] 1 [0 0 4 4] :alpha h))
-                       (add-component :disp  (display))
+                       (register :clock (clock h))
+                       (register :pub   (publisher))
+                       (register :db    (db :id))
+                       (register :cdet  (collision-detector-network h))
+                       (register :cres  (collision-responder))
+                       (register :obj-1 (game-object :obj-1 [0 0] [1 0] 1 [0 0 4 4] :alpha h))
+                       (register :obj-2 (game-object :obj-2 [6 0] [0 0] 1 [0 0 4 4] :alpha h))
+                       (register :disp  (display))
 
-                       (add-connection :N    :insert :db :insert)
-                       (add-connection :N    :modify :db :modify)
-                       (add-connection :N    [:query :q] :db  [:query :q])
-                       (add-connection :db   [:query-response :q] :N :out)
-                       (add-connection :cdet [:sub :db] :db [:sub :cdet])
-                       (add-connection :cdet [:sub :pub] :pub [:sub :cdet])
+                       (connect :N    :insert :db :insert)
+                       (connect :N    :modify :db :modify)
+                       (connect :N    [:query :q] :db  [:query :q])
+                       (connect :db   [:query-response :q] :N :out)
+                       (connect :cdet [:sub :db] :db [:sub :cdet])
+                       (connect :cdet [:sub :pub] :pub [:sub :cdet])
 
-                       (add-connection :db   [:sub-response :cdet] :cdet [:sub-response :db])
-                       (add-connection :pub  [:sub-response :cdet] :cdet [:sub-response :pub])
+                       (connect :db   [:sub-response :cdet] :cdet [:sub-response :db])
+                       (connect :pub  [:sub-response :cdet] :cdet [:sub-response :pub])
 
-                       (add-connection :cdet :coll-start :pub :pub (fn [x] {:type :coll-start :pair x}))
-                       (add-connection :cdet :coll-end   :pub :pub (fn [x] {:type :coll-end   :pair x}))
+                       (connect :cdet :coll-start :pub :pub (fn [x] {:type :coll-start :pair x}))
+                       (connect :cdet :coll-end   :pub :pub (fn [x] {:type :coll-end   :pair x}))
 
-                       (add-connection :clock :tick :pub :pub (constantly {:type :tick}))
+                       (connect :clock :tick :pub :pub (constantly {:type :tick}))
 
-                       (add-connection :obj-1 [:sub :pub] :pub [:sub :obj-1])
-                       (add-connection :pub [:sub-response :obj-1] :obj-1 [:sub-response :pub])
-                       (add-connection :obj-1 [:sub :db] :db [:sub :obj-1])
-                       (add-connection :db  [:sub-response :obj-1] :obj-1 [:sub-response :db])
-                       (add-connection :obj-1 :insert :db :insert)
-                       (add-connection :obj-1 :modify :db :modify)
+                       (connect :obj-1 [:sub :pub] :pub [:sub :obj-1])
+                       (connect :pub [:sub-response :obj-1] :obj-1 [:sub-response :pub])
+                       (connect :obj-1 [:sub :db] :db [:sub :obj-1])
+                       (connect :db  [:sub-response :obj-1] :obj-1 [:sub-response :db])
+                       (connect :obj-1 :insert :db :insert)
+                       (connect :obj-1 :modify :db :modify)
 
-                       (add-connection :obj-2 [:sub :pub] :pub [:sub :obj-2])
-                       (add-connection :pub [:sub-response :obj-2] :obj-2 [:sub-response :pub])
-                       (add-connection :obj-2 [:sub :db] :db [:sub :obj-2])
-                       (add-connection :db  [:sub-response :obj-2] :obj-2 [:sub-response :db])
-                       (add-connection :obj-2 :insert :db :insert)
-                       (add-connection :obj-2 :modify :db :modify)
+                       (connect :obj-2 [:sub :pub] :pub [:sub :obj-2])
+                       (connect :pub [:sub-response :obj-2] :obj-2 [:sub-response :pub])
+                       (connect :obj-2 [:sub :db] :db [:sub :obj-2])
+                       (connect :db  [:sub-response :obj-2] :obj-2 [:sub-response :db])
+                       (connect :obj-2 :insert :db :insert)
+                       (connect :obj-2 :modify :db :modify)
 
-                       (add-connection :cres [:sub :pub] :pub [:sub :cres])
-                       (add-connection :pub [:sub-response :cres] :cres [:sub-response :pub])
-                       (add-connection :cres :modify     :db   :modify)
-                       (add-connection :cres [:query :db] :db [:query :cres])
-                       (add-connection :db   [:query-response :cres] :cres [:query-response :db])
+                       (connect :cres [:sub :pub] :pub [:sub :cres])
+                       (connect :pub [:sub-response :cres] :cres [:sub-response :pub])
+                       (connect :cres :modify     :db   :modify)
+                       (connect :cres [:query :db] :db [:query :cres])
+                       (connect :db   [:query-response :cres] :cres [:query-response :db])
 
-                       (add-connection :disp [:sub :db] :db [:sub :disp])
-                       (add-connection :db   [:sub-response :disp] :disp [:sub-response :db])
+                       (connect :disp [:sub :db] :db [:sub :disp])
+                       (connect :db   [:sub-response :disp] :disp [:sub-response :db])
                        )
                    nil nil nil nil
                    (constantly infinity)))
@@ -224,7 +224,7 @@
 
 #_
 (clojure.pprint/pprint
- (immediate-system (network-simulator (network)) 0 20 []))
+ (immediate-system (network-simulator (network)) 0 20000 []))
 
 #_
 (do

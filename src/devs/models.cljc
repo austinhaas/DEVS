@@ -36,20 +36,20 @@
   (-> (atomic-model init int ext con out ta)
       (assoc :type ::executive)))
 
-(defn add-component [s k m]
+(defn register [s k m]
   (assoc-in s [:components k] m))
 
-(defn rem-component [s k m]
+(defn unregister [s k m]
   (dissoc-in s [:components k]))
 
 (defn get-components [s]
   (:components s))
 
-(defn add-connection
+(defn connect
   ([s k1 p1 k2 p2 t] (assoc-in s [:connections k1 p1 k2] [p2 t]))
-  ([s k1 p1 k2 p2]   (add-connection s k1 p1 k2 p2 identity)))
+  ([s k1 p1 k2 p2]   (connect s k1 p1 k2 p2 identity)))
 
-(defn rem-connection [s k1 p1 k2]
+(defn disconnect [s k1 p1 k2]
   (dissoc-in s [:connections k1 p1 k2]))
 
 (defn get-connections [s k1 p1]
