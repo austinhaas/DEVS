@@ -5,7 +5,7 @@
    [pettomato.lib.number :refer [infinity]]
    [pettomato.lib.date :refer [now]]
    [pettomato.devs.Simulator :refer [init int-update ext-update tl tn]])
-  #?(:cljs (:require-macros [cljs.core.async.macros :refer [go go-loop]])))
+  #?(:cljs (:require-macros [cljs.core.async.macros :refer [go]])))
 
 (defn timeout-inf [msecs]
   (if (< msecs infinity)
