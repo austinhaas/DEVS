@@ -1,10 +1,8 @@
 (ns demo.db
   (:require
-   [clojure.set :refer [subset? intersection union]]
    [pt-lib.db :as db]
    [pt-lib.number :refer [infinity]]
-   [pt-lib.match :refer [match]]
-   [devs.models :refer [atomic-model executive-model network-model add-component add-connection]]))
+   [devs.models :refer [atomic-model]]))
 
 ;; Subscriptions are stored in a map, indexed by the attributes
 ;; contained in the fmap component of the sub.
