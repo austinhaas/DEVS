@@ -1,4 +1,4 @@
-(ns demo.collision-network-test
+(ns pettomato.demo.collision-network-test
   (:require
    [clojure.test :refer :all]
    [test-util :refer [eq? pprint-ev*]]
@@ -6,9 +6,9 @@
    [pettomato.lib.match :refer [match]]
    [pettomato.lib.number :refer [infinity]]
    [pettomato.devs.models :refer [atomic-model executive-model network-model add-component add-connection]]
-   [demo.integrator :refer [mult-integrator]]
-   [demo.collision-detector :refer [collision-detector]]
-   [demo.collision-responder :refer [collision-responder]]
+   [pettomato.demo.integrator :refer [mult-integrator]]
+   [pettomato.demo.collision-detector :refer [collision-detector]]
+   [pettomato.demo.collision-responder :refer [collision-responder]]
    [clojure.core.async :as async :refer [chan go <! timeout close! >! onto-chan]]
    [pettomato.devs.network-simulator :refer [network-simulator]]
    [pettomato.devs.immediate-system :refer [immediate-system]]

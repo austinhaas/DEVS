@@ -1,5 +1,5 @@
 
-;;; This was an old demo of a dynamic system. It hasn't been updated
+;;; This was an old pettomato.demo of a dynamic system. It hasn't been updated
 ;;; to work with the current code base.
 (comment
 (ns pettomato.devs.test

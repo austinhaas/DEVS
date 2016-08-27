@@ -1,4 +1,4 @@
-(ns demo.collision-responder
+(ns pettomato.demo.collision-responder
   (:require
    [pettomato.lib.match :refer [match]]
    [pettomato.lib.number :refer [infinity]]

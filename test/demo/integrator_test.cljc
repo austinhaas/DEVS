@@ -1,10 +1,10 @@
-(ns demo.integrator-test
+(ns pettomato.demo.integrator-test
   (:require
    [clojure.test :refer :all]
    [test-util :refer [eq?]]
    [pettomato.devs.atomic-simulator :refer [atomic-simulator]]
    [pettomato.devs.immediate-system :refer [immediate-system]]
-   [demo.integrator :refer [integrator mult-integrator]]))
+   [pettomato.demo.integrator :refer [integrator mult-integrator]]))
 
 (deftest integrator-tests
   (is (eq? (immediate-system

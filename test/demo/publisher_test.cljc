@@ -1,10 +1,10 @@
-(ns demo.publisher-test
+(ns pettomato.demo.publisher-test
   (:require
    [clojure.test :refer :all]
    [test-util :refer [eq?]]
    [pettomato.devs.atomic-simulator :refer [atomic-simulator]]
    [pettomato.devs.immediate-system :refer [immediate-system]]
-   [demo.publisher :refer [publisher]]))
+   [pettomato.demo.publisher :refer [publisher]]))
 
 (defn- normalize-results [results]
   (mapv (fn [[t [port [query val]]]]

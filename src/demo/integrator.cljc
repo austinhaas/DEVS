@@ -1,4 +1,4 @@
-(ns demo.integrator
+(ns pettomato.demo.integrator
   (:require
    [pettomato.lib.match :refer [match]]
    [pettomato.lib.coll :refer [group]]

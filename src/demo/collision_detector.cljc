@@ -1,4 +1,4 @@
-(ns demo.collision-detector
+(ns pettomato.demo.collision-detector
   (:require
    [clojure.set :refer [difference]]
    [pettomato.lib.coll :refer [group]]

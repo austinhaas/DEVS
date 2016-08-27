@@ -1,4 +1,4 @@
-(ns demo.publisher
+(ns pettomato.demo.publisher
   (:require
    [pettomato.lib.db :as db]
    [pettomato.lib.number :refer [infinity]]

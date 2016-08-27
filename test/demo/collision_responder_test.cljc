@@ -1,10 +1,10 @@
-(ns demo.collision-responder-test
+(ns pettomato.demo.collision-responder-test
   (:require
    [clojure.test :refer :all]
    [test-util :refer [eq?]]
    [pettomato.devs.atomic-simulator :refer [atomic-simulator]]
    [pettomato.devs.immediate-system :refer [immediate-system]]
-   [demo.collision-responder :refer [collision-responder]]))
+   [pettomato.demo.collision-responder :refer [collision-responder]]))
 
 (deftest collision-responder-test
   (is (eq? (immediate-system (atomic-simulator (collision-responder))

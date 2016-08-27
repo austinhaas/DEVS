@@ -1,4 +1,4 @@
-(ns demo.sim-demo
+(ns pettomato.demo.sim-demo
   (:require
    [clojure.core.async :as async :refer [chan go <! timeout close! >! onto-chan]]
    [pettomato.lib.coll :refer [group]]
@@ -8,9 +8,9 @@
    [pettomato.lib.number :refer [infinity]]
    [pettomato.lib.physics.integration :refer [verlet-2d]]
    [pettomato.devs.models :refer [atomic-model executive-model network-model register connect]]
-   [demo.db :refer [db]]
-   [demo.publisher :refer [publisher]]
-   [demo.collision-detector :refer [collision-detector]]
+   [pettomato.demo.db :refer [db]]
+   [pettomato.demo.publisher :refer [publisher]]
+   [pettomato.demo.collision-detector :refer [collision-detector]]
    [pettomato.devs.network-simulator :refer [network-simulator]]
    [pettomato.devs.immediate-system :refer [immediate-system]]
    [pettomato.devs.real-time-system :refer [real-time-system]]))
