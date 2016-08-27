@@ -6,21 +6,18 @@
    [devs.immediate-system :refer [immediate-system]]
    [demo.collision-detector :refer [collision-detector]]))
 
-(deftest collision-detector-test
- (is (eq? (immediate-system
-           (atomic-simulator (collision-detector 1))
-           0
-           4
-           [[0 [:add [:a 0 0 1]]]
-            [0 [:add [:b 0 2 1]]]])
-          [[0 [:coll-start {:b {:prev nil, :next [0 1]}, :a {:prev nil, :next [0 1]}}]]
-           [1 [:coll-end   {:b {:prev [0 1], :next [2 1]}, :a {:prev [0 1], :next [0 1]}}]]]))
 
-  (is (eq? (immediate-system
-            (atomic-simulator (collision-detector 1))
-            0
-            10
-            [[0 [:add [:a 0 0 1]]]
-             [0 [:add [:b 5 -2 1]]]])
-           [[1.5 [:coll-start {:b {:prev [3 1], :next [1 1]}, :a {:prev [0 1], :next [0 1]}}]]
-            [3.5 [:coll-end   {:b {:prev [-1 1], :next [-3 1]}, :a {:prev [0 1], :next [0 1]}}]]])))
+(immediate-system
+ (atomic-simulator (collision-detector 1 (constantly true)))
+ 0
+ 4
+ [[0 [[:sub-response :q]
+      [[{} {}]
+       #{{:old {}
+          :new {:id :a :collision-group :alpha :shape [0 0 5 5] :pos [0 0] :next-pos [2 0]}
+          :oldf {}
+          :newf {}}
+         {:old {}
+          :new {:id :b :collision-group :alpha :shape [0 0 5 5] :pos [6 0] :next-pos [6 0]}
+          :oldf {}
+          :newf {}}}]]]])
