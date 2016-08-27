@@ -1,5 +1,6 @@
 (ns demo.sim-demo
   (:require
+   [clojure.core.async :as async :refer [chan go <! timeout close! >! onto-chan]]
    [pt-lib.coll :refer [group]]
    [pt-lib.geometry.2D.rect :as r]
    [pt-lib.geometry.2D.point :as pt]
@@ -11,7 +12,8 @@
    [demo.publisher :refer [publisher]]
    [demo.collision-detector :refer [collision-detector]]
    [devs.network-simulator :refer [network-simulator]]
-   [devs.immediate-system :refer [immediate-system]]))
+   [devs.immediate-system :refer [immediate-system]]
+   [devs.real-time-system :refer [real-time-system]]))
 
 (defn clock [h]
   (atomic-model
@@ -51,12 +53,12 @@
    :output
    :sigma))
 
-(defn collision-detector-network []
+(defn collision-detector-network [h]
   (network-model
    :cdet-net
    (executive-model
     (-> {}
-        (add-component :cdet (collision-detector 1 (constantly true)))
+        (add-component :cdet (collision-detector h (constantly true)))
         (add-component :sub  (collision-detector-subscriber))
         (add-connection :N    [:sub-response :db]  :sub  [:sub-response :db])
         (add-connection :N    [:sub-response :pub] :sub  [:sub-response :pub])
@@ -166,15 +168,15 @@
    :output
    :sigma))
 
-(defn exec [name]
+(defn exec [name h]
   (executive-model (-> {}
-                       (add-component :clock (clock 1))
+                       (add-component :clock (clock h))
                        (add-component :pub   (publisher))
                        (add-component :db    (db :id))
-                       (add-component :cdet  (collision-detector-network))
+                       (add-component :cdet  (collision-detector-network h))
                        (add-component :cres  (collision-responder))
-                       (add-component :obj-1 (game-object :obj-1 [0 0] [1 0] 1 [0 0 4 4] :alpha 1))
-                       (add-component :obj-2 (game-object :obj-2 [6 0] [0 0] 1 [0 0 4 4] :alpha 1))
+                       (add-component :obj-1 (game-object :obj-1 [0 0] [1 0] 1 [0 0 4 4] :alpha h))
+                       (add-component :obj-2 (game-object :obj-2 [6 0] [0 0] 1 [0 0 4 4] :alpha h))
                        (add-component :disp  (display))
 
                        (add-connection :N    :insert :db :insert)
@@ -218,7 +220,29 @@
                    nil nil nil nil
                    (constantly infinity)))
 
-(defn network [] (network-model :net (exec :net)))
+(defn network [] (network-model :net (exec :net 1000)))
 
+#_
 (clojure.pprint/pprint
  (immediate-system (network-simulator (network)) 0 20 []))
+
+#_
+(do
+  (def sim (network-simulator (network)))
+  (def chan-in  (chan 100))
+  (def chan-out (chan 100))
+
+  (real-time-system sim 0 chan-in chan-out)
+
+  (go (loop []
+        (if-let [v (<! chan-out)]
+          (do (println (format "[%s] %s" (first v) (second v)))
+              (recur))
+          (println 'done)))))
+
+#_
+(onto-chan chan-in [[[:add :a] [0 1 1]]
+                    [[:add :b] [5 -1 1]]]
+           false)
+
+#_(close! chan-in)
