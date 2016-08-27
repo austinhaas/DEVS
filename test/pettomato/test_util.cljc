@@ -1,4 +1,4 @@
-(ns test-util
+(ns pettomato.test-util
   (:require
    [clojure.walk :refer [postwalk]]))
 

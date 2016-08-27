@@ -1,7 +1,7 @@
 (ns pettomato.demo.db-test
   (:require
    [clojure.test :refer :all]
-   [test-util :refer [eq?]]
+   [pettomato.test-util :refer [eq?]]
    [pettomato.devs.atomic-simulator :refer [atomic-simulator]]
    [pettomato.devs.immediate-system :refer [immediate-system]]
    [pettomato.demo.db :refer [db]]))

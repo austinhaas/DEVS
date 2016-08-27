@@ -1,7 +1,7 @@
 (ns pettomato.demo.collision-detector-test
   (:require
    [clojure.test :refer :all]
-   [test-util :refer [eq? pprint-ev*]]
+   [pettomato.test-util :refer [eq? pprint-ev*]]
    [pettomato.devs.atomic-simulator :refer [atomic-simulator]]
    [pettomato.devs.immediate-system :refer [immediate-system]]
    [pettomato.demo.collision-detector :refer [collision-detector]]))

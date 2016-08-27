@@ -1,7 +1,7 @@
 (ns pettomato.demo.collision-network-test
   (:require
    [clojure.test :refer :all]
-   [test-util :refer [eq? pprint-ev*]]
+   [pettomato.test-util :refer [eq? pprint-ev*]]
    [pettomato.lib.coll :refer [dissoc-in]]
    [pettomato.lib.match :refer [match]]
    [pettomato.lib.number :refer [infinity]]
