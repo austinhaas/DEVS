@@ -1,7 +1,7 @@
 (ns demo.db
   (:require
-   [pt-lib.db :as db]
-   [pt-lib.number :refer [infinity]]
+   [pettomato.lib.db :as db]
+   [pettomato.lib.number :refer [infinity]]
    [devs.models :refer [atomic-model]]))
 
 ;; Subscriptions are stored in a map, indexed by the attributes

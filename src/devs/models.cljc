@@ -1,6 +1,6 @@
 (ns devs.models
   (:require
-   [pt-lib.coll :refer [dissoc-in]]))
+   [pettomato.lib.coll :refer [dissoc-in]]))
 
 (defn atomic?    [model] (or (= ::atomic (:type model))
                              (= ::executive (:type model))))

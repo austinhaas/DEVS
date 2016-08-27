@@ -7,8 +7,8 @@
    [clojure.set :refer [difference]]
    [devs.Simulator :refer [Simulator]]
    [devs.priority-queue :as pq]
-   [pt-lib.number :refer [infinity]]
-   [pt-lib.coll :refer [group]]
+   [pettomato.lib.number :refer [infinity]]
+   [pettomato.lib.coll :refer [group]]
    [devs.models :refer [atomic? executive? network?
                         initial-state int-update-fn ext-update-fn con-update-fn output-fn time-advance-fn
                         get-components get-connections

@@ -1,8 +1,8 @@
 (ns devs.real-time-system
   (:require
    [clojure.core.async :as async :refer [timeout close! alts! go <! >! chan]]
-   [pt-lib.number :refer [infinity]]
-   [pt-lib.date :refer [now]]
+   [pettomato.lib.number :refer [infinity]]
+   [pettomato.lib.date :refer [now]]
    [devs.Simulator :refer [init int-update ext-update tl tn]]))
 
 (defn timeout-inf [msecs]

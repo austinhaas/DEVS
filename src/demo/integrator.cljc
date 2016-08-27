@@ -1,8 +1,8 @@
 (ns demo.integrator
   (:require
-   [pt-lib.match :refer [match]]
-   [pt-lib.coll :refer [group]]
-   [pt-lib.physics.integration :refer [first-order-euler]]
+   [pettomato.lib.match :refer [match]]
+   [pettomato.lib.coll :refer [group]]
+   [pettomato.lib.physics.integration :refer [first-order-euler]]
    [devs.models :refer [atomic-model]]))
 
 (defn integrator [k pos vel h offset]

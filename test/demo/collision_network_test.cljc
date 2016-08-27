@@ -2,9 +2,9 @@
   (:require
    [clojure.test :refer :all]
    [test-util :refer [eq? pprint-ev*]]
-   [pt-lib.coll :refer [dissoc-in]]
-   [pt-lib.match :refer [match]]
-   [pt-lib.number :refer [infinity]]
+   [pettomato.lib.coll :refer [dissoc-in]]
+   [pettomato.lib.match :refer [match]]
+   [pettomato.lib.number :refer [infinity]]
    [devs.models :refer [atomic-model executive-model network-model add-component add-connection]]
    [demo.integrator :refer [mult-integrator]]
    [demo.collision-detector :refer [collision-detector]]

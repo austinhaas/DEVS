@@ -1,11 +1,11 @@
 (ns demo.collision-detector
   (:require
    [clojure.set :refer [difference]]
-   [pt-lib.coll :refer [group]]
-   [pt-lib.number :refer [infinity]]
-   [pt-lib.geometry.2D.rect :as r]
-   [pt-lib.geometry.2D.point :as pt]
-   [pt-lib.collision.sweep-list-2d-cache :as sl]
+   [pettomato.lib.coll :refer [group]]
+   [pettomato.lib.number :refer [infinity]]
+   [pettomato.lib.geometry.2D.rect :as r]
+   [pettomato.lib.geometry.2D.point :as pt]
+   [pettomato.lib.collision.sweep-list-2d-cache :as sl]
    [devs.models :refer [atomic-model]]))
 
 ;;; Collision priority-queue.

@@ -1,12 +1,12 @@
 (ns demo.sim-demo
   (:require
    [clojure.core.async :as async :refer [chan go <! timeout close! >! onto-chan]]
-   [pt-lib.coll :refer [group]]
-   [pt-lib.geometry.2D.rect :as r]
-   [pt-lib.geometry.2D.point :as pt]
-   [pt-lib.geometry.2D.vect :as v]
-   [pt-lib.number :refer [infinity]]
-   [pt-lib.physics.integration :refer [verlet-2d]]
+   [pettomato.lib.coll :refer [group]]
+   [pettomato.lib.geometry.2D.rect :as r]
+   [pettomato.lib.geometry.2D.point :as pt]
+   [pettomato.lib.geometry.2D.vect :as v]
+   [pettomato.lib.number :refer [infinity]]
+   [pettomato.lib.physics.integration :refer [verlet-2d]]
    [devs.models :refer [atomic-model executive-model network-model register connect]]
    [demo.db :refer [db]]
    [demo.publisher :refer [publisher]]

@@ -1,6 +1,6 @@
 (ns devs.immediate-system
   (:require
-   [pt-lib.number :refer [infinity]]
+   [pettomato.lib.number :refer [infinity]]
    [devs.Simulator :refer [init int-update ext-update tl tn]]))
 
 (defn immediate-system [sim start-time end-time ev*]

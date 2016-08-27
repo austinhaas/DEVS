@@ -1,7 +1,7 @@
 (ns demo.collision-responder
   (:require
-   [pt-lib.match :refer [match]]
-   [pt-lib.number :refer [infinity]]
+   [pettomato.lib.match :refer [match]]
+   [pettomato.lib.number :refer [infinity]]
    [devs.models :refer [atomic-model]]))
 
 (defn collision-responder []

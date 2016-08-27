@@ -13,7 +13,7 @@
   and update are required; and the range of current keys is relatively
   small, so many values map to the same key."
   (:refer-clojure :exclude [rem update peek pop])
-  (:require [pt-lib.number :refer [infinity]]))
+  (:require [pettomato.lib.number :refer [infinity]]))
 
 (declare add)
 
