@@ -1,4 +1,4 @@
-(ns demo.db-test
+(ns demo.publisher-test
   (:require
    [clojure.test :refer :all]
    [test-util :refer [eq?]]
