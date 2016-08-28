@@ -141,9 +141,9 @@
           k->ev*'    (dissoc k->ev* ())
           receivers  (keys k->ev*')
           {re true
-           ra false} (group-by (comp executive? :model A) receivers)
+           ra false} (group-by (comp executive? :model A) (into imminent receivers))
           [A' Q']    (-> [A Q]
-                         (update-sim* (into imminent ra) k->ev*' t)
+                         (update-sim* ra k->ev*' t)
                          (update-sim* re k->ev*' t))
           out        (k->ev* ())
           ;; Update network structures.
