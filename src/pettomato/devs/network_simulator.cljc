@@ -55,7 +55,7 @@
                              (= d ())     [s* (conj r* [d ev])]
                              (= d p)      [(conj s* [(:parent (A d)) d ev]) r*]
                              (network? m) [(conj s* [d (cons :N (rest d)) ev]) r*]
-                             :else        (assert false (format "No receivers for ev: %s" ev)))))
+                             :else        (assert false (str "No receivers for ev: " ev)))))
                        [s*' r*]
                        temp-r*)))
       r*)))
@@ -128,7 +128,7 @@
     (let [[A Q] (add-model [{} (pq/priority-queue)] () model t)]
       (NetworkSimulator. model [A Q] t (or (pq/peek-key Q) infinity))))
   (int-update [this t]
-    (assert (= t tn) (format "(= %s %s)" t tn))
+    (assert (= t tn) (str "(= " t " " tn ")"))
     (let [[A Q]      state
           imminent   (pq/peek Q)
           output     (for [k  imminent
@@ -157,7 +157,7 @@
       [(NetworkSimulator. model [A' Q'] t (or (pq/peek-key Q') infinity))
        out]))
   (ext-update [this x t]
-    (assert (<= tl t tn) (format "(<= %s %s %s)" tl t tn))
+    (assert (<= tl t tn) (str "(<= " tl " " t " " tn ")"))
     (let [[A Q]     state
           input     (for [ev x, [k' ev'] (find-receivers A () () ev)]
                       [k' ev'])

@@ -14,13 +14,13 @@
     (let [state' (initial-state model)]
       (AtomicSimulator. model state' t (+ t (checked-time-advance model state')))))
   (int-update [this t]
-    (assert (= t tn) (format "(= %s %s)" t tn))
+    (assert (= t tn) (str "(= " t " " tn ")"))
     (let [y      ((output-fn model) state)
           state' ((int-update-fn model) state)
           this'  (AtomicSimulator. model state' t (+ t (checked-time-advance model state')))]
       [this' y]))
   (ext-update [this x t]
-    (assert (<= tl t tn) (format "(<= %s %s %s)" tl t tn))
+    (assert (<= tl t tn) (str "(<= " tl " " t " " tn ")"))
     (let [e      (- t tl)
           state' ((ext-update-fn model) state e x)]
       (AtomicSimulator. model state' t (+ t (checked-time-advance model state')))))
