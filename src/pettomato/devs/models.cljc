@@ -39,21 +39,22 @@
 (defn register [s k m]
   (assoc-in s [:components k] m))
 
-(defn unregister [s k m]
+(defn unregister [s k]
   (dissoc-in s [:components k]))
 
 (defn get-components [s]
   (:components s))
 
 (defn connect
-  ([s k1 p1 k2 p2 t] (assoc-in s [:connections k1 p1 k2] [p2 t]))
+  ([s k1 p1 k2 p2 t] (assoc-in s [:connections k1 p1 k2 p2] t))
   ([s k1 p1 k2 p2]   (connect s k1 p1 k2 p2 identity)))
 
-(defn disconnect [s k1 p1 k2]
-  (dissoc-in s [:connections k1 p1 k2]))
+(defn disconnect [s k1 p1 k2 p2]
+  (dissoc-in s [:connections k1 p1 k2 p2]))
 
 (defn get-connections [s k1 p1]
-  (for [[k [p t]] (get-in s [:connections k1 p1])]
+  (for [[k m] (get-in s [:connections k1 p1])
+        [p t] m]
     [k p t]))
 
 (defn network-model [exec-name exec-model]
