@@ -1,10 +1,10 @@
 (ns pettomato.devs.test
   (:require
    [clojure.test :refer :all]
-   [pettomato.test-util :refer [aggregate-events eq? pprint-ev*]]
    [pettomato.lib.coll :refer [dissoc-in]]
    [pettomato.lib.match :refer [match]]
    [pettomato.lib.number :refer [infinity]]
+   [pettomato.devs.test-util :refer [eq?]]
    [pettomato.devs.models :refer [atomic-model executive-model network-model register unregister connect disconnect]]
    [pettomato.devs.atomic-simulator :refer [atomic-simulator]]
    [pettomato.devs.network-simulator :refer [network-simulator]]
