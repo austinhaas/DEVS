@@ -10,54 +10,71 @@
    [pettomato.devs.network-simulator :refer [network-simulator]]
    [pettomato.devs.immediate-system :refer [immediate-system]]))
 
-(defn generator [period]
+(defn generator [value period]
   (atomic-model
-   ["active" period]
-   (fn [s] (let [[phase sigma] s]
-             ["active" period]))
+   {}
+   identity
    nil
    nil
-   (fn [s] (let [[phase sigma] s]
-             (case phase
-               "active" [['out 1]])))
-   (fn [s] (let [[phase sigma] s]
-             sigma))))
+   (constantly [[:out value]])
+   (constantly period)))
 
-(-> (generator 10)
-    atomic-simulator
-    (immediate-system 0 100 [])
-    pprint-ev*)
+(deftest generator-test
+  (is (eq?
+       (-> (generator 5 10)
+           atomic-simulator
+           (immediate-system 0 100 []))
+       [[10 [:out 5]]
+        [20 [:out 5]]
+        [30 [:out 5]]
+        [40 [:out 5]]
+        [50 [:out 5]]
+        [60 [:out 5]]
+        [70 [:out 5]]
+        [80 [:out 5]]
+        [90 [:out 5]]])))
 
 (defn switch [processing-time]
   (atomic-model
-   ["passive" infinity 'in #{} true]
-   (fn [s]
-     (let [[phase sigma inport store Sw] s]
-       ["passive" infinity inport store Sw]))
-   (fn [s e x]
+   {:phase   :passive
+    :sigma   infinity
+    :inport  :in1
+    :store   nil
+    :switch? true}
+   (fn int-update [s]
+     (assoc s :phase :passive :sigma infinity))
+   (fn ext-update [s e x]
      (assert (= 1 (count x)))
-     (let [[phase sigma inport store Sw] s
-           [p v]                         (first x)]
-       (if (= phase "passive")
-         ["busy" processing-time p v (not Sw)]
-         [phase (- sigma e) inport store Sw])))
+     (let [[port val] (first x)]
+       (if (= (:phase s) :passive)
+         (assoc s
+                :phase  :busy
+                :sigma   processing-time
+                :inport  port
+                :store   val
+                :switch? (not (:switch? s)))
+         (assoc s :sigma (- (:sigma s) e)))))
    nil
-   (fn [s]
-     (let [[phase sigma inport store Sw] s]
-       (match [phase Sw inport]
-         ["busy" true  'in ] [['out  store]]
-         ["busy" true  'in1] [['out1 store]]
-         ["busy" false 'in ] [['out1 store]]
-         ["busy" false 'in1] [['out  store]])))
-   (fn [s]
-     (let [[phase sigma inport store Sw] s]
-       sigma))))
+   (fn output [s]
+     (match [(:phase s) (:switch? s) (:inport s)]
+       [:busy true  :in1] [[:out1  (:store s)]]
+       [:busy true  :in2] [[:out2 (:store s)]]
+       [:busy false :in1] [[:out2 (:store s)]]
+       [:busy false :in2] [[:out1  (:store s)]]))
+   :sigma))
 
-(-> (switch 5)
-    atomic-simulator
-    (immediate-system 0 100 [[10 ['in 1]]
-                             [20 ['in1 1]]])
-    pprint-ev*)
+(deftest switch-test
+  (is (eq? (-> (switch 5)
+               atomic-simulator
+               (immediate-system 0 100 [[10 [:in1 1]]
+                                        [12 [:in1 1]]
+                                        [15 [:in1 1]]
+                                        [20 [:in1 1]]
+                                        [25 [:in2 2]]]))
+           [[15 [:out2 1]]
+            [20 [:out1 1]]
+            [25 [:out2 1]]
+            [30 [:out2 2]]])))
 
 (defn simple-delay-component [processing-time]
   (atomic-model
@@ -210,8 +227,17 @@
     nil nil nil
     nil (constantly infinity))))
 
-
-(-> network-1
-    network-simulator
-    (immediate-system 0 infinity (for [i (range 10)] [1 ['in1 i]]))
-    pprint-ev*)
+(deftest dynamic-network-test
+  (is (eq? (-> network-1
+               network-simulator
+               (immediate-system 0 infinity (for [i (range 10)] [1 ['in1 i]])))
+           [[1001 ['out 8]]
+            [1001 ['out 9]]
+            [1001 ['out 7]]
+            [1001 ['out 1]]
+            [1001 ['out 0]]
+            [2001 ['out 6]]
+            [2001 ['out 5]]
+            [2001 ['out 4]]
+            [2001 ['out 3]]
+            [2001 ['out 2]]])))
