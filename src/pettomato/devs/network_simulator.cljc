@@ -10,9 +10,9 @@
    [pettomato.lib.number :refer [infinity]]
    [pettomato.lib.coll :refer [group]]
    [pettomato.devs.models :refer [atomic? executive? network?
-                        initial-state int-update-fn ext-update-fn con-update-fn output-fn time-advance-fn
-                        get-components get-connections
-                        exec-name exec-model]]))
+                                  initial-state int-update-fn ext-update-fn con-update-fn output-fn time-advance-fn
+                                  get-components get-connections
+                                  exec-name exec-model]]))
 
 (defn- flatten-model
   "Returns a sequence of [path model], where path is a seq of keys
@@ -103,24 +103,24 @@
 
 (defn- compute [d] ((output-fn (:model d)) (:state d)))
 
-(defn- update-sim [d t ev*]
+(defn- update-sim [d t msg*]
   (let [{:keys [state model tl tn]} d
         state' (if (= t tn)
-                 (if (seq ev*)
+                 (if (seq msg*)
                    (let [e (- t tl)]
-                     ((con-update-fn model) state e ev*))
+                     ((con-update-fn model) state e msg*))
                    ((int-update-fn model) state))
                  (let [e (- t tl)]
-                   ((ext-update-fn model) state e ev*)))]
+                   ((ext-update-fn model) state e msg*)))]
     (assoc d
            :state state'
            :tl    t
            :tn    (+ t (checked-time-advance model state')))))
 
-(defn- update-sim* [[A Q] k* k->ev* t]
-  (let [A' (reduce (fn [A k] (update A k update-sim t (k->ev* k))) A k*)
+(defn- update-sim* [[A Q] k* k->msg* t]
+  (let [A' (reduce (fn [A k] (update A k update-sim t (k->msg* k))) A k*)
         Q' (reduce (fn [Q k] (pq/update Q (:tn (A k)) k (:tn (A' k)))) Q k*)]
-   [A' Q']))
+    [A' Q']))
 
 (defrecord NetworkSimulator [model state tl tn]
   Simulator
@@ -137,15 +137,15 @@
           input      (for [[k  ev ] output
                            [k' ev'] (find-receivers A (:parent (A k)) k ev)]
                        [k' ev'])
-          k->ev*     (group first second [] input)
-          k->ev*'    (dissoc k->ev* ())
-          receivers  (keys k->ev*')
+          k->msg*    (group first second [] input)
+          k->msg*'   (dissoc k->msg* ())
+          receivers  (keys k->msg*')
           {re true
            ra false} (group-by (comp executive? :model A) (into imminent receivers))
           [A' Q']    (-> [A Q]
-                         (update-sim* ra k->ev*' t)
-                         (update-sim* re k->ev*' t))
-          out        (k->ev* ())
+                         (update-sim* ra k->msg*' t)
+                         (update-sim* re k->msg*' t))
+          out        (k->msg* ())
           ;; Update network structures.
           D          (set (for [k re, [k' m] (get-components (:state (A  k)))] [(cons k' (rest k)) m]))
           D'         (set (for [k re, [k' m] (get-components (:state (A' k)))] [(cons k' (rest k)) m]))
@@ -161,9 +161,9 @@
     (let [[A Q]     state
           input     (for [ev x, [k' ev'] (find-receivers A () () ev)]
                       [k' ev'])
-          k->ev*    (group first second [] input)
-          receivers (keys k->ev*)
-          [A' Q']   (update-sim* [A Q] receivers k->ev* t)]
+          k->msg*   (group first second [] input)
+          receivers (keys k->msg*)
+          [A' Q']   (update-sim* [A Q] receivers k->msg* t)]
       (NetworkSimulator. model [A' Q'] t (or (pq/peek-key Q') infinity))))
   (tl         [this] tl)
   (tn         [this] tn))

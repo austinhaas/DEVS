@@ -56,14 +56,14 @@
   true)
 
 ;; This is a placeholder.
-(defn update-sim [sim t ev*]
-  (loop [sim sim
-         ev* ev*
-         out []]
+(defn update-sim [sim t msg*]
+  (loop [sim  sim
+         msg* msg*
+         out  []]
     (cond
-      (= (tn sim) t) (let [[sim' ev*'] (int-update sim t)]
-                       (recur sim' ev* (into out ev*')))
-      (seq ev*)      (recur (ext-update sim ev* t) [] out)
+      (= (tn sim) t) (let [[sim' msg*'] (int-update sim t)]
+                       (recur sim' msg* (into out msg*')))
+      (seq msg*)     (recur (ext-update sim msg* t) [] out)
       :else          [sim out])))
 
 ;; I believe this version correctly sequences internal and external
@@ -90,7 +90,7 @@
             (let [wc-t  (now)
                   wc-e  (- wc-t wc-tl)
                   sim-t (min (+ sim-tl wc-e) sim-tn)
-                  ev*   (loop [acc (if v [v] [])]
+                  msg*  (loop [acc (if v [v] [])]
                           (if (> (now) wc-t)
                             acc
                             (let [[v ch] (alts! [chan-in (timeout 1)] :priority true)]
@@ -99,7 +99,7 @@
                                   acc
                                   (recur acc))
                                 (recur (conj acc v))))))
-                  [sim' ev*'] (update-sim sim sim-t ev*)]
-              (doseq [ev ev*'] (>! chan-out [[(- wc-t wc-start) sim-t] ev]))
+                  [sim' msg*'] (update-sim sim sim-t msg*)]
+              (doseq [msg msg*'] (>! chan-out [[(- wc-t wc-start) sim-t] msg]))
               (recur sim' wc-t)))))))
   true)
