@@ -12,7 +12,7 @@
    This implementation is intended to be used in cases where delete
   and update are required; and the range of current keys is relatively
   small, so many values map to the same key."
-  (:refer-clojure :exclude [rem update peek pop])
+  (:refer-clojure :exclude [peek pop])
   (:require [pettomato.lib.number :refer [infinity]]))
 
 (declare add)
@@ -22,7 +22,7 @@
   ([] (sorted-map))
   ([& keyvals] (reduce (fn [m [k v]] (add m k v)) (sorted-map) (partition 2 keyvals))))
 
-(defn add
+(defn insert
   "Add v to priority-queue, pq, with priority k, unless k is nil or
   infinity."
   [pq k v]
@@ -30,7 +30,7 @@
     pq
     (clojure.core/update pq k (fnil conj #{}) v)))
 
-(defn rem
+(defn delete
   "Remove v from priority-queue, pq."
   [pq k v]
   (let [pq' (clojure.core/update pq k disj v)]
@@ -38,10 +38,10 @@
       (dissoc pq' k)
       pq')))
 
-(defn update [pq k1 v k2]
+(defn modify [pq k1 v k2]
   (if (= k1 k2)
     pq
-    (-> pq (rem k1 v) (add k2 v))))
+    (-> pq (delete k1 v) (insert k2 v))))
 
 (defn peek
   "Returns a set containing ALL items with highest priority."

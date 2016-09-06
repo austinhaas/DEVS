@@ -83,7 +83,7 @@
             (if (network? m)
               [(assoc A p (init-network-model p m)) Q]
               (let [s (init-atomic-model p m t)]
-                [(assoc A p s) (pq/add Q (:tn s) p)])))
+                [(assoc A p s) (pq/insert Q (:tn s) p)])))
           [A Q]
           (flatten-model path model)))
 
@@ -94,7 +94,7 @@
   (reduce (fn [[A Q] [p m]]
             (if (network? m)
               [(dissoc A p) Q]
-              [(dissoc A p) (pq/rem Q (:tn (A p)) p)]))
+              [(dissoc A p) (pq/delete Q (:tn (A p)) p)]))
           [A Q]
           (flatten-model path model)))
 
@@ -119,7 +119,7 @@
 
 (defn- update-sim* [[A Q] k* k->msg* t]
   (let [A' (reduce (fn [A k] (update A k update-sim t (k->msg* k))) A k*)
-        Q' (reduce (fn [Q k] (pq/update Q (:tn (A k)) k (:tn (A' k)))) Q k*)]
+        Q' (reduce (fn [Q k] (pq/modify Q (:tn (A k)) k (:tn (A' k)))) Q k*)]
     [A' Q']))
 
 (defrecord NetworkSimulator [model state tl tn]
