@@ -1,20 +1,13 @@
-
-;;; This was an old pettomato.demo of a dynamic system. It hasn't been updated
-;;; to work with the current code base.
-(comment
 (ns pettomato.devs.test
   (:require
    [clojure.test :refer :all]
-   [clojure.core.match :refer [match]]
-   [clojure.core.async :as async :refer [chan go <! timeout close! >!]]
+   [pettomato.test-util :refer [aggregate-events eq? pprint-ev*]]
    [pettomato.lib.coll :refer [dissoc-in]]
+   [pettomato.lib.match :refer [match]]
    [pettomato.lib.number :refer [infinity]]
-   [pettomato.devs.atomic-model :refer [atomic-model]]
-   [pettomato.devs.executive-model :refer [executive-model]]
-   [pettomato.devs.executive-network-model :refer [executive-network-model]]
+   [pettomato.devs.models :refer [atomic-model executive-model network-model register unregister connect disconnect]]
    [pettomato.devs.atomic-simulator :refer [atomic-simulator]]
-   [pettomato.devs.executive-network-simulator :refer [network-simulator]]
-   [pettomato.devs.real-time-system :refer [real-time-system]]
+   [pettomato.devs.network-simulator :refer [network-simulator]]
    [pettomato.devs.immediate-system :refer [immediate-system]]))
 
 (defn generator [period]
@@ -29,6 +22,11 @@
                "active" [['out 1]])))
    (fn [s] (let [[phase sigma] s]
              sigma))))
+
+(-> (generator 10)
+    atomic-simulator
+    (immediate-system 0 100 [])
+    pprint-ev*)
 
 (defn switch [processing-time]
   (atomic-model
@@ -54,6 +52,12 @@
    (fn [s]
      (let [[phase sigma inport store Sw] s]
        sigma))))
+
+(-> (switch 5)
+    atomic-simulator
+    (immediate-system 0 100 [[10 ['in 1]]
+                             [20 ['in1 1]]])
+    pprint-ev*)
 
 (defn simple-delay-component [processing-time]
   (atomic-model
@@ -83,14 +87,14 @@
 (defn queue [k s*]
   (letfn [(add-server [s k']
             (-> s
-                (assoc-in [:components k'] (server 1000))
-                (assoc-in [:connections k ['out k'] k'] 'in)
-                (assoc-in [:connections k' 'out k] ['in k'])))
+                (register k' (server 1000))
+                (connect k ['out k'] k' 'in)
+                (connect k' 'out k ['in k'])))
           (rem-server [s k']
             (-> s
-                (dissoc-in [:components k'])
-                (dissoc-in [:connections k ['out k'] k'])
-                (dissoc-in [:connections k' 'out k])))
+                (unregister k')
+                (disconnect k ['out k'] k' 'in)
+                (disconnect k' 'out k ['in k'])))
           (idle [s k']
             (update s :idle conj k'))
           (maybe-process-next [s]
@@ -116,15 +120,14 @@
     (executive-model
      ;; Initial state.
      (let [Q []
-           S {:idle s* :Q Q :sigma 0 :output [['init [(count Q) (count s*)]]]
-              :components  {}
-              :connections {:N {'in     {k  'in}
-                                'remove {k  'remove}
-                                'add    {k  'add}}
-                            k  {'size   {:N 'size}
-                                'init   {:N 'init}
-                                'send   {:N 'send}
-                                'out    {:N 'out}}}}]
+           S (-> {:idle s* :Q Q :sigma 0 :output [['init [(count Q) (count s*)]]]}
+                 (connect :N 'in k 'in)
+                 (connect :N 'remove k 'remove)
+                 (connect :N 'add k 'add)
+                 (connect k 'size :N 'size)
+                 (connect k 'init :N 'init)
+                 (connect k 'send :N 'send)
+                 (connect k 'out :N 'out))]
        (reduce add-server S s*))
      (fn int-update [s]
        (assoc s :sigma infinity :output []))
@@ -138,7 +141,7 @@
      :sigma)))
 
 (defn node [servers]
-  (executive-network-model :queue (queue :queue servers)))
+  (network-model :queue (queue :queue servers)))
 
 (defn control [threshold]
   (letfn [(update-size [s k q-size idle-size]
@@ -185,57 +188,30 @@
      :sigma)))
 
 (def network-1
-  (executive-network-model
+  (network-model
    :network-1
    (executive-model
-    {:components  {:control (control 5)
-                   :node-1  (node [1 2])
-                   :node-2  (node [3 4])}
-     :connections {:N       {'in1     {:node-1  'in}
-                             'in2     {:node-2  'in}}
-                   :control {['ask 0] {:node-1  'remove}
-                             ['ask 1] {:node-2  'remove}}
-                   :node-1  {'size    {:control 'size1}
-                             'init    {:control 'init1}
-                             'send    {:node-2  'add}
-                             'out     {:N       'out}}
-                   :node-2  {'size    {:control 'size2}
-                             'init    {:control 'init2}
-                             'send    {:node-1  'add}
-                             'out     {:N       'out}}}}
+    (-> {}
+        (register :control (control 5))
+        (register :node-1 (node [1 2]))
+        (register :node-2 (node [3 4]))
+        (connect :N 'in1 :node-1 'in)
+        (connect :N 'in2 :node-2 'in)
+        (connect :control ['ask 0] :node-1 'remove)
+        (connect :control ['ask 1] :node-2 'remove)
+        (connect :node-1 'size :control 'size1)
+        (connect :node-1 'init :control 'init1)
+        (connect :node-1 'send :node-2 'add)
+        (connect :node-1 'out :N 'out)
+        (connect :node-2 'size :control 'size2)
+        (connect :node-2 'init :control 'init2)
+        (connect :node-2 'send :node-1 'add)
+        (connect :node-2 'out :N 'out))
     nil nil nil
     nil (constantly infinity))))
 
-;;---
-#_
-(do
-  (def sim (network-simulator network-1))
 
-  (def chan-in  (chan 100))
-  (def chan-out (chan 100))
-
-  (real-time-system sim 0 chan-in chan-out)
-
-  (go (loop []
-        (if-let [v (<! chan-out)]
-          (do (println (format "[%s] %s" (first v) (second v)))
-              (recur))
-          (println 'done))))
-
-  (go (dotimes [i 10]
-        (>! chan-in [['in1 i]]))))
-
-#_
-(go
-  (dotimes [i 10]
-    (>! chan-in [['in1 i]])))
-
-#_(close! chan-in)
-
-#_
-(immediate-system
- (network-simulator network-1)
- 0
- infinity
- (for [i (range 10)] [1 ['in1 i]]))
-)
+(-> network-1
+    network-simulator
+    (immediate-system 0 infinity (for [i (range 10)] [1 ['in1 i]]))
+    pprint-ev*)
