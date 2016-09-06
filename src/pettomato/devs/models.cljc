@@ -1,6 +1,6 @@
 (ns pettomato.devs.models
   (:require
-   [pettomato.lib.coll :refer [dissoc-in]]))
+   [pettomato.devs.util :refer [dissoc-in]]))
 
 (defn atomic?    [model] (or (= ::atomic (:type model))
                              (= ::executive (:type model))))

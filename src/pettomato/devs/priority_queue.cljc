@@ -13,7 +13,7 @@
   and update are required; and the range of current keys is relatively
   small, so many values map to the same key."
   (:refer-clojure :exclude [peek pop])
-  (:require [pettomato.lib.number :refer [infinity]]))
+  (:require [pettomato.devs.util :refer [infinity]]))
 
 (declare add)
 

@@ -1,9 +1,8 @@
 (ns pettomato.devs.test
   (:require
    [clojure.test :refer :all]
-   [pettomato.lib.coll :refer [dissoc-in]]
-   [pettomato.lib.match :refer [match]]
-   [pettomato.lib.number :refer [infinity]]
+   [pettomato.devs.util :refer [dissoc-in]]
+   [pettomato.devs.util :refer [infinity]]
    [pettomato.devs.test-util :refer [eq?]]
    [pettomato.devs.models :refer [atomic-model executive-model network-model register unregister connect disconnect]]
    [pettomato.devs.atomic-simulator :refer [atomic-simulator]]
@@ -56,11 +55,14 @@
          (assoc s :sigma (- (:sigma s) e)))))
    nil
    (fn output [s]
-     (match [(:phase s) (:switch? s) (:inport s)]
-       [:busy true  :in1] [[:out1  (:store s)]]
-       [:busy true  :in2] [[:out2 (:store s)]]
-       [:busy false :in1] [[:out2 (:store s)]]
-       [:busy false :in2] [[:out1  (:store s)]]))
+     (case (:phase s)
+       :busy (case (:switch? s)
+               true (case (:inport s)
+                      :in1 [[:out1  (:store s)]]
+                      :in2 [[:out2  (:store s)]])
+               false (case (:inport s)
+                       :in1 [[:out2  (:store s)]]
+                       :in2 [[:out1  (:store s)]]))))
    :sigma))
 
 (deftest switch-test
