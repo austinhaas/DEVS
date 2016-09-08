@@ -1,7 +1,7 @@
 (ns pettomato.devs.immediate-system
   (:require
    [pettomato.devs.util :refer [infinity]]
-   [pettomato.devs.Simulator :refer [init int-update ext-update tl tn]]))
+   [pettomato.devs.Simulator :refer [init int-update ext-update con-update tl tn]]))
 
 (defn immediate-system [sim start-time end-time tmsg*]
   (loop [sim   (init sim start-time)
@@ -12,10 +12,18 @@
       (cond
         (and (>= int-tn end-time)
              (>= ext-tn end-time)) (persistent! acc)
-        (<= int-tn ext-tn)         (let [[sim' out] (int-update sim (tn sim))]
-                                     (recur sim' tmsg* (reduce conj! acc (for [o out :when o] [(tn sim) o]))))
-        :else                      (let [t (ffirst tmsg*)
+        (< int-tn ext-tn)          (let [[sim' out] (int-update sim (tn sim))
+                                         acc'       (reduce conj! acc (for [o out :when o] [(tn sim) o]))]
+                                     (recur sim' tmsg* acc'))
+        (< ext-tn int-tn)          (let [t (ffirst tmsg*)
                                          [imminent tmsg*'] (split-with #(= (first %) t) tmsg*)]
                                      (recur (ext-update sim (map second imminent) t)
                                             tmsg*'
-                                            acc))))))
+                                            acc))
+        :else                      (let [t (ffirst tmsg*)
+                                         [imminent tmsg*'] (split-with #(= (first %) t) tmsg*)
+                                         [sim' out] (con-update sim (map second imminent) t)
+                                         acc'       (reduce conj! acc (for [o out :when o] [(tn sim) o]))]
+                                     (recur sim'
+                                            tmsg*'
+                                            acc'))))))

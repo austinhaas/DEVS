@@ -131,10 +131,8 @@
     (assert (= t tn) (str "(= " t " " tn ")"))
     (let [[A Q]      state
           imminent   (pq/peek Q)
-          output     (for [k  imminent
-                           ev (compute (A k))]
-                       [k ev])
-          input      (for [[k  ev ] output
+          input      (for [k  imminent
+                           ev (compute (A k))
                            [k' ev'] (find-receivers A (:parent (A k)) k ev)]
                        [k' ev'])
           k->msg*    (group first second [] input)
@@ -165,6 +163,37 @@
           receivers (keys k->msg*)
           [A' Q']   (update-sim* [A Q] receivers k->msg* t)]
       (NetworkSimulator. model [A' Q'] t (or (pq/peek-key Q') infinity))))
+  (con-update [this x t]
+    (let [[A Q]      state
+          imminent   (if (= t (pq/peek-key Q))
+                       (pq/peek Q)
+                       [])
+          input1     (for [k  imminent
+                           ev (compute (A k))
+                           [k' ev'] (find-receivers A (:parent (A k)) k ev)]
+                       [k' ev'])
+          input2     (for [ev x, [k' ev'] (find-receivers A () () ev)]
+                       [k' ev'])
+          input      (concat input1 input2)
+          k->msg*    (group first second [] input)
+          k->msg*'   (dissoc k->msg* ())
+          receivers  (keys k->msg*')
+          {re true
+           ra false} (group-by (comp executive? :model A) (into imminent receivers))
+          [A' Q']    (-> [A Q]
+                         (update-sim* ra k->msg*' t)
+                         (update-sim* re k->msg*' t))
+          out        (k->msg* ())
+          ;; Update network structures.
+          D          (set (for [k re, [k' m] (get-components (:state (A  k)))] [(cons k' (rest k)) m]))
+          D'         (set (for [k re, [k' m] (get-components (:state (A' k)))] [(cons k' (rest k)) m]))
+          D-add      (difference D' D )
+          D-rem      (difference D  D')
+          [A' Q']    (-> [A' Q']
+                         (rem-model* D-rem)
+                         (add-model* D-add t))]
+      [(NetworkSimulator. model [A' Q'] t (or (pq/peek-key Q') infinity))
+       out]))
   (tl         [this] tl)
   (tn         [this] tn))
 

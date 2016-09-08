@@ -24,6 +24,13 @@
     (let [e      (- t tl)
           state' ((ext-update-fn model) state e x)]
       (AtomicSimulator. model state' t (+ t (checked-time-advance model state')))))
+  (con-update [this x t]
+    (assert (<= tl t tn) (str "(<= " tl " " t " " tn ")"))
+    (let [y      ((output-fn model) state)
+          e      (- t tl)
+          state' ((con-update-fn model) state e x)
+          this'  (AtomicSimulator. model state' t (+ t (checked-time-advance model state')))]
+      [this' y]))
   (tl         [this] tl)
   (tn         [this] tn))
 

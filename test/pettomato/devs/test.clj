@@ -243,3 +243,88 @@
             [2001 ['out 4]]
             [2001 ['out 3]]
             [2001 ['out 2]]])))
+
+(defn delay-1 [processing-time]
+  (let [int-update (fn [s]
+                     (assoc s :phase :passive :sigma infinity))
+        ext-update (fn [s e x]
+                     (assert (= 1 (count x)))
+                     (let [[port val] (first x)]
+                       (case (:phase s)
+                         :passive (assoc s :phase :busy :sigma processing-time :store val)
+                         :busy    (update s :sigma - e))))]
+   (atomic-model
+    {:phase :passive
+     :sigma infinity
+     :store nil}
+    int-update
+    ext-update
+    (fn con-update [s e x]
+      (ext-update (int-update s) 0 x))
+    (fn output [s] [[:out (:store s)]])
+    :sigma)))
+
+;; Same as above, but the confluent fn prioritizes ext-update over int-update.
+(defn delay-2 [processing-time]
+  (let [int-update (fn [s]
+                     (assoc s :phase :passive :sigma infinity))
+        ext-update (fn [s e x]
+                     (assert (= 1 (count x)))
+                     (let [[port val] (first x)]
+                       (case (:phase s)
+                         :passive (assoc s :phase :busy :sigma processing-time :store val)
+                         :busy    (update s :sigma - e))))]
+   (atomic-model
+    {:phase :passive
+     :sigma infinity
+     :store nil}
+    int-update
+    ext-update
+    (fn con-update [s e x]
+      (int-update (ext-update s e x)))
+    (fn output [s] [[:out (:store s)]])
+    :sigma)))
+
+(deftest confluence-test
+  (is (eq? (-> (delay-1 10)
+               atomic-simulator
+               (immediate-system 0 100 [[0  [:in 1]]
+                                        [10 [:in 2]]]))
+           [[10 [:out 1]]
+            [20 [:out 2]]]))
+
+  ;; The second input value should be ignored, since the model is in
+  ;; the busy state and external inputs have higher priority in
+  ;; delay-2.
+  (is (eq? (-> (delay-2 10)
+               atomic-simulator
+               (immediate-system 0 100 [[0  [:in 1]]
+                                        [10 [:in 2]]]))
+           [[10 [:out 1]]]))
+
+  (is (eq? (-> (network-model
+                :exec
+                (executive-model
+                 (-> {}
+                     (register :delay (delay-1 10))
+                     (connect :N :in :delay :in)
+                     (connect :delay :out :N :out))
+                 nil nil nil nil (constantly infinity)))
+               network-simulator
+               (immediate-system 0 100 [[0  [:in 1]]
+                                        [10 [:in 2]]]))
+           [[10 [:out 1]]
+            [20 [:out 2]]]))
+
+  (is (eq? (-> (network-model
+                :exec
+                (executive-model
+                 (-> {}
+                     (register :delay (delay-2 10))
+                     (connect :N :in :delay :in)
+                     (connect :delay :out :N :out))
+                 nil nil nil nil (constantly infinity)))
+               network-simulator
+               (immediate-system 0 100 [[0  [:in 1]]
+                                        [10 [:in 2]]]))
+           [[10 [:out 1]]])))

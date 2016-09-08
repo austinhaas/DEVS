@@ -2,104 +2,73 @@
   (:require
    #?(:clj  [clojure.core.async :as async :refer [timeout close! alts! go <! >! chan]]
       :cljs [cljs.core.async :as async :refer [timeout close! alts! <! >! chan]])
-   [pettomato.devs.util :refer [infinity]]
-   [pettomato.devs.util :refer [now]]
-   [pettomato.devs.Simulator :refer [init int-update ext-update tl tn]])
+   [pettomato.devs.util :refer [infinity now]]
+   [pettomato.devs.Simulator :refer [init int-update ext-update con-update tl tn]])
   #?(:cljs (:require-macros [cljs.core.async.macros :refer [go]])))
 
 (defn timeout-inf [msecs]
   (if (< msecs infinity)
     (timeout msecs)
     (chan 1)))
-
-;; This version works, but it prioritizes internal updates. Ideally,
-;; that would be left to the simulator to decide, using a confluence
-;; function. The only solution I can imagine is to wait until the
-;; clock advances to time t+1 before processing events at time t.
-
-;; Need to produce a log of incoming events with sim timestamps in
-;; order to reproduce a run.
 #_
-(defn real-time-system [sim start-time chan-in chan-out]
-  (let [wc-start (now)]
-    (go
-      (loop [sim   (init sim start-time)
-             wc-tl (now)]
-        (let [wc-t   (now)
-              wc-e   (- wc-t wc-tl)
-              sim-tl (tl sim)
-              sim-tn (tn sim)
-              sim-t  (+ sim-tl wc-e)]
-          (cond
-            (> sim-t sim-tn) (do (println (format "sim is behind by %s msecs." (- sim-t sim-tn)))
-                                 (let [sim-t      sim-tn
-                                       [sim' ev*] (int-update sim sim-t)]
-                                   (doseq [ev ev*] (>! chan-out [[(- wc-t wc-start) sim-t] ev]))
-                                   (recur sim' wc-t)))
-            (= sim-t sim-tn) (let [[sim' ev*] (int-update sim sim-t)]
-                               (doseq [ev ev*] (>! chan-out [[(- wc-t wc-start) sim-t] ev]))
-                               (recur sim' wc-t))
-            (< sim-t sim-tn) (let [sim-dt (- sim-tn sim-t)
-                                   tout   (timeout-inf sim-dt)
-                                   [v ch] (alts! [tout chan-in] :priority true)]
-                               (condp = ch
-                                 chan-in (if (nil? v)
-                                           (close! chan-out)
-                                           (let [wc-t   (now)
-                                                 wc-e   (- wc-t wc-tl)
-                                                 sim-tl (tl sim)
-                                                 sim-tn (tn sim)
-                                                 sim-t  (+ sim-tl wc-e)
-                                                 sim' (ext-update sim v sim-t)]
-                                             (recur sim' wc-t)))
-                                 tout    (recur sim wc-tl))))))))
-  true)
-
-;; This is a placeholder.
-(defn update-sim [sim t msg*]
-  (loop [sim  sim
-         msg* msg*
-         out  []]
-    (cond
-      (= (tn sim) t) (let [[sim' msg*'] (int-update sim t)]
-                       (recur sim' msg* (into out msg*')))
-      (seq msg*)     (recur (ext-update sim msg* t) [] out)
-      :else          [sim out])))
-
-;; I believe this version correctly sequences internal and external
-;; events. The key idea is that before the next event is processed,
-;; external events are collected until the clock advances, preventing
-;; any straggler events from occurring at the same time. The
-;; additional latency seems negligible.
 (defn real-time-system [sim start-time chan-in chan-out]
   (let [sim      (init sim start-time)
         wc-start (now)]
     (go
       (loop [sim   sim
-             wc-tl (now)]
-        (let [wc-t   (now)
-              wc-e   (- wc-t wc-tl)
-              sim-tl (tl sim)
-              sim-tn (tn sim)
-              sim-t  (+ sim-tl wc-e)
-              sim-dt (- sim-tn sim-t)
-              tout   (timeout-inf sim-dt)
-              [v ch] (alts! [chan-in tout] :priority true)]
-          (if (and (= ch chan-in) (nil? v))
-            (close! chan-out)
-            (let [wc-t  (now)
-                  wc-e  (- wc-t wc-tl)
-                  sim-t (min (+ sim-tl wc-e) sim-tn)
-                  msg*  (loop [acc (if v [v] [])]
-                          (if (> (now) wc-t)
-                            acc
-                            (let [[v ch] (alts! [chan-in (timeout 1)] :priority true)]
-                              (if (nil? v)
-                                (if (= ch chan-in)
-                                  acc
-                                  (recur acc))
-                                (recur (conj acc v))))))
-                  [sim' msg*'] (update-sim sim sim-t msg*)]
-              (doseq [msg msg*'] (>! chan-out [[(- wc-t wc-start) sim-t] msg]))
-              (recur sim' wc-t)))))))
+             wc-tl wc-start]
+        (if (= (tn sim) (tl sim)) ;; Optimization: ignore input until time advances.
+          (let [[sim' out] (int-update sim (tn sim))]
+            (recur sim' wc-tl))
+          (let [wc-t   (now)
+                wc-e   (- wc-t wc-tl)
+                sim-tl (tl sim)
+                sim-tn (tn sim)
+                sim-t  (+ sim-tl wc-e)
+                sim-dt (- sim-tn sim-t)
+                tout   (timeout-inf sim-dt)
+                [v ch] (alts! [chan-in tout] :priority true)]
+            (if (and (= ch chan-in) (nil? v))
+              (close! chan-out)
+              (let [wc-t   (now)
+                    wc-e   (- wc-t wc-tl)
+                    sim-t  (min (+ sim-tl wc-e) sim-tn)
+                    msg*   (if v [v] [])
+                    int-tn (tn sim)
+                    ext-tn (if (seq msg*) sim-t infinity)]
+                (cond
+                  (< int-tn ext-tn) (let [[sim' out] (int-update sim sim-t)]
+                                      (doseq [msg out] (>! chan-out [[(- wc-t wc-start) sim-t] msg]))
+                                      (recur sim' wc-t))
+                  (< ext-tn int-tn) (let [sim' (ext-update sim msg* sim-t)]
+                                      (recur sim' wc-t))
+                  :else             (let [[sim' out] (con-update sim msg* sim-t)]
+                                      (doseq [msg out] (>! chan-out [[(- wc-t wc-start) sim-t] msg]))
+                                      (recur sim' wc-t))))))))))
+  true)
+
+(defn real-time-system [sim start-time chan-in chan-out]
+  (let [sim      (init sim start-time)
+        wc-start (now)]
+    (go
+      (loop [sim   sim
+             wc-tl wc-start]
+        (let [wc-tn  (+ wc-tl (- (tn sim) (tl sim)))
+              dt     (- wc-tn (now))]
+          (let [tout   (timeout-inf dt)
+                [v ch] (alts! [chan-in tout] :priority true)
+                wc-t   (now)
+                wc-e   (- wc-t wc-start)]
+            (condp = ch
+              tout    (let [[sim' out] (int-update sim (tn sim))]
+                        (doseq [msg out] (>! chan-out [[wc-e (tn sim)] msg]))
+                        (recur sim' wc-t))
+              chan-in (cond
+                        (nil? v)       (close! chan-out)
+                        (< wc-t wc-tn) (let [sim-t (min (+ (tl sim) (- wc-t wc-tl)) (tn sim))
+                                             sim'  (ext-update sim [v] sim-t)]
+                                         (recur sim' wc-t))
+                        :else          (let [[sim' out] (con-update sim [v] (tn sim))]
+                                         (doseq [msg out] (>! chan-out [[wc-e (tn sim)] msg]))
+                                         (recur sim' wc-t)))))))))
   true)

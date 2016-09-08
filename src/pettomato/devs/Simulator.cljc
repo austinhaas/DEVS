@@ -4,5 +4,6 @@
   (init       [sim t])
   (int-update [sim t])
   (ext-update [sim x t])
+  (con-update [sim x t])
   (tl         [sim])
   (tn         [sim]))
