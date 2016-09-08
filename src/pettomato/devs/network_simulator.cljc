@@ -28,64 +28,6 @@
                  (-> acc (conj! [p m]) (conj! [(cons (exec-name m) p) (exec-model m)])))
           (recur open' (conj! acc [p m]))))
       (persistent! acc))))
-#_
-(defn- find-receivers
-  "Returns a sequence of [k msg]."
-  [A parent src msg]
-  ;; Parent is important when an message arrives at a network
-  ;; boundary, because we need to know if we are going up out of the
-  ;; current network or down into a new network.
-  (loop [[s* r*] [[[parent src msg]] []]]
-    (if (seq s*)
-      (let [[[p s [port val]] & s*'] s*
-            ;; Find initial set of receivers.
-            k           (if (= p s) :N (first s))
-            exec-name   (exec-name (get-in A [p :model]))
-            exec-model  (A (cons exec-name p))
-            temp-r*     (for [[d port' t] (get-connections (:state exec-model) k port)]
-                          (let [d'   (if (= d :N) p (cons d p))
-                                val' (t val)]
-                            [p d' [port' val']]))]
-        ;; Sort receivers into actual receivers and new senders for
-        ;; networks forwarding messages.
-        (recur (reduce (fn [[s* r*] [p d msg]]
-                         (let [m (:model (A d))]
-                           (cond
-                             (atomic? m)  [s* (conj r* [d msg])]
-                             (= d ())     [s* (conj r* [d msg])]
-                             (= d p)      [(conj s* [(:parent (A d)) d msg]) r*]
-                             (network? m) [(conj s* [d (cons :N (rest d)) msg]) r*]
-                             :else        (assert false (str "No receivers for msg: " msg)))))
-                       [s*' r*]
-                       temp-r*)))
-      r*)))
-#_
-(defn- find-receivers
-  "Returns a sequence of [k msg]."
-  [A parent src msg]
-  ;; Parent is important when an message arrives at a network
-  ;; boundary, because we need to know if we are going up out of the
-  ;; current network or down into a new network.
-  (loop [[s* r*] [[[parent src msg]] []]]
-    (if (seq s*)
-      (let [[[p s [port val]] & s*'] s*
-            k           (if (= p s) :N (first s))
-            exec-name   (exec-name (get-in A [p :model]))
-            exec-model  (get A (cons exec-name p))]
-        (recur (reduce (fn [[s* r*] [d port' t]]
-                         (let [d'   (if (= d :N) p (cons d p))
-                               val' (t val)
-                               msg  [port' val']
-                               m    (:model (get A d'))]
-                           (cond
-                             (atomic? m)  [s* (conj r* [d' msg])]
-                             (= d' ())    [s* (conj r* [d' msg])]
-                             (= d' p)     [(conj s* [(:parent (get A d')) d' msg]) r*]
-                             (network? m) [(conj s* [d' (cons :N (rest d')) msg]) r*]
-                             :else        (assert false (str "No receivers for msg: " msg)))))
-                       [s*' r*]
-                       (get-connections (:state exec-model) k port))))
-      r*)))
 
 (defn- find-receivers
   "Returns a sequence of [k port]."
@@ -93,22 +35,22 @@
   ;; Parent is important when an message arrives at a network
   ;; boundary, because we need to know if we are going up out of the
   ;; current network or down into a new network.
-  (let [{:keys [G S]} pkg]
+  (let [{:keys [P M S]} pkg]
     (loop [[s* r*] [[[parent src port]] []]]
       (if (seq s*)
         (let [[[p s port] & s*'] s*
               k           (if (= p s) :N (first s))
-              exec-name   (exec-name (get-in G [p :model]))
+              exec-name   (exec-name (get M p))
               exec-state  (get-in S [(cons exec-name p) :state])
               connections (get-connections exec-state k port)]
           (recur (reduce (fn [[s* r*] [d port' t]]
                            (let [d'   (if (= d :N) p (cons d p))
                                  ;;val' (t val)
-                                 m    (get-in G [d' :model])]
+                                 m    (get M d')]
                              (cond
                                (atomic? m)  [s* (conj r* [d' port'])]
                                (= d' ())    [s* (conj r* [d' port'])]
-                               (= d' p)     [(conj s* [(get-in G [d' :parent]) d' port']) r*]
+                               (= d' p)     [(conj s* [(get P d') d' port']) r*]
                                (network? m) [(conj s* [d' (cons :N (rest d')) port']) r*]
                                :else        (assert false (str "No receivers for port: " port')))))
                          [s*' r*]
@@ -123,13 +65,14 @@
 (defn- add-model [pkg path model t]
   (reduce (fn [pkg [p m]]
             (if (network? m)
-              (update pkg :G assoc p {:parent (rest p)
-                                      :model  m})
+              (-> pkg
+                  (update :P assoc p (rest p))
+                  (update :M assoc p m))
               (let [s  (initial-state m)
                     tn (+ t (checked-time-advance m s))]
                 (-> pkg
-                    (update :G assoc p {:parent (rest p)
-                                        :model  m})
+                    (update :P assoc p (rest p))
+                    (update :M assoc p m)
                     (update :S assoc p {:state  s
                                         :tl     t
                                         :tn     tn})
@@ -143,9 +86,12 @@
 (defn- rem-model [pkg path model]
   (reduce (fn [pkg [p m]]
             (if (network? m)
-              (update pkg :G dissoc p)
               (-> pkg
-                  (update :G dissoc p)
+                  (update :P dissoc p)
+                  (update :M dissoc p))
+              (-> pkg
+                  (update :P dissoc p)
+                  (update :M dissoc p)
                   (update :S dissoc p)
                   (update :Q pq/delete (get-in pkg [:S p :tn]) p))))
           pkg
@@ -155,7 +101,7 @@
   (reduce (fn [pkg [p m]] (rem-model pkg p m)) pkg p-m*))
 
 (defn- compute [pkg k]
-  (let [f (get-in pkg [:G k :model :output-fn])
+  (let [f (get-in pkg [:M k :output-fn])
         s (get-in pkg [:S k :state])]
     (f s)))
 
@@ -174,107 +120,33 @@
            :tn    (+ t (checked-time-advance model state')))))
 
 (defn- update-sim* [pkg k* k->msg* t]
-  (let [{:keys [G S Q]} pkg
-        S' (reduce (fn [S k] (update S k update-sim (get-in G [k :model]) t (k->msg* k))) S k*)
+  (let [{:keys [M S Q]} pkg
+        S' (reduce (fn [S k] (update S k update-sim (get M k) t (k->msg* k))) S k*)
         Q' (reduce (fn [Q k] (pq/modify Q (:tn (S k)) k (:tn (S' k)))) Q k*)]
     (assoc pkg :S S' :Q Q')))
-#_
-(defrecord NetworkSimulator [model state tl tn]
-  Simulator
-  (init       [this t]
-    (let [[G S Q] (add-model [{} (pq/priority-queue)] () model t)]
-      (NetworkSimulator. model [G S Q] t (or (pq/peek-key Q) infinity))))
-  (int-update [this t]
-    (assert (= t tn) (str "(= " t " " tn ")"))
-    (let [[G S Q]      state
-          imminent   (pq/peek Q)
-          input      (for [k  imminent
-                           msg (compute (A k))
-                           [k' msg'] (find-receivers A (:parent (A k)) k msg)]
-                       [k' msg'])
-          k->msg*    (group first second [] input)
-          k->msg*'   (dissoc k->msg* ())
-          receivers  (keys k->msg*')
-          {re true
-           ra false} (group-by (comp executive? :model A) (into imminent receivers))
-          [A' Q']    (-> [G S Q]
-                         (update-sim* ra k->msg*' t)
-                         (update-sim* re k->msg*' t))
-          out        (k->msg* ())
-          ;; Update network structures.
-          D          (set (for [k re, [k' m] (get-components (:state (A  k)))] [(cons k' (rest k)) m]))
-          D'         (set (for [k re, [k' m] (get-components (:state (A' k)))] [(cons k' (rest k)) m]))
-          D-add      (difference D' D )
-          D-rem      (difference D  D')
-          [A' Q']    (-> [A' Q']
-                         (rem-model* D-rem)
-                         (add-model* D-add t))]
-      [(NetworkSimulator. model [A' Q'] t (or (pq/peek-key Q') infinity))
-       out]))
-  (ext-update [this x t]
-    (assert (<= tl t tn) (str "(<= " tl " " t " " tn ")"))
-    (let [[G S Q]     state
-          input     (for [msg x, [k' msg'] (find-receivers A () () msg)]
-                      [k' msg'])
-          k->msg*   (group first second [] input)
-          receivers (keys k->msg*)
-          [A' Q']   (update-sim* [G S Q] receivers k->msg* t)]
-      (NetworkSimulator. model [A' Q'] t (or (pq/peek-key Q') infinity))))
-  (con-update [this x t]
-    (let [[G S Q]      state
-          imminent   (if (= t (pq/peek-key Q))
-                       (pq/peek Q)
-                       [])
-          input1     (for [k  imminent
-                           msg (compute (A k))
-                           [k' msg'] (find-receivers A (:parent (A k)) k msg)]
-                       [k' msg'])
-          input2     (for [msg x, [k' msg'] (find-receivers A () () msg)]
-                       [k' msg'])
-          input      (concat input1 input2)
-          k->msg*    (group first second [] input)
-          k->msg*'   (dissoc k->msg* ())
-          receivers  (keys k->msg*')
-          {re true
-           ra false} (group-by (comp executive? :model A) (into imminent receivers))
-          [A' Q']    (-> [G S Q]
-                         (update-sim* ra k->msg*' t)
-                         (update-sim* re k->msg*' t))
-          out        (k->msg* ())
-          ;; Update network structures.
-          D          (set (for [k re, [k' m] (get-components (:state (A  k)))] [(cons k' (rest k)) m]))
-          D'         (set (for [k re, [k' m] (get-components (:state (A' k)))] [(cons k' (rest k)) m]))
-          D-add      (difference D' D )
-          D-rem      (difference D  D')
-          [A' Q']    (-> [A' Q']
-                         (rem-model* D-rem)
-                         (add-model* D-add t))]
-      [(NetworkSimulator. model [A' Q'] t (or (pq/peek-key Q') infinity))
-       out]))
-  (tl         [this] tl)
-  (tn         [this] tn))
 
 (defrecord NetworkSimulator [pkg model tl tn]
   Simulator
   (init       [this t]
-    (let [pkg'  {:G {}
+    (let [pkg'  {:P {}
+                 :M {}
                  :S {}
                  :Q (pq/priority-queue)}
           pkg'' (add-model pkg' () model t)]
       (NetworkSimulator. pkg'' model t (or (pq/peek-key (:Q pkg'')) infinity))))
   (int-update [this t]
     (assert (= t tn) (str "(= " t " " tn ")"))
-    (let [{:keys [G S Q]} pkg
+    (let [{:keys [P M Q]} pkg
           imminent   (pq/peek Q)
           input      (for [k  imminent
                            [port val] (compute pkg k)
-                           [k' port'] (find-receivers pkg (:parent (G k)) k port)]
+                           [k' port'] (find-receivers pkg (P k) k port)]
                        [k' [port' val]])
           k->msg*    (group first second [] input)
           k->msg*'   (dissoc k->msg* ())
           receivers  (keys k->msg*')
           {re true
-           ra false} (group-by (comp executive? :model G) (into imminent receivers))
+           ra false} (group-by (comp executive? M) (into imminent receivers))
           pkg'       (-> pkg
                          (update-sim* ra k->msg*' t)
                          (update-sim* re k->msg*' t))
@@ -291,8 +163,7 @@
        out]))
   (ext-update [this x t]
     (assert (<= tl t tn) (str "(<= " tl " " t " " tn ")"))
-    (let [{:keys [G S Q]} pkg
-          input     (for [[port val] x
+    (let [input     (for [[port val] x
                           [k' port'] (find-receivers pkg () () port)]
                       [k' [port' val]])
           k->msg*   (group first second [] input)
@@ -300,13 +171,13 @@
           pkg'      (update-sim* pkg receivers k->msg* t)]
       (NetworkSimulator. pkg' model t (or (pq/peek-key (:Q pkg')) infinity))))
   (con-update [this x t]
-    (let [{:keys [G S Q]} pkg
+    (let [{:keys [P M Q]} pkg
           imminent   (if (= t (pq/peek-key Q))
                        (pq/peek Q)
                        [])
           input1     (for [k  imminent
                            [port val] (compute pkg k)
-                           [k' port'] (find-receivers pkg (:parent (G k)) k port)]
+                           [k' port'] (find-receivers pkg (P k) k port)]
                        [k' [port' val]])
           input2     (for [[port val] x
                            [k' port'] (find-receivers pkg () () port)]
@@ -316,7 +187,7 @@
           k->msg*'   (dissoc k->msg* ())
           receivers  (keys k->msg*')
           {re true
-           ra false} (group-by (comp executive? :model G) (into imminent receivers))
+           ra false} (group-by (comp executive? M) (into imminent receivers))
           pkg'       (-> pkg
                          (update-sim* ra k->msg*' t)
                          (update-sim* re k->msg*' t))
