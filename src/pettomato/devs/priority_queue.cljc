@@ -33,7 +33,7 @@
 (defn delete
   "Remove v from priority-queue, pq."
   [pq k v]
-  (let [pq' (clojure.core/update pq k disj v)]
+  (let [pq' (update pq k disj v)]
     (if (empty? (get pq' k))
       (dissoc pq' k)
       pq')))
