@@ -30,12 +30,12 @@
       (persistent! acc))))
 
 (defn- find-receivers
-  "Returns a sequence of [k ev]."
-  [A parent src ev]
-  ;; Parent is important when an event arrives at a network boundary,
-  ;; because we need to know if we are going up out of the current
-  ;; network or down into a new network.
-  (loop [[s* r*] [[[parent src ev]] []]]
+  "Returns a sequence of [k msg]."
+  [A parent src msg]
+  ;; Parent is important when an message arrives at a network
+  ;; boundary, because we need to know if we are going up out of the
+  ;; current network or down into a new network.
+  (loop [[s* r*] [[[parent src msg]] []]]
     (if (seq s*)
       (let [[[p s [port val]] & s*'] s*
             ;; Find initial set of receivers.
@@ -47,15 +47,15 @@
                                 val' (t val)]
                             [p d' [port' val']]))]
         ;; Sort receivers into actual receivers and new senders for
-        ;; networks forwarding events.
-        (recur (reduce (fn [[s* r*] [p d ev]]
+        ;; networks forwarding messages.
+        (recur (reduce (fn [[s* r*] [p d msg]]
                          (let [m (:model (A d))]
                            (cond
-                             (atomic? m)  [s* (conj r* [d ev])]
-                             (= d ())     [s* (conj r* [d ev])]
-                             (= d p)      [(conj s* [(:parent (A d)) d ev]) r*]
-                             (network? m) [(conj s* [d (cons :N (rest d)) ev]) r*]
-                             :else        (assert false (str "No receivers for ev: " ev)))))
+                             (atomic? m)  [s* (conj r* [d msg])]
+                             (= d ())     [s* (conj r* [d msg])]
+                             (= d p)      [(conj s* [(:parent (A d)) d msg]) r*]
+                             (network? m) [(conj s* [d (cons :N (rest d)) msg]) r*]
+                             :else        (assert false (str "No receivers for msg: " msg)))))
                        [s*' r*]
                        temp-r*)))
       r*)))
@@ -132,9 +132,9 @@
     (let [[A Q]      state
           imminent   (pq/peek Q)
           input      (for [k  imminent
-                           ev (compute (A k))
-                           [k' ev'] (find-receivers A (:parent (A k)) k ev)]
-                       [k' ev'])
+                           msg (compute (A k))
+                           [k' msg'] (find-receivers A (:parent (A k)) k msg)]
+                       [k' msg'])
           k->msg*    (group first second [] input)
           k->msg*'   (dissoc k->msg* ())
           receivers  (keys k->msg*')
@@ -157,8 +157,8 @@
   (ext-update [this x t]
     (assert (<= tl t tn) (str "(<= " tl " " t " " tn ")"))
     (let [[A Q]     state
-          input     (for [ev x, [k' ev'] (find-receivers A () () ev)]
-                      [k' ev'])
+          input     (for [msg x, [k' msg'] (find-receivers A () () msg)]
+                      [k' msg'])
           k->msg*   (group first second [] input)
           receivers (keys k->msg*)
           [A' Q']   (update-sim* [A Q] receivers k->msg* t)]
@@ -169,11 +169,11 @@
                        (pq/peek Q)
                        [])
           input1     (for [k  imminent
-                           ev (compute (A k))
-                           [k' ev'] (find-receivers A (:parent (A k)) k ev)]
-                       [k' ev'])
-          input2     (for [ev x, [k' ev'] (find-receivers A () () ev)]
-                       [k' ev'])
+                           msg (compute (A k))
+                           [k' msg'] (find-receivers A (:parent (A k)) k msg)]
+                       [k' msg'])
+          input2     (for [msg x, [k' msg'] (find-receivers A () () msg)]
+                       [k' msg'])
           input      (concat input1 input2)
           k->msg*    (group first second [] input)
           k->msg*'   (dissoc k->msg* ())
