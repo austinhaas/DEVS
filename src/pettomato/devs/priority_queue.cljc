@@ -28,7 +28,7 @@
   [pq k v]
   (if (or (nil? k) (= k infinity))
     pq
-    (clojure.core/update pq k (fnil conj #{}) v)))
+    (update pq k (fnil conj #{}) v)))
 
 (defn delete
   "Remove v from priority-queue, pq."
