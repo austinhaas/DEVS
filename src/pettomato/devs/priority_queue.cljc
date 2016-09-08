@@ -15,12 +15,12 @@
   (:refer-clojure :exclude [peek pop])
   (:require [pettomato.devs.util :refer [infinity]]))
 
-(declare add)
+(declare insert)
 
 (defn priority-queue
   "Returns a new priority queue with supplied values."
   ([] (sorted-map))
-  ([& keyvals] (reduce (fn [m [k v]] (add m k v)) (sorted-map) (partition 2 keyvals))))
+  ([& keyvals] (reduce (fn [m [k v]] (insert m k v)) (sorted-map) (partition 2 keyvals))))
 
 (defn insert
   "Add v to priority-queue, pq, with priority k, unless k is nil or
