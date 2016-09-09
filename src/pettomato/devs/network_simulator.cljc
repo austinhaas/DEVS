@@ -119,11 +119,6 @@
 (defn- rem-model* [pkg p-m*]
   (reduce (fn [pkg [p m]] (rem-model pkg p m)) pkg p-m*))
 
-(defn- compute [pkg k]
-  (let [f (get-in pkg [:M k :output-fn])
-        s (get-in pkg [:S k :state])]
-    (f s)))
-
 (defn- update-sim [d model t msg*]
   (let [{:keys [state tl tn]} d
         state' (if (= t tn)
@@ -157,10 +152,10 @@
       (NetworkSimulator. pkg'' model t (or (pq/peek-key (:Q pkg'')) infinity))))
   (int-update [this t]
     (assert (= t tn) (str "(= " t " " tn ")"))
-    (let [{:keys [P M C Q find-receivers-m]} pkg
+    (let [{:keys [P M C S Q find-receivers-m]} pkg
           imminent   (pq/peek Q)
-          input      (for [k  imminent
-                           [port val] (compute pkg k)
+          input      (for [k             imminent
+                           [port val]    ((get-in M [k :output-fn]) (get-in S [k :state]))
                            [k' port' t*] (find-receivers-m P M C (P k) k port)]
                        (let [val' (reduce #(%2 %1) val t*)]
                          [k' [port' val']]))
@@ -205,12 +200,12 @@
           pkg'      (update-sim* pkg receivers k->msg* t)]
       (NetworkSimulator. pkg' model t (or (pq/peek-key (:Q pkg')) infinity))))
   (con-update [this x t]
-    (let [{:keys [P M C Q find-receivers-m]} pkg
+    (let [{:keys [P M C S Q find-receivers-m]} pkg
           imminent   (if (= t (pq/peek-key Q))
                        (pq/peek Q)
                        [])
-          input1     (for [k  imminent
-                           [port val] (compute pkg k)
+          input1     (for [k             imminent
+                           [port val]    ((get-in M [k :output-fn]) (get-in S [k :state]))
                            [k' port' t*] (find-receivers-m P M C (P k) k port)]
                        (let [val' (reduce #(%2 %1) val t*)]
                          [k' [port' val']]))
