@@ -35,9 +35,9 @@
   ;; Parent is important when an message arrives at a network
   ;; boundary, because we need to know if we are going up out of the
   ;; current network or down into a new network.
-  (loop [[s* r*] [[[parent src port]] []]]
+  (loop [[s* r*] [[[parent src port []]] []]]
     (if (seq s*)
-      (let [[[p s port] & s*'] s*
+      (let [[[p s port t*] & s*'] s*
             k           (if (= p s) :N (first s))
             exec-name   (exec-name (get M p))
             connections (for [[k m] (get-in C [(cons exec-name p) k port])
@@ -48,10 +48,10 @@
                                ;;val' (t val)
                                m    (get M d')]
                            (cond
-                             (atomic? m)  [s* (conj r* [d' port'])]
-                             (= d' ())    [s* (conj r* [d' port'])]
-                             (= d' p)     [(conj s* [(get P d') d' port']) r*]
-                             (network? m) [(conj s* [d' (cons :N (rest d')) port']) r*]
+                             (atomic? m)  [s* (conj r* [d' port' (conj t* t)])]
+                             (= d' ())    [s* (conj r* [d' port' (conj t* t)])]
+                             (= d' p)     [(conj s* [(get P d') d' port' (conj t* t)]) r*]
+                             (network? m) [(conj s* [d' (cons :N (rest d')) port' (conj t* t)]) r*]
                              :else        (assert false (str "No receivers for port: " port')))))
                        [s*' r*]
                        connections)))
@@ -161,8 +161,9 @@
           imminent   (pq/peek Q)
           input      (for [k  imminent
                            [port val] (compute pkg k)
-                           [k' port'] (find-receivers-m P M (:C pkg) (P k) k port)]
-                       [k' [port' val]])
+                           [k' port' t*] (find-receivers-m P M (:C pkg) (P k) k port)]
+                       (let [val' (reduce #(%2 %1) val t*)]
+                         [k' [port' val']]))
           k->msg*    (group first second [] input)
           k->msg*'   (dissoc k->msg* ())
           receivers  (keys k->msg*')
@@ -196,8 +197,9 @@
     (assert (<= tl t tn) (str "(<= " tl " " t " " tn ")"))
     (let [{:keys [P M C find-receivers-m]} pkg
           input     (for [[port val] x
-                          [k' port'] (find-receivers-m P M C () () port)]
-                      [k' [port' val]])
+                          [k' port' t*] (find-receivers-m P M C () () port)]
+                      (let [val' (reduce #(%2 %1) val t*)]
+                        [k' [port' val']]))
           k->msg*   (group first second [] input)
           receivers (keys k->msg*)
           pkg'      (update-sim* pkg receivers k->msg* t)]
@@ -209,11 +211,13 @@
                        [])
           input1     (for [k  imminent
                            [port val] (compute pkg k)
-                           [k' port'] (find-receivers-m P M (:C pkg) (P k) k port)]
-                       [k' [port' val]])
+                           [k' port' t*] (find-receivers-m P M (:C pkg) (P k) k port)]
+                       (let [val' (reduce #(%2 %1) val t*)]
+                         [k' [port' val']]))
           input2     (for [[port val] x
-                           [k' port'] (find-receivers-m P M (:C pkg) () () port)]
-                       [k' [port' val]])
+                           [k' port' t*] (find-receivers-m P M (:C pkg) () () port)]
+                       (let [val' (reduce #(%2 %1) val t*)]
+                         [k' [port' val']]))
           input      (concat input1 input2)
           k->msg*    (group first second [] input)
           k->msg*'   (dissoc k->msg* ())
