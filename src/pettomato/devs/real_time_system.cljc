@@ -61,7 +61,8 @@
                 wc-e   (- wc-t wc-start)]
             (condp = ch
               tout    (let [[sim' out] (int-update sim (tn sim))]
-                        (>! chan-out [[wc-e (tn sim)] out])
+                        (when (seq out)
+                          (>! chan-out [[wc-e (tn sim)] out]))
                         (recur sim' wc-t))
               chan-in (cond
                         (nil? v)       (close! chan-out)
@@ -69,6 +70,7 @@
                                              sim'  (ext-update sim v sim-t)]
                                          (recur sim' wc-t))
                         :else          (let [[sim' out] (con-update sim v (tn sim))]
-                                         (>! chan-out [[wc-e (tn sim)] out])
+                                         (when (seq out)
+                                           (>! chan-out [[wc-e (tn sim)] out]))
                                          (recur sim' wc-t)))))))))
   true)
