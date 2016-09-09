@@ -2,21 +2,13 @@
   (:require
    [clojure.walk :refer [postwalk]]))
 
-(defn aggregate-timestamped-msg* [tmsg*]
-  (reduce (fn [acc [t msg]]
-            (if (empty? acc)
-              (conj acc [t #{msg}])
-              (let [[t' s] (peek acc)]
-                (if (= t t')
-                  (conj (pop acc) [t (conj s msg)])
-                  (conj acc [t #{msg}])))))
-          []
-          tmsg*))
+(defn normalize [tmsg*]
+  (->> tmsg*
+       (postwalk (fn [x] (if (number? x) (float x) x)))
+       (map (fn [[t msg*]] [t (set msg*)]))))
 
 (defn eq? [a b]
-  (let [normalize (partial postwalk (fn [x] (if (number? x) (float x) x)))]
-    (= (-> a normalize aggregate-timestamped-msg*)
-       (-> b normalize aggregate-timestamped-msg*))))
+  (= (normalize a) (normalize b)))
 
 (defn pprint-timestamped-msg* [tmsg*]
   (doseq [[t msg] tmsg*] (println (format "[%.3f] %s" (float t) msg))))

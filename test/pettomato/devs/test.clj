@@ -23,15 +23,15 @@
        (-> (generator 5 10)
            atomic-simulator
            (immediate-system 0 100 []))
-       [[10 [:out 5]]
-        [20 [:out 5]]
-        [30 [:out 5]]
-        [40 [:out 5]]
-        [50 [:out 5]]
-        [60 [:out 5]]
-        [70 [:out 5]]
-        [80 [:out 5]]
-        [90 [:out 5]]])))
+       [[10 [[:out 5]]]
+        [20 [[:out 5]]]
+        [30 [[:out 5]]]
+        [40 [[:out 5]]]
+        [50 [[:out 5]]]
+        [60 [[:out 5]]]
+        [70 [[:out 5]]]
+        [80 [[:out 5]]]
+        [90 [[:out 5]]]])))
 
 (defn switch [processing-time]
   (atomic-model
@@ -68,15 +68,15 @@
 (deftest switch-test
   (is (eq? (-> (switch 5)
                atomic-simulator
-               (immediate-system 0 100 [[10 [:in1 1]]
-                                        [12 [:in1 1]]
-                                        [15 [:in1 1]]
-                                        [20 [:in1 1]]
-                                        [25 [:in2 2]]]))
-           [[15 [:out2 1]]
-            [20 [:out1 1]]
-            [25 [:out2 1]]
-            [30 [:out2 2]]])))
+               (immediate-system 0 100 [[10 [[:in1 1]]]
+                                        [12 [[:in1 1]]]
+                                        [15 [[:in1 1]]]
+                                        [20 [[:in1 1]]]
+                                        [25 [[:in2 2]]]]))
+           [[15 [[:out2 1]]]
+            [20 [[:out1 1]]]
+            [25 [[:out2 1]]]
+            [30 [[:out2 2]]]])))
 
 (defn simple-delay-component [processing-time]
   (atomic-model
@@ -232,17 +232,9 @@
 (deftest dynamic-network-test
   (is (eq? (-> network-1
                network-simulator
-               (immediate-system 0 infinity (for [i (range 10)] [1 ['in1 i]])))
-           [[1001 ['out 8]]
-            [1001 ['out 9]]
-            [1001 ['out 7]]
-            [1001 ['out 1]]
-            [1001 ['out 0]]
-            [2001 ['out 6]]
-            [2001 ['out 5]]
-            [2001 ['out 4]]
-            [2001 ['out 3]]
-            [2001 ['out 2]]])))
+               (immediate-system 0 infinity (for [i (range 10)] [1 [['in1 i]]])))
+           [[1001 [['out 8] ['out 9] ['out 7] ['out 1] ['out 0]]]
+            [2001 [['out 6] ['out 5] ['out 4] ['out 3] ['out 2]]]])))
 
 (defn delay-1 [processing-time]
   (let [int-update (fn [s]
@@ -288,19 +280,19 @@
 (deftest confluence-test
   (is (eq? (-> (delay-1 10)
                atomic-simulator
-               (immediate-system 0 100 [[0  [:in 1]]
-                                        [10 [:in 2]]]))
-           [[10 [:out 1]]
-            [20 [:out 2]]]))
+               (immediate-system 0 100 [[0  [[:in 1]]]
+                                        [10 [[:in 2]]]]))
+           [[10 [[:out 1]]]
+            [20 [[:out 2]]]]))
 
   ;; The second input value should be ignored, since the model is in
   ;; the busy state and external inputs have higher priority in
   ;; delay-2.
   (is (eq? (-> (delay-2 10)
                atomic-simulator
-               (immediate-system 0 100 [[0  [:in 1]]
-                                        [10 [:in 2]]]))
-           [[10 [:out 1]]]))
+               (immediate-system 0 100 [[0  [[:in 1]]]
+                                        [10 [[:in 2]]]]))
+           [[10 [[:out 1]]]]))
 
   (is (eq? (-> (network-model
                 :exec
@@ -311,10 +303,10 @@
                      (connect :delay :out :N :out))
                  nil nil nil nil (constantly infinity)))
                network-simulator
-               (immediate-system 0 100 [[0  [:in 1]]
-                                        [10 [:in 2]]]))
-           [[10 [:out 1]]
-            [20 [:out 2]]]))
+               (immediate-system 0 100 [[0  [[:in 1]]]
+                                        [10 [[:in 2]]]]))
+           [[10 [[:out 1]]]
+            [20 [[:out 2]]]]))
 
   (is (eq? (-> (network-model
                 :exec
@@ -325,6 +317,6 @@
                      (connect :delay :out :N :out))
                  nil nil nil nil (constantly infinity)))
                network-simulator
-               (immediate-system 0 100 [[0  [:in 1]]
-                                        [10 [:in 2]]]))
-           [[10 [:out 1]]])))
+               (immediate-system 0 100 [[0  [[:in 1]]]
+                                        [10 [[:in 2]]]]))
+           [[10 [[:out 1]]]])))

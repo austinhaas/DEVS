@@ -61,14 +61,14 @@
                 wc-e   (- wc-t wc-start)]
             (condp = ch
               tout    (let [[sim' out] (int-update sim (tn sim))]
-                        (doseq [msg out] (>! chan-out [[wc-e (tn sim)] msg]))
+                        (>! chan-out [[wc-e (tn sim)] out])
                         (recur sim' wc-t))
               chan-in (cond
                         (nil? v)       (close! chan-out)
                         (< wc-t wc-tn) (let [sim-t (min (+ (tl sim) (- wc-t wc-tl)) (tn sim))
-                                             sim'  (ext-update sim [v] sim-t)]
+                                             sim'  (ext-update sim v sim-t)]
                                          (recur sim' wc-t))
-                        :else          (let [[sim' out] (con-update sim [v] (tn sim))]
-                                         (doseq [msg out] (>! chan-out [[wc-e (tn sim)] msg]))
+                        :else          (let [[sim' out] (con-update sim v (tn sim))]
+                                         (>! chan-out [[wc-e (tn sim)] out])
                                          (recur sim' wc-t)))))))))
   true)

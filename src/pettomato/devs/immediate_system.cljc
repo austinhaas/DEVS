@@ -13,17 +13,19 @@
         (and (>= int-tn end-time)
              (>= ext-tn end-time)) (persistent! acc)
         (< int-tn ext-tn)          (let [[sim' out] (int-update sim (tn sim))
-                                         acc'       (reduce conj! acc (for [o out :when o] [(tn sim) o]))]
+                                         acc'       (if (seq out)
+                                                      (conj! acc [(tn sim) out])
+                                                      acc)]
                                      (recur sim' tmsg* acc'))
-        (< ext-tn int-tn)          (let [t (ffirst tmsg*)
-                                         [imminent tmsg*'] (split-with #(= (first %) t) tmsg*)]
-                                     (recur (ext-update sim (map second imminent) t)
+        (< ext-tn int-tn)          (let [[[t msg*] & tmsg*'] tmsg*]
+                                     (recur (ext-update sim msg* t)
                                             tmsg*'
                                             acc))
-        :else                      (let [t (ffirst tmsg*)
-                                         [imminent tmsg*'] (split-with #(= (first %) t) tmsg*)
-                                         [sim' out] (con-update sim (map second imminent) t)
-                                         acc'       (reduce conj! acc (for [o out :when o] [(tn sim) o]))]
+        :else                      (let [[[t msg*] & tmsg*'] tmsg*
+                                         [sim' out] (con-update sim msg* t)
+                                         acc'       (if (seq out)
+                                                      (conj! acc [(tn sim) out])
+                                                      acc)]
                                      (recur sim'
                                             tmsg*'
                                             acc'))))))
