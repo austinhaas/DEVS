@@ -8,7 +8,7 @@
    [pettomato.devs.Simulator :refer [Simulator]]
    [pettomato.devs.priority-queue :as pq]
    [pettomato.devs.util :refer [infinity]]
-   [pettomato.devs.util :refer [group]]
+   [pettomato.devs.util :refer [group-cons]]
    [pettomato.devs.models :refer [atomic? executive? network?
                                   initial-state int-update-fn ext-update-fn con-update-fn output-fn time-advance-fn
                                   get-components get-connections
@@ -159,7 +159,7 @@
                            [k' port' t*] (find-receivers-m P M C (P k) k port)]
                        (let [val' (reduce #(%2 %1) val t*)]
                          [k' [port' val']]))
-          k->msg*    (group first second [] input)
+          k->msg*    (group-cons first second input)
           k->msg*'   (dissoc k->msg* ())
           receivers  (keys k->msg*')
           {re true
@@ -195,7 +195,7 @@
                           [k' port' t*] (find-receivers-m P M C () () port)]
                       (let [val' (reduce #(%2 %1) val t*)]
                         [k' [port' val']]))
-          k->msg*   (group first second [] input)
+          k->msg*   (group-cons first second input)
           receivers (keys k->msg*)
           pkg'      (update-sim* pkg receivers k->msg* t)]
       (NetworkSimulator. pkg' model t (or (pq/peek-key (:Q pkg')) infinity))))
@@ -214,7 +214,7 @@
                        (let [val' (reduce #(%2 %1) val t*)]
                          [k' [port' val']]))
           input      (concat input1 input2)
-          k->msg*    (group first second [] input)
+          k->msg*    (group-cons first second input)
           k->msg*'   (dissoc k->msg* ())
           receivers  (keys k->msg*')
           {re true

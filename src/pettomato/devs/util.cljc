@@ -20,6 +20,18 @@
     (transient {})
     coll)))
 
+(defn group-cons
+  "Like group, but val-init is assumed to be a list and values are
+  consed onto it."
+  [key-fn val-fn coll]
+  (persistent!
+   (reduce
+    (fn [m x]
+      (let [k (key-fn x)]
+        (assoc! m k (cons (val-fn x) (get m k)))))
+    (transient {})
+    coll)))
+
 ;; https://github.com/weavejester/medley/blob/0.8.1/src/medley/core.cljc#L11
 (defn dissoc-in
   "Dissociate a value in a nested assocative structure, identified by a sequence
