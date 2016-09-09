@@ -157,11 +157,11 @@
       (NetworkSimulator. pkg'' model t (or (pq/peek-key (:Q pkg'')) infinity))))
   (int-update [this t]
     (assert (= t tn) (str "(= " t " " tn ")"))
-    (let [{:keys [P M Q find-receivers-m]} pkg
+    (let [{:keys [P M C Q find-receivers-m]} pkg
           imminent   (pq/peek Q)
           input      (for [k  imminent
                            [port val] (compute pkg k)
-                           [k' port' t*] (find-receivers-m P M (:C pkg) (P k) k port)]
+                           [k' port' t*] (find-receivers-m P M C (P k) k port)]
                        (let [val' (reduce #(%2 %1) val t*)]
                          [k' [port' val']]))
           k->msg*    (group first second [] input)
@@ -205,17 +205,17 @@
           pkg'      (update-sim* pkg receivers k->msg* t)]
       (NetworkSimulator. pkg' model t (or (pq/peek-key (:Q pkg')) infinity))))
   (con-update [this x t]
-    (let [{:keys [P M Q find-receivers-m]} pkg
+    (let [{:keys [P M C Q find-receivers-m]} pkg
           imminent   (if (= t (pq/peek-key Q))
                        (pq/peek Q)
                        [])
           input1     (for [k  imminent
                            [port val] (compute pkg k)
-                           [k' port' t*] (find-receivers-m P M (:C pkg) (P k) k port)]
+                           [k' port' t*] (find-receivers-m P M C (P k) k port)]
                        (let [val' (reduce #(%2 %1) val t*)]
                          [k' [port' val']]))
           input2     (for [[port val] x
-                           [k' port' t*] (find-receivers-m P M (:C pkg) () () port)]
+                           [k' port' t*] (find-receivers-m P M C () () port)]
                        (let [val' (reduce #(%2 %1) val t*)]
                          [k' [port' val']]))
           input      (concat input1 input2)
