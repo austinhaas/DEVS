@@ -139,6 +139,8 @@
         Q' (reduce (fn [Q k] (pq/modify Q (:tn (S k)) k (:tn (S' k)))) Q k*)]
     (assoc pkg :S S' :Q Q')))
 
+(defn- rcall [x y] (y x))
+
 (defrecord NetworkSimulator [pkg model tl tn]
   Simulator
   (init       [this t]
@@ -155,9 +157,10 @@
     (let [{:keys [P M C S Q find-receivers-m]} pkg
           imminent   (pq/peek Q)
           input      (for [k             imminent
+                           :let [k-parent (P k)]
                            [port val]    ((get-in M [k :output-fn]) (get-in S [k :state]))
-                           [k' port' t*] (find-receivers-m P M C (P k) k port)]
-                       (let [val' (reduce #(%2 %1) val t*)]
+                           [k' port' t*] (find-receivers-m P M C k-parent k port)]
+                       (let [val' (reduce rcall val t*)]
                          [k' [port' val']]))
           k->msg*    (group-cons first second input)
           k->msg*'   (dissoc k->msg* ())
@@ -193,7 +196,7 @@
     (let [{:keys [P M C find-receivers-m]} pkg
           input     (for [[port val] x
                           [k' port' t*] (find-receivers-m P M C () () port)]
-                      (let [val' (reduce #(%2 %1) val t*)]
+                      (let [val' (reduce rcall val t*)]
                         [k' [port' val']]))
           k->msg*   (group-cons first second input)
           receivers (keys k->msg*)
@@ -205,13 +208,14 @@
                        (pq/peek Q)
                        [])
           input1     (for [k             imminent
+                           :let [k-parent (P k)]
                            [port val]    ((get-in M [k :output-fn]) (get-in S [k :state]))
-                           [k' port' t*] (find-receivers-m P M C (P k) k port)]
-                       (let [val' (reduce #(%2 %1) val t*)]
+                           [k' port' t*] (find-receivers-m P M C k-parent k port)]
+                       (let [val' (reduce rcall val t*)]
                          [k' [port' val']]))
           input2     (for [[port val] x
                            [k' port' t*] (find-receivers-m P M C () () port)]
-                       (let [val' (reduce #(%2 %1) val t*)]
+                       (let [val' (reduce rcall val t*)]
                          [k' [port' val']]))
           input      (concat input1 input2)
           k->msg*    (group-cons first second input)
