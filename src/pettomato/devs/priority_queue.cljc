@@ -9,8 +9,8 @@
      - There is no order between values with the same key.
      - Duplicate key-val pairs are ignored.
 
-   This implementation is intended to be used in cases where delete
-  and update are required; and the range of current keys is relatively
+  This implementation is intended to be used in cases where delete and
+  update are required; and the range of current keys is relatively
   small, so many values map to the same key."
   (:refer-clojure :exclude [peek pop])
   (:require [pettomato.devs.util :refer [infinity]]))
