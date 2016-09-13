@@ -106,8 +106,7 @@
                                  (update :S dissoc p)
                                  (update :C dissoc p)
                                  (update :Q pq/delete (get-in pkg [:S p :tn]) p)
-                                 (assoc :find-receivers-m (memoize find-receivers))
-                                 )
+                                 (assoc :find-receivers-m (memoize find-receivers)))
               :else          (-> pkg
                                  (update :P dissoc p)
                                  (update :M dissoc p)
