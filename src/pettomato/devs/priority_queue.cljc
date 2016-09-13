@@ -22,13 +22,15 @@
   ([] (sorted-map))
   ([& keyvals] (reduce (fn [m [k v]] (insert m k v)) (sorted-map) (partition 2 keyvals))))
 
+(def conjs (fnil conj #{}))
+
 (defn insert
   "Add v to priority-queue, pq, with priority k, unless k is nil or
   infinity."
   [pq k v]
   (if (or (nil? k) (= k infinity))
     pq
-    (update pq k (fnil conj #{}) v)))
+    (update pq k conjs v)))
 
 (defn delete
   "Remove v from priority-queue, pq."
