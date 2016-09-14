@@ -135,7 +135,7 @@
 (defn- update-sim* [pkg k* k->msg* t]
   (let [{:keys [M S Q]} pkg
         S' (reduce (fn [S k] (update S k update-sim (get M k) t (k->msg* k))) S k*)
-        Q' (reduce (fn [Q k] (pq/modify Q (:tn (S k)) k (:tn (S' k)))) Q k*)]
+        Q' (pq/modify* Q (for [k k*] [(:tn (S k)) k (:tn (S' k))]))]
     (assoc pkg :S S' :Q Q')))
 
 (defn- rcall [x y] (y x))
@@ -147,7 +147,7 @@
                  :M {}
                  :S {}
                  :C {}
-                 :Q (pq/priority-queue)
+                 :Q (pq/init)
                  :find-receivers-m nil}
           pkg'' (add-model pkg' () model t)]
       (NetworkSimulator. pkg'' model t (or (pq/peek-key (:Q pkg'')) infinity))))

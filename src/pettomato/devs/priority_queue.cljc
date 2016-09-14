@@ -13,11 +13,12 @@
   update are required; and the range of current keys is relatively
   small, so many values map to the same key."
   (:refer-clojure :exclude [peek pop])
-  (:require [pettomato.devs.util :refer [infinity]]))
+  (:require
+   [pettomato.devs.util :refer [infinity group]]))
 
 (declare insert)
 
-(defn priority-queue
+(defn init
   "Returns a new priority queue with supplied values."
   ([] (sorted-map))
   ([& keyvals] (reduce (fn [m [k v]] (insert m k v)) (sorted-map) (partition 2 keyvals))))
@@ -32,6 +33,18 @@
     pq
     (update pq k conjs v)))
 
+(defn insert* [pq k-v*]
+  (let [m (group first second [] k-v*)]
+    (reduce-kv (fn [m k v*]
+                 (if (or (nil? k) (= k infinity))
+                   m
+                   (assoc m k (persistent!
+                               (reduce (fn [m v] (conj! m v ))
+                                       (transient (get m k #{}))
+                                       v*)))))
+               pq
+               m)))
+
 (defn delete
   "Remove v from priority-queue, pq."
   [pq k v]
@@ -40,10 +53,30 @@
       (dissoc pq' k)
       pq')))
 
+(defn delete* [pq k-v*]
+  (let [m (group first second [] k-v*)]
+    (reduce-kv (fn [m k v*]
+                 (if (or (nil? k) (= k infinity))
+                   m
+                   (let [s' (persistent!
+                             (reduce (fn [m v] (disj! m v ))
+                                     (transient (get m k #{}))
+                                     v*))]
+                     (if (empty? s')
+                       (dissoc m k)
+                       (assoc m k s')))))
+               pq
+               m)))
+
 (defn modify [pq k1 v k2]
   (if (= k1 k2)
     pq
     (-> pq (delete k1 v) (insert k2 v))))
+
+(defn modify* [pq k1-v-k2*]
+  (-> pq
+      (delete* (for [[k1 v k2] k1-v-k2* :when (not= k1 k2)] [k1 v]))
+      (insert* (for [[k1 v k2] k1-v-k2* :when (not= k1 k2)] [k2 v]))))
 
 (defn peek
   "Returns a set containing ALL items with highest priority."
