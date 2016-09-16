@@ -8,7 +8,7 @@
    [pettomato.devs.Simulator :refer [Simulator]]
    [pettomato.devs.priority-queue :as pq]
    [pettomato.devs.util :refer [infinity]]
-   [pettomato.devs.util :refer [group-cons]]
+   [pettomato.devs.util :refer [group]]
    [pettomato.devs.models :refer [atomic? executive? network?
                                   initial-state int-update-fn ext-update-fn con-update-fn output-fn time-advance-fn
                                   get-components get-connections
@@ -157,11 +157,14 @@
           imminent   (pq/peek Q)
           input      (for [k             imminent
                            :let [k-parent (P k)]
-                           [port val]    ((get-in M [k :output-fn]) (get-in S [k :state]))
+                           [port val*]   ((get-in M [k :output-fn]) (get-in S [k :state]))
                            [k' port' t*] (find-receivers-m P M C k-parent k port)]
-                       (let [val' (reduce rcall val t*)]
-                         [k' [port' val']]))
-          k->msg*    (group-cons first second input)
+                       (let [val*' (mapv #(reduce rcall % t*) val*)]
+                         [k' [port' val*']]))
+          k->msg*    (reduce (fn [m [k [port val*]]]
+                               (update-in m [k port] into val*))
+                             {}
+                             input)
           k->msg*'   (dissoc k->msg* ())
           receivers  (keys k->msg*')
           {re true
@@ -193,11 +196,14 @@
   (ext-update [this x t]
     (assert (<= tl t tn) (str "(<= " tl " " t " " tn ")"))
     (let [{:keys [P M C find-receivers-m]} pkg
-          input     (for [[port val] x
+          input     (for [[port val*] x
                           [k' port' t*] (find-receivers-m P M C () () port)]
-                      (let [val' (reduce rcall val t*)]
-                        [k' [port' val']]))
-          k->msg*   (group-cons first second input)
+                      (let [val*' (mapv #(reduce rcall % t*) val*)]
+                        [k' [port' val*']]))
+          k->msg*    (reduce (fn [m [k [port val*]]]
+                               (update-in m [k port] into val*))
+                             {}
+                             input)
           receivers (keys k->msg*)
           pkg'      (update-sim* pkg receivers k->msg* t)]
       (NetworkSimulator. pkg' model t (or (pq/peek-key (:Q pkg')) infinity))))
@@ -208,16 +214,19 @@
                        [])
           input1     (for [k             imminent
                            :let [k-parent (P k)]
-                           [port val]    ((get-in M [k :output-fn]) (get-in S [k :state]))
+                           [port val*]   ((get-in M [k :output-fn]) (get-in S [k :state]))
                            [k' port' t*] (find-receivers-m P M C k-parent k port)]
-                       (let [val' (reduce rcall val t*)]
-                         [k' [port' val']]))
-          input2     (for [[port val] x
+                       (let [val*' (mapv #(reduce rcall % t*) val*)]
+                         [k' [port' val*']]))
+          input2     (for [[port val*] x
                            [k' port' t*] (find-receivers-m P M C () () port)]
-                       (let [val' (reduce rcall val t*)]
-                         [k' [port' val']]))
+                       (let [val*' (mapv #(reduce rcall % t*) val*)]
+                         [k' [port' val*']]))
           input      (concat input1 input2)
-          k->msg*    (group-cons first second input)
+          k->msg*    (reduce (fn [m [k [port val*]]]
+                               (update-in m [k port] into val*))
+                             {}
+                             input)
           k->msg*'   (dissoc k->msg* ())
           receivers  (keys k->msg*')
           {re true
