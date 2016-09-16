@@ -5,7 +5,10 @@
 (defn normalize [tmsg*]
   (->> tmsg*
        (postwalk (fn [x] (if (number? x) (float x) x)))
-       (map (fn [[t msg*]] [t (set msg*)]))))
+       (map (fn [[t m]] [t (reduce-kv (fn [m k v]
+                                        (assoc m k (set v)))
+                                      {}
+                                      m)]))))
 
 (defn eq? [a b]
   (= (normalize a) (normalize b)))

@@ -234,11 +234,18 @@
     nil (constantly infinity))))
 
 (deftest dynamic-network-test
-  (is (eq? (-> network-1
-               network-simulator
-               (immediate-system 0 infinity [[1 {'in1 (range 10)}]]))
-           [[1001 [['out 8] ['out 9] ['out 7] ['out 1] ['out 0]]]
-            [2001 [['out 6] ['out 5] ['out 4] ['out 3] ['out 2]]]])))
+  (is ((fn [ev*]
+         ;; This is ugly. The idea is that there should only be two
+         ;; events, and they each output 5 jobs, but which jobs is not
+         ;; important.
+         (and (= (count ev*) 2)
+              (= (first (first ev*)) 1001)
+              (= (first (second ev*)) 2001)
+              (= (count (get (second (first ev*)) 'out)) 5)
+              (= (count (get (second (second ev*)) 'out)) 5)))
+       (-> network-1
+           network-simulator
+           (immediate-system 0 infinity [[1 {'in1 (range 10)}]])))))
 
 (defn delay-1 [processing-time]
   (let [int-update (fn [s]

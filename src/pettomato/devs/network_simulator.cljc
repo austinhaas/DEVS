@@ -35,7 +35,7 @@
   ;; Parent is important when an message arrives at a network
   ;; boundary, because we need to know if we are going up out of the
   ;; current network or down into a new network.
-  (loop [[s* r*] [[[parent src port []]] []]]
+  (loop [[s* r*] [[[parent src port ()]] []]]
     (if (seq s*)
       (let [[[p s port t*] & s*'] s*
             k           (if (= p s) :N (first s))
@@ -48,8 +48,8 @@
                                ;;val' (t val)
                                m    (get M d')]
                            (cond
-                             (atomic? m)  [s* (conj r* [d' port' (conj t* t)])]
-                             (= d' ())    [s* (conj r* [d' port' (conj t* t)])]
+                             (atomic? m)  [s* (conj r* [d' port' (apply comp (conj t* t))])]
+                             (= d' ())    [s* (conj r* [d' port' (apply comp (conj t* t))])]
                              (= d' p)     [(conj s* [(get P d') d' port' (conj t* t)]) r*]
                              (network? m) [(conj s* [d' (cons :N (rest d')) port' (conj t* t)]) r*]
                              :else        (assert false (str "No receivers for port: " port')))))
@@ -138,8 +138,6 @@
         Q' (pq/modify* Q (for [k k*] [(:tn (S k)) k (:tn (S' k))]))]
     (assoc pkg :S S' :Q Q')))
 
-(defn- rcall [x y] (y x))
-
 (defrecord NetworkSimulator [pkg model tl tn]
   Simulator
   (init       [this t]
@@ -155,16 +153,36 @@
     (assert (= t tn) (str "(= " t " " tn ")"))
     (let [{:keys [P M C S Q find-receivers-m]} pkg
           imminent   (pq/peek Q)
-          input      (for [k             imminent
-                           :let [k-parent (P k)]
-                           [port val*]   ((get-in M [k :output-fn]) (get-in S [k :state]))
-                           [k' port' t*] (find-receivers-m P M C k-parent k port)]
-                       (let [val*' (mapv #(reduce rcall % t*) val*)]
-                         [k' [port' val*']]))
-          k->msg*    (reduce (fn [m [k [port val*]]]
-                               (update-in m [k port] into val*))
-                             {}
-                             input)
+
+          ;;;; An arguably more readable version than the expression
+          ;;;; below, with similar performance. Not using, because I'm
+          ;;;; not sure if this is an abuse of atoms and if it has
+          ;;;; different implications for clj and cljs.
+          ;; k->msg*    (let [m (atom {})]
+          ;;              (doseq [k             imminent
+          ;;                      :let [k-parent (P k)]
+          ;;                      [port val*]   ((get-in M [k :output-fn]) (get-in S [k :state]))
+          ;;                      [k' port' t] (find-receivers-m P M C k-parent k port)]
+          ;;                (let [val*' (map t val*)]
+          ;;                  (swap! m update-in [k' port'] into val*')))
+          ;;              @m)
+
+          k->msg*    (reduce
+                      (fn [m k]
+                        (let [k-parent (P k)]
+                          (reduce-kv
+                           (fn [m port val*]
+                             (reduce
+                              (fn [m [k' port' t]]
+                                (let [val*' (map t val*)]
+                                  (update-in m [k' port'] into val*')))
+                              m
+                              (find-receivers-m P M C k-parent k port)))
+                           m
+                           ((get-in M [k :output-fn]) (get-in S [k :state])))))
+                      {}
+                      imminent)
+
           k->msg*'   (dissoc k->msg* ())
           receivers  (keys k->msg*')
           {re true
@@ -197,8 +215,8 @@
     (assert (<= tl t tn) (str "(<= " tl " " t " " tn ")"))
     (let [{:keys [P M C find-receivers-m]} pkg
           input     (for [[port val*] x
-                          [k' port' t*] (find-receivers-m P M C () () port)]
-                      (let [val*' (mapv #(reduce rcall % t*) val*)]
+                          [k' port' t] (find-receivers-m P M C () () port)]
+                      (let [val*' (mapv t val*)]
                         [k' [port' val*']]))
           k->msg*    (reduce (fn [m [k [port val*]]]
                                (update-in m [k port] into val*))
@@ -215,12 +233,12 @@
           input1     (for [k             imminent
                            :let [k-parent (P k)]
                            [port val*]   ((get-in M [k :output-fn]) (get-in S [k :state]))
-                           [k' port' t*] (find-receivers-m P M C k-parent k port)]
-                       (let [val*' (mapv #(reduce rcall % t*) val*)]
+                           [k' port' t] (find-receivers-m P M C k-parent k port)]
+                       (let [val*' (mapv t val*)]
                          [k' [port' val*']]))
           input2     (for [[port val*] x
-                           [k' port' t*] (find-receivers-m P M C () () port)]
-                       (let [val*' (mapv #(reduce rcall % t*) val*)]
+                           [k' port' t] (find-receivers-m P M C () () port)]
+                       (let [val*' (mapv t val*)]
                          [k' [port' val*']]))
           input      (concat input1 input2)
           k->msg*    (reduce (fn [m [k [port val*]]]
