@@ -52,7 +52,7 @@
                              (= d' ())    [s* (conj r* [d' port' (apply comp (conj t* t))])]
                              (= d' p)     [(conj s* [(get P d') d' port' (conj t* t)]) r*]
                              (network? m) [(conj s* [d' (cons :N (rest d')) port' (conj t* t)]) r*]
-                             :else        (assert false (str "No receivers for port: " port')))))
+                             :else        (assert false (str "No connection found from " src " to " d' " via port " port' ".")))))
                        [s*' r*]
                        connections)))
       r*)))
