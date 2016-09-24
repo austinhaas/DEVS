@@ -35,7 +35,7 @@
   ;; Parent is important when an message arrives at a network
   ;; boundary, because we need to know if we are going up out of the
   ;; current network or down into a new network.
-  (loop [[s* r*] [[[parent src port ()]] []]]
+  (loop [[s* r*] [[[parent src port []]] []]]
     (if (seq s*)
       (let [[[p s port t*] & s*'] s*
             k           (if (= p s) :N (first s))
@@ -174,7 +174,7 @@
                            (fn [m port val*]
                              (reduce
                               (fn [m [k' port' t]]
-                                (let [val*' (map t val*)]
+                                (let [val*' (into [] t val*)]
                                   (update-in m [k' port'] into val*')))
                               m
                               (find-receivers-m P M C k-parent k port)))
@@ -216,7 +216,7 @@
     (let [{:keys [P M C find-receivers-m]} pkg
           input     (for [[port val*] x
                           [k' port' t] (find-receivers-m P M C () () port)]
-                      (let [val*' (mapv t val*)]
+                      (let [val*' (into [] t val*)]
                         [k' [port' val*']]))
           k->msg*    (reduce (fn [m [k [port val*]]]
                                (update-in m [k port] into val*))
@@ -234,11 +234,11 @@
                            :let [k-parent (P k)]
                            [port val*]   ((get-in M [k :output-fn]) (get-in S [k :state]))
                            [k' port' t] (find-receivers-m P M C k-parent k port)]
-                       (let [val*' (mapv t val*)]
+                       (let [val*' (into [] t val*)]
                          [k' [port' val*']]))
           input2     (for [[port val*] x
                            [k' port' t] (find-receivers-m P M C () () port)]
-                       (let [val*' (mapv t val*)]
+                       (let [val*' (into [] t val*)]
                          [k' [port' val*']]))
           input      (concat input1 input2)
           k->msg*    (reduce (fn [m [k [port val*]]]
