@@ -46,7 +46,9 @@
   (:components s))
 
 (defn connect
-  ([s k1 p1 k2 p2 t] (assoc-in s [:connections k1 p1 k2 p2] t))
+  ([s k1 p1 k2 p2 t]
+   (assert (nil? (get-in s [:connections k1 p1 k2 p2])) (str "There is already a connection between these ports: " [k1 p1] " " [k2 p2]))
+   (assoc-in s [:connections k1 p1 k2 p2] t))
   ([s k1 p1 k2 p2]   (connect s k1 p1 k2 p2 identity)))
 
 (defn disconnect [s k1 p1 k2 p2]
