@@ -175,7 +175,9 @@
                              (reduce
                               (fn [m [k' port' t]]
                                 (let [val*' (into [] t val*)]
-                                  (update-in m [k' port'] into val*')))
+                                  (if (seq val*')
+                                    (update-in m [k' port'] into val*')
+                                    m)))
                               m
                               (find-receivers-m P M C k-parent k port)))
                            m
@@ -219,7 +221,9 @@
                       (let [val*' (into [] t val*)]
                         [k' [port' val*']]))
           k->msg*    (reduce (fn [m [k [port val*]]]
-                               (update-in m [k port] into val*))
+                               (if (seq val*)
+                                 (update-in m [k port] into val*)
+                                 m))
                              {}
                              input)
           receivers (keys k->msg*)
@@ -242,7 +246,9 @@
                          [k' [port' val*']]))
           input      (concat input1 input2)
           k->msg*    (reduce (fn [m [k [port val*]]]
-                               (update-in m [k port] into val*))
+                               (if (seq val*)
+                                 (update-in m [k port] into val*)
+                                 m))
                              {}
                              input)
           k->msg*'   (dissoc k->msg* ())
