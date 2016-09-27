@@ -11,6 +11,12 @@
     (timeout msecs)
     (chan 1)))
 
+;; I don't think this is a good implementation. With clojurescript and
+;; fine grained events (events that are very close together in time),
+;; this method will drift badly, causing the simulation to run much
+;; slower than real-time. This is due to the inaccuracy of setTimeout
+;; in browsers.
+
 (defn real-time-system [sim start-time chan-in chan-out]
   (let [sim      (init sim start-time)
         wc-start (now)]
