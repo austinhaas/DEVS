@@ -10,42 +10,6 @@
   (if (< msecs infinity)
     (timeout msecs)
     (chan 1)))
-#_
-(defn real-time-system [sim start-time chan-in chan-out]
-  (let [sim      (init sim start-time)
-        wc-start (now)]
-    (go
-      (loop [sim   sim
-             wc-tl wc-start]
-        (if (= (tn sim) (tl sim)) ;; Optimization: ignore input until time advances.
-          (let [[sim' out] (int-update sim (tn sim))]
-            (recur sim' wc-tl))
-          (let [wc-t   (now)
-                wc-e   (- wc-t wc-tl)
-                sim-tl (tl sim)
-                sim-tn (tn sim)
-                sim-t  (+ sim-tl wc-e)
-                sim-dt (- sim-tn sim-t)
-                tout   (timeout-inf sim-dt)
-                [v ch] (alts! [chan-in tout] :priority true)]
-            (if (and (= ch chan-in) (nil? v))
-              (close! chan-out)
-              (let [wc-t   (now)
-                    wc-e   (- wc-t wc-tl)
-                    sim-t  (min (+ sim-tl wc-e) sim-tn)
-                    msg*   (if v [v] [])
-                    int-tn (tn sim)
-                    ext-tn (if (seq msg*) sim-t infinity)]
-                (cond
-                  (< int-tn ext-tn) (let [[sim' out] (int-update sim sim-t)]
-                                      (doseq [msg out] (>! chan-out [[(- wc-t wc-start) sim-t] msg]))
-                                      (recur sim' wc-t))
-                  (< ext-tn int-tn) (let [sim' (ext-update sim msg* sim-t)]
-                                      (recur sim' wc-t))
-                  :else             (let [[sim' out] (con-update sim msg* sim-t)]
-                                      (doseq [msg out] (>! chan-out [[(- wc-t wc-start) sim-t] msg]))
-                                      (recur sim' wc-t))))))))))
-  true)
 
 (defn real-time-system [sim start-time chan-in chan-out]
   (let [sim      (init sim start-time)
@@ -56,7 +20,9 @@
         (let [wc-tn  (+ wc-tl (- (tn sim) (tl sim)))
               dt     (- wc-tn (now))]
           (let [tout   (timeout-inf dt)
-                [v ch] (alts! [chan-in tout] :priority true)
+                [v ch] (if (> dt 0)
+                         (alts! [tout chan-in])
+                         [nil tout])
                 wc-t   (now)
                 wc-e   (- wc-t wc-start)]
             (condp = ch
