@@ -44,9 +44,8 @@
                               [p t] m]
                           [k p t])]
         (recur (reduce (fn [[s* r*] [d port' t]]
-                         (let [d'   (if (= d :N) p (cons d p))
-                               ;;val' (t val)
-                               m    (get M d')]
+                         (let [d' (if (= d :N) p (cons d p))
+                               m  (get M d')]
                            (cond
                              (atomic? m)  [s* (conj r* [d' port' (apply comp (conj t* t))])]
                              (= d' ())    [s* (conj r* [d' port' (apply comp (conj t* t))])]
