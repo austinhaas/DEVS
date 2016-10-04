@@ -2,10 +2,10 @@
   (:require
    [pettomato.devs.util :refer [dissoc-in]]))
 
-(defn ^boolean atomic?    [model] (or (= ::atomic (:type model))
+(defn atomic?    [model] (or (= ::atomic (:type model))
                                       (= ::executive (:type model))))
-(defn ^boolean executive? [model] (= ::executive (:type model)))
-(defn ^boolean network?   [model] (= ::network (:type model)))
+(defn executive? [model] (= ::executive (:type model)))
+(defn network?   [model] (= ::network (:type model)))
 
 (defn atomic-model [init int ext con out ta]
   (assert (or (nil? int) (ifn? int)))
