@@ -1,0 +1,92 @@
+* DEVS
+** Bug: network-model, pass thru connection
+   - Can't create a "pass thru" connection where an input to :N
+     connects to an output of :N.
+   - This would be useful for debugging.
+** network-simulator: ext-update needs to check for network changes
+** Use clojure.spec to document and validate model input and output.
+   - Ports and messages.
+   - That should help catch a lot of user errors.
+*** Model output must be a map.
+*** immediate-system: check that input is a pair of [t []].
+** Add tests.
+*** Test port transducer functions.
+** Documentation
+*** Dynamic Parallel DEVS with Ports.
+*** model -> simulator -> system
+*** Fix readme.
+*** Note that DEVS has no opinion on port identifiers.
+*** Note that the real-time-system only delays the start of events.
+    - It does not anticipate how long they will take to complete.
+** Consider using a map to define models, rather than a function.
+   - Would necessitate tagging models with their type.
+   - Would need to move the default con-update handling to the
+     simulator, since with a map the int/ext fns could change and
+     there'd be know way to know that.
+** Print out coupled models using graphviz.
+** Consider deleting models where sigma = infinity and no inports.
+** Consider this problem.
+   - Models that use labeled ports, like [:in 'x], will not be as
+     simple to aggregate and dispatch on as when messages were a seq.
+** Consider using monads in update fns.
+   - Currently, it's annoying to have to organize the messages to
+     process them efficiently. It would be nice to be able to write
+     code in a straightforward way, but have it optimized
+     automatically.
+** Write these two helper macros to capture the two most common message processing idioms.
+   - Not sure this is warranted any longer, since changing the message
+     bag to a map.
+
+   - They capture the two most common idioms.
+   - They are concise. They remove boilerplate, and also the
+     opportunity to make errors.
+   - They clarify intent.
+   - They make ports clearer.
+
+   - I don't think there is much room for improvement over these two idioms:
+     - Iterate sequentially over the bag, dispatching on port.
+     - Aggregate the bag's members in one linear traversal to collect
+       them, using group-by, and then handling the disjoint subsets
+       however--either sequentially or in batch.
+       - Note that there is only a single key-fn call on each element
+         of the bag to determine which subset it belongs to. A naive
+         pattern matcher would need to test each element against each
+         pattern until it succeeds.
+
+         "Partitions x by key-fn. Iterates through the clauses,
+         binding x to the subset given by the corresponding key, and
+         biding s to the result of the previous expr, or the original
+         s, if there is no previous expr.
+
+         Note that the expression is not evaluated if the subset is
+         empty.
+         "
+
+         (dispatch* [s e x key-fn]
+           key1 expr1
+           key2 expr2)
+
+         expands to
+
+         (fn ext-update [s e x]
+           (let [m (group-by key-fn x)]
+             (some-> s
+               (seq (m key1)) (let [x (m key1)] expr1)
+               (seq (m key2)) (let [x (m key2)] expr1))))
+
+
+
+         (dispatch [s e x key-fn]
+           key1 expr1
+           key2 expr2)
+
+         expands to
+
+         (fn ext-update [s e x]
+           (reduce-kv (fn [s x]
+                        (case (key-fn x)
+                          key1 expr1
+                          key2 expr2))
+                      s
+                      x))
+** Test replaying an input history.
