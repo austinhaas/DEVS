@@ -1,5 +1,6 @@
 (ns tutorial
   (:require
+   [clojure.pprint :refer [pprint]]
    [clojure.core.async :as async :refer [<! chan close! go put!]]
    [pettomato.devs.util :refer [infinity]]
    [pettomato.devs.atomic-simulator :refer [atomic-simulator]]
@@ -14,8 +15,7 @@
 ;; DEVS generally.
 
 ;; There have been many extensions to the original DEVS
-;; formalism. This version of DEVS is Dynamic Parallel DEVS with
-;; Ports.
+;; formalism. This version is Dynamic Parallel DEVS with Ports.
 
 ;; Evaluate each expression in this file interactively.
 
@@ -23,7 +23,7 @@
 
 ;; The model is initially passive. Upon receiving a message, the model
 ;; transitions into the active state. In the active state, after
-;; duration milliseconds, the model outputs "Ding!" and then returns
+;; 'duration' milliseconds, the model outputs "Ding!" and then returns
 ;; to the passive state with the timer reset. If a message is received
 ;; while in the active state, the model will return to the passive
 ;; state, and the timer will be reset.
@@ -190,7 +190,7 @@
 ;; output messages. That also allows all imminent models to be run in
 ;; parallel.
 
-;; Example 2: A timer that takes duration as an input value.
+;;; Example 2: A timer that takes duration as an input value.
 
 ;; We need to store the input value, so we'll expand state.
 
@@ -315,8 +315,7 @@
 (-> (timer-5 3000)
     atomic-simulator
     (immediate-system 0 10000 [[1000 nil]
-                               [2000 nil]
-                               [3000 nil]]))
+                               [2000 nil]]))
 
 ;; => [[4000 "Ding!"]]
 
@@ -368,10 +367,10 @@
    (fn ext-update [s e x]
      (as-> s s
        (reduce (fn [s v]
-                 (assoc s :duration v))
+                 (assoc s :duration v :sigma (- (:sigma s) e)))
                s
                (:set-time x))
-       (reduce (fn [s v]
+       (reduce (fn [s _]
                  (let [duration (:duration s)]
                    (case (:phase s)
                      passive {:phase 'active  :duration duration :sigma duration}
@@ -387,7 +386,7 @@
     (immediate-system 0 10000 [[1000 {:set-time [2000]}]
                                [2000 {:toggle   [nil]}]
                                [3000 {:set-time [1234]}]
-                               [6000 {:toggle   [nil]}]]))
+                               [4000 {:toggle   [nil]}]]))
 
 ;; This example doesn't illustrate the value of multiple incoming
 ;; values arriving on the same port, but maybe you can imagine a model
@@ -420,7 +419,7 @@
 ;; Note that DEVS is closed under coupling. That means that a coupled
 ;; model has the same behavior as an atomic model. You can have
 ;; coupled models composed of coupled modes to create an elaborate
-;; hierarchy of interacting models.
+;; hierarchy of models.
 
 ;;; Dynamic DEVS. Network. Exec. :N
 
@@ -559,8 +558,7 @@
                              recur))
                        s))]
     (executive-model
-     (-> {:pending   []
-          :waiting   []
+     (-> {:waiting   []
           :job-queue []
           :output    {}
           :sigma     infinity}
@@ -585,8 +583,16 @@
 (-> network-2
     network-simulator
     (immediate-system 0 100000 [[0 {:in (range 10)}]])
-    clojure.pprint/pprint)
+    pprint)
 
-;; Dynamic ports.
+;; Note that the ports connecting the executive to the servers have
+;; the form [:out eid]. This is called a labeled port. Remember, ports
+;; can be anything. This allows ports to be created dynamically.
 
-;; Port transducers.
+;;; Port transducers.
+
+;; The connect function accepts an optional 5th parameter: a
+;; transducer. The transducer will be applied to all values passing
+;; through the connection.
+
+;; Example coming soon.
