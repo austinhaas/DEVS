@@ -1,4 +1,14 @@
 * DEVS
+** Try switching back to bags as sequences instead of maps.
+   - Use group to aggregate the seq into a map for routing.
+
+   - Performance may suffer, but probably not by much. Building maps
+     for output can be more expensive than a seq.
+     - e.g., (update-in s [:output :out] conj v)
+       vs.   (update s :output conj [:out v])
+
+   - The most important thing is that seqs are easier to understand.
+
 ** Bug: network-model, pass thru connection
    - Can't create a "pass thru" connection where an input to :N
      connects to an output of :N.
