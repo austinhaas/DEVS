@@ -219,12 +219,12 @@
                           [k' port' t] (find-receivers-m P M C () () port)]
                       (let [val*' (into [] t val*)]
                         [k' [port' val*']]))
-          k->msg*    (reduce (fn [m [k [port val*]]]
-                               (if (seq val*)
-                                 (update-in m [k port] into val*)
-                                 m))
-                             {}
-                             input)
+          k->msg*   (reduce (fn [m [k [port val*]]]
+                              (if (seq val*)
+                                (update-in m [k port] into val*)
+                                m))
+                            {}
+                            input)
           receivers (keys k->msg*)
           pkg'      (update-sim* pkg receivers k->msg* t)]
       (NetworkSimulator. pkg' model t (or (pq/peek-key (:Q pkg')) infinity))))
