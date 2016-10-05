@@ -3,6 +3,7 @@
    [clojure.core.async :as async :refer [<! chan close! go put!]]
    [pettomato.devs.util :refer [infinity]]
    [pettomato.devs.atomic-simulator :refer [atomic-simulator]]
+   [pettomato.devs.network-simulator :refer [network-simulator]]
    [pettomato.devs.immediate-system :refer [immediate-system]]
    [pettomato.devs.real-time-system :refer [real-time-system]]
    [pettomato.devs.models :refer [atomic-model executive-model network-model register unregister connect disconnect]]))
@@ -91,7 +92,7 @@
 
 (listen! "> " chan-out)
 
-(-> (timer 3000)
+(-> (timer-1 3000)
     atomic-simulator
     (real-time-system 0 chan-in chan-out))
 
@@ -402,7 +403,7 @@
 
 #_
 (def a-coupled-model
-  {:components  {'foo some-atomic-model
+  {:components  {'foo (timer-1 1000)
                  'bar another-atomic-model
                  'baz a-coupled-model}
    :connections [['foo 'foo-port-out 'bar 'bar-port-in]
@@ -427,15 +428,21 @@
 ;; differently. Coupled models, referred to as networks, contain a
 ;; designated "executive" model. The executive model is an atomic
 ;; model like any other atomic model, except that its state contains
-;; the network structure, the components and connections.
+;; the network structure: the components and connections.
 
-;; *So, the executive's state is not a black box.
+;; *So, the executive's state is not a black box at this time.
+
+;; Since the network structure is part of the state of the executive,
+;; the executive can change the network structure whenever its state
+;; changes. The simulator processes executives after all non-executive
+;; models. This ensures that there aren't any straggler messages when
+;; the executive changes state.
 
 ;; Here's an example:
 
-;; First, we create a delay model to build upon. This model takes an
-;; input value on an :in port and returns that value on an :out port
-;; after processing-time.
+;; First, we create an atomic delay model to build upon. This model
+;; takes an input value on an :in port and returns that value on an
+;; :out port after processing-time.
 
 (defn delay [processing-time]
   (atomic-model
@@ -474,9 +481,11 @@
    (constantly infinity)))
 
 ;; register and connect are convenience functions to add the
-;; appropriate data to the state.
+;; appropriate network structure data to the state.
 
-;; :N stands for the entire network.
+;; :N stands for the network, which is the parent model to this
+;; executive and any models the executive contains in the network
+;; structure in its state.
 
 ;; This model has no behavior. The state transition functions and the
 ;; output function are not defined because they will never be called.
@@ -490,6 +499,12 @@
     (immediate-system 0 10000 [[1000 {:in ["Banana"]}]]))
 
 ;; => [[2500 {:out ("Banana")}]]
+
+;; Note that you can have multiple connections to/from a single
+;; port. For instance, you could add another delay, delay-3, to the
+;; network above, and send the output from delay-1 to both delay-2 and
+;; the delay-3, and connect delay-3's out port to :N. You cannot,
+;; however, have more than one connection between the same two ports.
 
 ;;; Finally, here's an example of a dynamic network.
 
@@ -522,25 +537,30 @@
                                           (update :waiting conj sid)))))
                                 s
                                 x))
-        adjust     (fn [s]
-                     (let [wait-count (count (:waiting   s))
-                           job-count  (count (:job-queue s))]
-                       (cond
-                         (> (- job-count threshold)  wait-count)
-
-                         :else s)))
+        maybe-add  (fn [s]
+                     (if (> (- (count (:job-queue s)) threshold)
+                            (count (:waiting s)))
+                       (recur (add-server s))
+                       s))
+        maybe-rem  (fn [s]
+                     (if (< (+ (count (:job-queue s)) threshold)
+                            (count (:waiting s)))
+                       (recur (rem-server s))
+                       s))
         process    (fn [s]
-                     (cond
-                       (and (pos? job-count)
-                            (pos? wait-count))
-                       (let [sid (peek (:waiting s'))
-                             job (peek (:job-queue s'))]
-                         (-> s'
-                             (update-in [:output [:out sid]] conj job)
+                     (if (and (seq (:waiting   s))
+                              (seq (:job-queue s)))
+                       (let [sid (peek (:waiting   s))
+                             job (peek (:job-queue s))]
+                         (-> s
                              (update :waiting   pop)
-                             (update :job-queue pop)))))]
+                             (update :job-queue pop)
+                             (update-in [:output [:out sid]] conj job)
+                             recur))
+                       s))]
     (executive-model
-     (-> {:waiting   []
+     (-> {:pending   []
+          :waiting   []
           :job-queue []
           :output    {}
           :sigma     infinity}
@@ -552,18 +572,19 @@
      (fn ext-update [s e x]
        (-> s
            (ingest x)
-           adjust
+           maybe-add
+           maybe-rem
            process
            (assoc :sigma 0)))
      nil
      :output
      :sigma)))
 
-(def network-2 (network-model :exec (exec-2 :exec)))
+(def network-2 (network-model :exec (exec-2 :exec 5)))
 
 (-> network-2
     network-simulator
-    (immediate-system 0 10000 [[1000 {:in (range 10)}]])
+    (immediate-system 0 100000 [[0 {:in (range 10)}]])
     clojure.pprint/pprint)
 
 ;; Dynamic ports.
