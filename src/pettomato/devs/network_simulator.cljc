@@ -137,6 +137,25 @@
         Q' (pq/modify* Q (for [k k*] [(:tn (S k)) k (:tn (S' k))]))]
     (assoc pkg :S S' :Q Q')))
 
+(defn- update-network [pkg pkg' re t]
+  (let [D     (set (for [k re, [k' m] (get-components (:state ((:S pkg)  k)))] [(cons k' (rest k)) m]))
+        D'    (set (for [k re, [k' m] (get-components (:state ((:S pkg') k)))] [(cons k' (rest k)) m]))
+        D-add (difference D' D )
+        D-rem (difference D  D')
+        pkg'' (-> pkg'
+                  (rem-model* D-rem)
+                  (add-model* D-add t))
+        C'    (reduce (fn [C k]
+                        (let [connections (get-in pkg'' [:S k :state :connections])]
+                          (assoc C k connections)))
+                      (:C pkg'')
+                      re)]
+    (if (not= C' (:C pkg''))
+      (assoc pkg''
+             :C C'
+             :find-receivers-m (memoize find-receivers))
+      pkg'')))
+
 (defrecord NetworkSimulator [pkg model tl tn]
   Simulator
   (init       [this t]
@@ -193,23 +212,7 @@
                          (update-sim* re k->msg*' t))
           out        (k->msg* ())
           ;; Update network structures.
-          D          (set (for [k re, [k' m] (get-components (:state ((:S pkg)  k)))] [(cons k' (rest k)) m]))
-          D'         (set (for [k re, [k' m] (get-components (:state ((:S pkg') k)))] [(cons k' (rest k)) m]))
-          D-add      (difference D' D )
-          D-rem      (difference D  D')
-          pkg''      (-> pkg'
-                         (rem-model* D-rem)
-                         (add-model* D-add t))
-          C'         (reduce (fn [C k]
-                               (let [connections (get-in pkg'' [:S k :state :connections])]
-                                 (assoc C k connections)))
-                             (:C pkg'')
-                             re)
-          pkg''      (if (not= C' (:C pkg''))
-                       (assoc pkg''
-                              :C C'
-                              :find-receivers-m (memoize find-receivers))
-                       pkg'')]
+          pkg''      (update-network pkg pkg' re t)]
       [(NetworkSimulator. pkg'' model t (or (pq/peek-key (:Q pkg'')) infinity))
        out]))
   (ext-update [this x t]
@@ -226,8 +229,11 @@
                             {}
                             input)
           receivers (keys k->msg*)
-          pkg'      (update-sim* pkg receivers k->msg* t)]
-      (NetworkSimulator. pkg' model t (or (pq/peek-key (:Q pkg')) infinity))))
+          pkg'      (update-sim* pkg receivers k->msg* t)
+          ;; Update network structures.
+          re        (filter (comp executive? M) receivers)
+          pkg''     (update-network pkg pkg' re t)]
+      (NetworkSimulator. pkg'' model t (or (pq/peek-key (:Q pkg'')) infinity))))
   (con-update [this x t]
     (let [{:keys [P M C S Q find-receivers-m]} pkg
           imminent   (if (= t (pq/peek-key Q))
@@ -259,23 +265,7 @@
                          (update-sim* re k->msg*' t))
           out        (k->msg* ())
           ;; Update network structures.
-          D          (set (for [k re, [k' m] (get-components (:state ((:S pkg)  k)))] [(cons k' (rest k)) m]))
-          D'         (set (for [k re, [k' m] (get-components (:state ((:S pkg') k)))] [(cons k' (rest k)) m]))
-          D-add      (difference D' D )
-          D-rem      (difference D  D')
-          pkg''      (-> pkg'
-                         (rem-model* D-rem)
-                         (add-model* D-add t))
-          C'         (reduce (fn [C k]
-                               (let [connections (get-in pkg'' [:S k :state :connections])]
-                                 (assoc C k connections)))
-                             (:C pkg'')
-                             re)
-          pkg''      (if (not= C' (:C pkg''))
-                       (assoc pkg''
-                              :C C'
-                              :find-receivers-m (memoize find-receivers))
-                       pkg'')]
+          pkg''      (update-network pkg pkg' re t)]
       [(NetworkSimulator. pkg'' model t (or (pq/peek-key (:Q pkg'')) infinity))
        out]))
   (tl         [this] tl)
