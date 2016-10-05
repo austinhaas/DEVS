@@ -1,5 +1,5 @@
 * DEVS
-** Try switching back to bags as sequences instead of maps.
+** Consider switching back to bags as sequences instead of maps.
    - Use group to aggregate the seq into a map for routing.
 
    - Performance may suffer, but probably not by much. Building maps
@@ -8,12 +8,10 @@
        vs.   (update s :output conj [:out v])
 
    - The most important thing is that seqs are easier to understand.
-
 ** Bug: network-model, pass thru connection
    - Can't create a "pass thru" connection where an input to :N
      connects to an output of :N.
    - This would be useful for debugging.
-** network-simulator: ext-update needs to check for network changes
 ** Use clojure.spec to document and validate model input and output.
    - Ports and messages.
    - That should help catch a lot of user errors.
@@ -37,7 +35,8 @@
 ** Consider deleting models where sigma = infinity and no inports.
 ** Consider this problem.
    - Models that use labeled ports, like [:in 'x], will not be as
-     simple to aggregate and dispatch on as when messages were a seq.
+     simple to aggregate and dispatch on as when message bags were a
+     seq.
 ** Consider using monads in update fns.
    - Currently, it's annoying to have to organize the messages to
      process them efficiently. It would be nice to be able to write
