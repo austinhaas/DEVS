@@ -366,15 +366,14 @@
      {:phase 'passive :duration (:duration s) :sigma infinity})
    (fn ext-update [s e x]
      (as-> s s
-       (reduce (fn [s v]
-                 (assoc s :duration v :sigma (- (:sigma s) e)))
+       (update s :sigma - e)
+       (reduce (fn [s v] (assoc s :duration v))
                s
                (:set-time x))
        (reduce (fn [s _]
-                 (let [duration (:duration s)]
-                   (case (:phase s)
-                     passive {:phase 'active  :duration duration :sigma duration}
-                     active  {:phase 'passive :duration duration :sigma infinity})))
+                 (case (:phase s)
+                   passive (assoc s :phase 'active  :sigma (:duration s))
+                   active  (assoc s :phase 'passive :sigma infinity)))
                s
                (:toggle x))))
    nil
@@ -518,47 +517,48 @@
                            (register sid (delay 1000))
                            (connect id  [:out sid] sid :in)
                            (connect sid :out       id  [:in sid])
-                           (update :waiting conj sid))))
+                           (update :idle conj sid))))
         rem-server (fn [s]
-                     (let [sid (peek (:waiting s))]
+                     (let [sid (peek (:idle s))]
                        (-> s
                            (unregister sid)
                            (disconnect id  [:out sid] sid :in)
                            (disconnect sid :out       id  [:in sid])
-                           (update :waiting pop))))
+                           (update :idle pop))))
         ingest     (fn [s x]
-                     (reduce-kv (fn [s port v*]
-                                  (case port
-                                    :in (update s :job-queue into v*)
-                                    (let [[_ sid] port]
-                                      (-> s
-                                          (update-in [:output :out] conj ['done (first v*)])
-                                          (update :waiting conj sid)))))
-                                s
-                                x))
+                     (reduce-kv
+                      (fn [s port v*]
+                        (case port
+                          :in (update s :job-queue into v*)
+                          (let [[_ sid] port]
+                            (-> s
+                                (update-in [:output :out] conj ['done (first v*)])
+                                (update :idle conj sid)))))
+                      s
+                      x))
         maybe-add  (fn [s]
                      (if (> (- (count (:job-queue s)) threshold)
-                            (count (:waiting s)))
+                            (count (:idle s)))
                        (recur (add-server s))
                        s))
         maybe-rem  (fn [s]
                      (if (< (+ (count (:job-queue s)) threshold)
-                            (count (:waiting s)))
+                            (count (:idle s)))
                        (recur (rem-server s))
                        s))
         process    (fn [s]
-                     (if (and (seq (:waiting   s))
+                     (if (and (seq (:idle      s))
                               (seq (:job-queue s)))
-                       (let [sid (peek (:waiting   s))
+                       (let [sid (peek (:idle      s))
                              job (peek (:job-queue s))]
                          (-> s
-                             (update :waiting   pop)
+                             (update :idle      pop)
                              (update :job-queue pop)
                              (update-in [:output [:out sid]] conj job)
                              recur))
                        s))]
     (executive-model
-     (-> {:waiting   []
+     (-> {:idle      []
           :job-queue []
           :output    {}
           :sigma     infinity}
