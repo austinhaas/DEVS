@@ -6,7 +6,7 @@ This version implements Dynamic Parallel DEVS with Ports.
 
 ## Usage/Example
 
-See [doc/tutorial.clj].
+See [doc/tutorial.clj](./doc/tutorial.clj).
 
 ## Reference
 
