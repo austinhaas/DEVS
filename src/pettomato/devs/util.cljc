@@ -50,22 +50,3 @@
           (assoc m k v)))
       (dissoc m k))
     m))
-
-;; https://github.com/plumatic/plumbing
-(defn swap-pair!
-  "Like swap! but returns a pair [old-val new-val]"
-  ([a f]
-   (loop []
-     (let [old-val @a
-           new-val (f old-val)]
-       (if (compare-and-set! a old-val new-val)
-         [old-val new-val]
-         (recur)))))
-  ([a f & args]
-   (swap-pair! a #(apply f % args))))
-
-;; https://github.com/plumatic/plumbing
-(defn get-and-set!
-  "Like reset! but returns old-val"
-  [a new-val]
-  (first (swap-pair! a (constantly new-val))))
