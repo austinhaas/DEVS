@@ -56,8 +56,8 @@
 
 ;; There is no output, because no messages were sent to the timer.
 
-;; Here is the same thing, but after 1 second an empty message is sent
-;; to the timer.
+;; Here it is again, but after 1 second an empty message is sent to
+;; the timer.
 
 (-> (timer-1 3000)
     atomic-simulator
@@ -116,23 +116,23 @@
 
   (atomic-model
 
-   ;; This is the initial state. It can be anything. It is opaque*
-   ;; outside this model. The remaining components are all functions
-   ;; that take the current state as input.
+   ;; This is the initial state. It can be anything. It is opaque
+   ;; outside this model (except in the case of "executive" models,
+   ;; described below). The remaining components are all functions that
+   ;; take the current state as input.
 
    'passive
 
    ;; The next three functions are state transition functions. They
    ;; take a state and return a new state.
 
-   ;; First, is the internal state transition function. It is called
-   ;; at a time determined by the behavior of the model. A model that
-   ;; is ready for its internal state transition function is called
-   ;; imminent.
+   ;; First, the internal state transition function. It is called at a
+   ;; time determined by the behavior of the model. A model that is
+   ;; ready for an internal state transition is called imminent.
 
    (fn int-update [s]     'passive)
 
-   ;; Second, is the external state transition function. It is called
+   ;; Second, the external state transition function. It is called
    ;; when new messages are applicable to this model. It takes an
    ;; initial state, the elapsed time since the last state transition,
    ;; and a bag of input messages. (A bag is a set that allows
@@ -144,30 +144,30 @@
                             passive 'active
                             active  'passive))
 
-   ;; Third, is the confluent state transition function. It is called
-   ;; when a model is both imminent and due to receive messages at the
-   ;; same time. The default, which is used when a nil value is
+   ;; Third, the confluent state transition function. It is called
+   ;; when a model is both imminent and has pending external
+   ;; messages. The default, which is used when a nil value is
    ;; supplied, is to call the internal state transition function and
    ;; then immediately call the external state transition function.
 
    nil
 
-   ;; Next, is the output function. It takes the current state and
+   ;; Next, the output function. It takes the current state and
    ;; returns a bag of output messages. Here, again, for simplicity,
    ;; we are ignoring the bag for now.
 
    (fn output     [s]     "Ding!")
 
-   ;; Finally, is the time-advance function. It takes the current
-   ;; state and returns the amount of time remaining until the next
-   ;; internal state transition.
+   ;; Finally, the time-advance function. It takes the current state
+   ;; and returns the amount of time remaining until the next internal
+   ;; state transition.
 
    (fn ta         [s]     (case s
                             passive infinity
                             active  duration))))
 
-;; You never call any of the model functions directly. Each model is
-;; paired with a simulator that "runs" it.
+;; The user never calls any of the model functions directly. Each
+;; model is paired with a simulator that "runs" it.
 
 ;; The simulator implements the following semantics:
 
@@ -192,7 +192,7 @@
 
 ;;; Example 2: A timer that takes duration as an input value.
 
-;; We need to store the input value, so we'll expand state.
+;; The input value is stored in the model's state component.
 
 (def timer-2
   (atomic-model
@@ -215,8 +215,8 @@
 
 ;; => [[3000 "Ding!"] [6333 "Ding!"]]
 
-;; Here we send input to the timer once to start and once more at the
-;; exact time it should ding. What do you think will happen?
+;; Next, the input is sent to the timer once to start and once more at
+;; the exact time it should ding. What do you think will happen?
 
 (-> timer-2
     atomic-simulator
@@ -234,8 +234,8 @@
 ;; internal state transitions.
 
 (def timer-3
-  ;; Binding these functions to variables so we can call them in the
-  ;; confluent state transition function below.
+  ;; These functions are bound to symbols so that they can be called
+  ;; in the confluent state transition function below.
   (let [int-update (fn int-update [s]
                      {:phase 'passive :sigma infinity})
         ext-update (fn ext-update [s e x]
@@ -260,14 +260,15 @@
 
 ;; => [[3000 "Ding!"]]
 
-;; The timer still dings, because the output function is called
-;; whenever the model is imminent.
+;; The timer still dings, because the output function is called when a
+;; model is imminent. The second timer is added (because the external
+;; event is processed first) and then immediately cancelled when the
+;; internal update occurs.
 
-;; Example 4: To suppress the ding completely, we can add another phase.
+;; Example 4: To suppress the ding completely, another phase is
+;; required.
 
 (def timer-4
-  ;; Binding these functions to variables so we can call them in the
-  ;; confluent state transition function below.
   (let [int-update (fn int-update [s]
                      (case (:phase s)
                        passive s
@@ -323,30 +324,28 @@
 ;; reduced by e, the amount of time since the last state
 ;; transition. That is because the time-advance function will be
 ;; queried again immediately after this function returns. If sigma
-;; wasn't reduced, then the duration would be effectively reset to its
-;; original value every time a message was received.
+;; wasn't reduced, then the duration would be reset to its original
+;; value each time a message was received.
 
-;; In my experience, about half the time you don't have to use e, but
-;; half the time you do.
+;; In my experience, `e` can be ignored about half the time.
 
-;; Most often, you'll want to keep track of sigma, the time remaining,
-;; but occassionally it is more helpful to record the cumulative time
-;; since some event by adding e to a counter.
+;; Most often, you'll want to keep track of sigma, which represents
+;; the time remaining. Occassionally, it is more helpful to add `e` to
+;; the cumulative time since some event occurred.
 
 ;;; Bags of messages and ports.
 
-;; In the examples above, I explained that we are ignoring the fact
-;; that messages are collected into bags (i.e., unordered
-;; collections). The code above works because atomic-simulator just
-;; passes along whatever was sent without looking at it. That's not
-;; the case for coupled/networked models, which will be explained
-;; after this section. So, let's get that straight now.
+;; In the examples above, we ignored the fact that messages are
+;; collected into bags (i.e., unordered collections). The code above
+;; works because atomic-simulator just passes along whatever is sent
+;; to it. That's not the case for coupled/networked models, which will
+;; be explained after this section. So, let's get that straight now.
 
 ;; In "DEVS with Ports," a message is a port and a value. A port can
 ;; be anything. It's just a label attached to a value. The idea is
 ;; that a model can accept values on different ports. When we start
-;; connecting models, we'll see that we are connecting models via
-;; their ports.
+;; connecting models, we'll see that models are connected via their
+;; ports.
 
 ;; So far, we've only seen models that take a single type of value as
 ;; input.
@@ -388,14 +387,14 @@
                                [4000 {:toggle   [nil]}]]))
 
 ;; This example doesn't illustrate the value of multiple incoming
-;; values arriving on the same port, but maybe you can imagine a model
-;; that takes a collection of jobs to process.
+;; values arriving on the same port, but you can imagine a model that
+;; takes a collection of jobs to process.
 
 ;;; Coupled models.
 
-;; Models can be combined to form coupled models. A coupled model has
-;; no behavior. It contains a set of component models and a set of
-;; connections between them.
+;; Models can be combined to form coupled models. A coupled model is a
+;; declarative specification of a set of component models and a
+;; set of connections between them.
 
 ;; Hypothetical example:
 
@@ -407,32 +406,31 @@
    :connections [['foo 'foo-port-out 'bar 'bar-port-in]
                  ['bar 'bar-port-out 'baz 'baz-port-in]]})
 
-;; So models are labeled (foo, bar, baz in this example), and
-;; connections are from model-label/port-label to
-;; model-label/port-label.
+;; Models are labeled (foo, bar, baz in this example), and connections
+;; are from model-label/port-label to model-label/port-label.
 
-;; No concrete examples because we using a different system called
-;; Dynamic DEVS which subsumes this behavior, but is slightly more
-;; complicated.
+;; No concrete examples are provided because we are using a different
+;; system called Dynamic DEVS which subsumes this behavior, but is
+;; slightly more complicated.
 
-;; Note that DEVS is closed under coupling. That means that a coupled
-;; model has the same behavior as an atomic model. You can have
-;; coupled models composed of coupled modes to create an elaborate
-;; hierarchy of models.
+;; DEVS is "closed under coupling." That means that a coupled model
+;; has the same external semantics as an atomic model. Coupled models
+;; can be composed of any combination of atomic and coupled models,
+;; creating a hierarchy of models.
 
 ;;; Dynamic DEVS. Network. Exec. :N
 
-;; The Dynamic DEVS formalism achieves composition slightly
+;; The Dynamic DEVS formalism implements composition slightly
 ;; differently. Coupled models, referred to as networks, contain a
 ;; designated "executive" model. The executive model is an atomic
 ;; model like any other atomic model, except that its state contains
-;; the network structure: the components and connections.
+;; the network structure: the components and connections. (Unlike
+;; other atomic models, the executive's state is not a black box at
+;; this time.) Since the network structure is contained in the
+;; executive's state, the executive can change the network structure
+;; as easily as changing state.
 
-;; *So, the executive's state is not a black box at this time.
-
-;; Since the network structure is part of the state of the executive,
-;; the executive can change the network structure whenever its state
-;; changes. The simulator processes executives after all non-executive
+;; The simulator processes executives after all non-executive
 ;; models. This ensures that there aren't any straggler messages when
 ;; the executive changes state.
 
@@ -467,6 +465,8 @@
 
 ;; => [[2000 {:out ["Apple"]}]]
 
+;; Here is the executive model.
+
 (def exec-1
   (executive-model
    (-> {}
@@ -478,15 +478,16 @@
    nil nil nil nil
    (constantly infinity)))
 
-;; register and connect are convenience functions to add the
+;; `register` and `connect` are convenience functions that add the
 ;; appropriate network structure data to the state.
 
-;; :N stands for the network, which is the parent model to this
+;; :N stands for the network that is the parent model to this
 ;; executive and any models the executive contains in the network
 ;; structure in its state.
 
-;; This model has no behavior. The state transition functions and the
-;; output function are not defined because they will never be called.
+;; This executive model has no behavior. The state transition
+;; functions and the output function are not defined because they will
+;; never be called. It only serves to supply the network structure.
 
 ;; Now we will create a network, with exec-1 as the network executive.
 
@@ -498,17 +499,18 @@
 
 ;; => [[2500 {:out ("Banana")}]]
 
-;; Note that you can have multiple connections to/from a single
-;; port. For instance, you could add another delay, delay-3, to the
-;; network above, and send the output from delay-1 to both delay-2 and
-;; the delay-3, and connect delay-3's out port to :N. You cannot,
-;; however, have more than one connection between the same two ports.
+;; There can be multiple connections to/from a single port. For
+;; instance, you could add another delay, delay-3, to the network
+;; above that runs parallel to delay-2, with the same inputs and
+;; outputs. delay-1 would send each output to both delay-2 and
+;; delay-3, and delay-2 and delay-3 would both send output to :N. You
+;; cannot, however, have more than one connection between the same two
+;; ports.
 
 ;;; Finally, here's an example of a dynamic network.
 
-;; This network executive monitors the incoming stream of input jobs
-;; and creates new "servers" (i.e., new delay models) to meet the
-;; demand.
+;; This network executive monitors a stream of input jobs and creates
+;; new "servers", represented as delay models, to meet the demand.
 
 (defn exec-2 [id threshold]
   (let [add-server (fn [s]
@@ -586,8 +588,9 @@
     pprint)
 
 ;; Note that the ports connecting the executive to the servers have
-;; the form [:out eid]. This is called a labeled port. Remember, ports
-;; can be anything. This allows ports to be created dynamically.
+;; the form [:out eid], rather than something like :out-n. This is
+;; called a labeled port. Remember, ports can be anything. Labeled
+;; ports are an easy way to implement dynamic port creation.
 
 ;;; Port transducers.
 
