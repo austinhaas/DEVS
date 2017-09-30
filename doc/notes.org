@@ -1,4 +1,13 @@
 * DEVS
+** Consider declaring ports in models.
+   - To elucidate the interface.
+   - Could this buy additional clarity in the handling of messages?
+     - E.g., maybe there could be different port strategies, such as
+       FIFO, or order by type.
+     - We don't want to require that the update fns must be defined
+       within a port-translating macro.
+   - Might help catch errors.
+     - Don't let something connect to a non-existent port.
 ** Consider adding a 5 argument form of atomic-model that doesn't include con-update.
 ** Consider switching back to bags as sequences instead of maps.
    - Use group to aggregate the seq into a map for routing.
