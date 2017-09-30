@@ -58,7 +58,7 @@
 
 (defn- checked-time-advance [m s]
   (let [sigma ((time-advance-fn m) s)]
-    (assert (>= sigma 0))
+    (assert (>= sigma 0) (str "Value out of range: " sigma))
     sigma))
 
 (defn- add-model [pkg path model t]
