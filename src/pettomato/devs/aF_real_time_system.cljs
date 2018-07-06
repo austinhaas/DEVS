@@ -5,7 +5,22 @@
    [pettomato.devs.immediate-system :refer [immediate-step]]))
 
 (defn aF-real-time-system-start!
-  "input! is a function that takes no arguments and returns a seq of
+  "sim is an instance of a network-simulator.
+
+  start-time is the simulation starting time, in milliseconds.
+
+  max-delta is the maximum step size the simulation will make, in
+  milliseconds. The actual step size depends on
+  requestAnimationFrame. max-delta prevents the simulation from
+  attempting to do too much work in a single step. For example, if the
+  simulation is in a tab that does not have focus, it will not update
+  until the user refocuses the tab. It may be very expensive to try to
+  catch up to the current wallclock time. Note that the system will
+  not try to make up for lost time. It will update once, up to
+  max-delta, and then resume updating at the rate dictated by
+  requestAnimationFrame.
+
+  input! is a function that takes no arguments and returns a seq of
   input values.
 
   output! is a function takes a [time output-seq] pair and returns a
