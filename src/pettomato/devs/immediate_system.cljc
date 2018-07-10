@@ -13,8 +13,8 @@
      (let [int-tn (tn sim)
            ext-tn (if (seq tmsg*) (ffirst tmsg*) infinity)]
        (cond
-         (and (>= int-tn end-time)
-              (>= ext-tn end-time)) [sim (persistent! acc)]
+         (and (<= end-time int-tn)
+              (<= end-time ext-tn)) [sim (persistent! acc)]
          (< int-tn ext-tn)          (let [[sim' out] (int-update sim (tn sim))
                                           acc'       (if (seq out)
                                                        (conj! acc [(tn sim) out])
