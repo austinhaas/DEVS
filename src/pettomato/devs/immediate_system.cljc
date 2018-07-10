@@ -48,25 +48,25 @@
          (and (<= end-time int-tn)
               (<= end-time ext-tn)) [sim (persistent! tmsg-out)]
 
-         (< int-tn ext-tn)          (let [[sim' msg*] (int-update sim int-tn)
-                                          tmsg-out' (if (seq msg*)
-                                                      (conj! tmsg-out [int-tn msg*])
-                                                      tmsg-out)]
-                                      (recur sim' tmsg-in tmsg-out'))
+         (< int-tn ext-tn)          (let [[sim' msg*] (int-update sim int-tn)]
+                                      (recur sim'
+                                             tmsg-in
+                                             (if (seq msg*)
+                                               (conj! tmsg-out [int-tn msg*])
+                                               tmsg-out)))
 
-         (< ext-tn int-tn)          (let [[[t msg*] & tmsg-in'] tmsg-in]
+         (< ext-tn int-tn)          (let [[t msg*] (first tmsg-in)]
                                       (recur (ext-update sim msg* t)
-                                             tmsg-in'
+                                             (rest tmsg-in)
                                              tmsg-out))
 
-         :else                      (let [[[t msg*] & tmsg-in'] tmsg-in
-                                          [sim' msg*'] (con-update sim msg* t)
-                                          tmsg-out' (if (seq msg*')
-                                                      (conj! tmsg-out [int-tn msg*'])
-                                                      tmsg-out)]
+         :else                      (let [[t msg*]     (first tmsg-in)
+                                          [sim' msg*'] (con-update sim msg* t)]
                                       (recur sim'
-                                             tmsg-in'
-                                             tmsg-out')))))))
+                                             (rest tmsg-in)
+                                             (if (seq msg*')
+                                               (conj! tmsg-out [int-tn msg*'])
+                                               tmsg-out))))))))
 
 (defn immediate-system
   ([sim start-time end-time] (immediate-system sim start-time end-time []))
