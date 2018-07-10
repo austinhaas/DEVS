@@ -13,13 +13,26 @@
    end-time - The time at the end of the step.
 
    tmsg-in - (Optional.) A collection of timestamped messages
-   (i.e., [timestamp message]), sorted by timestamp, that are passed
+   (i.e., [timestamp messages]), sorted by timestamp, that are passed
    to the simulation for this time step. Any message with a timestamp
    greater than or equal to end-time will be ignored. I'm not sure what
    happens if an input message has a timestamp < start-time.
 
    Returns a collection of timestamped messages, sorted by timestamp,
-   that the simulation outputs during the step."
+   that the simulation outputs during the step.
+
+   messages is a map from labels to collections of values. Each value
+   is considered a message.
+
+   For example, the timestamped messages
+
+     [10 {:x [1 2] :y [3]}]
+
+   represents 3 messages that occur at time 10:
+
+     one with label :x and value 1,
+     one with label :x and value 2, and
+     one with label :y and value 3."
   ([sim start-time end-time]
    (immediate-step sim start-time end-time []))
   ([sim start-time end-time tmsg-in]
@@ -35,10 +48,10 @@
          (and (<= end-time int-tn)
               (<= end-time ext-tn)) [sim (persistent! tmsg-out)]
 
-         (< int-tn ext-tn)          (let [[sim' msg] (int-update sim int-tn)
-                                          tmsg-out'  (if (seq msg)
-                                                       (conj! tmsg-out [int-tn msg])
-                                                       tmsg-out)]
+         (< int-tn ext-tn)          (let [[sim' msg*] (int-update sim int-tn)
+                                          tmsg-out' (if (seq msg*)
+                                                      (conj! tmsg-out [int-tn msg*])
+                                                      tmsg-out)]
                                       (recur sim' tmsg-in tmsg-out'))
 
          (< ext-tn int-tn)          (let [[[t msg*] & tmsg-in'] tmsg-in]
@@ -47,10 +60,10 @@
                                              tmsg-out))
 
          :else                      (let [[[t msg*] & tmsg-in'] tmsg-in
-                                          [sim' out] (con-update sim msg* t)
-                                          tmsg-out'  (if (seq out)
-                                                       (conj! tmsg-out [int-tn out])
-                                                       tmsg-out)]
+                                          [sim' msg*'] (con-update sim msg* t)
+                                          tmsg-out' (if (seq msg*')
+                                                      (conj! tmsg-out [int-tn msg*'])
+                                                      tmsg-out)]
                                       (recur sim'
                                              tmsg-in'
                                              tmsg-out')))))))
