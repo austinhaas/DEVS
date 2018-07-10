@@ -31,21 +31,25 @@
      (let [int-tn (tn sim)
            ext-tn (if (seq tmsg-in) (ffirst tmsg-in) infinity)]
        (cond
+
          (and (<= end-time int-tn)
               (<= end-time ext-tn)) [sim (persistent! tmsg-out)]
-         (< int-tn ext-tn)          (let [[sim' out] (int-update sim (tn sim))
-                                          tmsg-out'  (if (seq out)
-                                                       (conj! tmsg-out [(tn sim) out])
+
+         (< int-tn ext-tn)          (let [[sim' msg] (int-update sim int-tn)
+                                          tmsg-out'  (if (seq msg)
+                                                       (conj! tmsg-out [int-tn msg])
                                                        tmsg-out)]
                                       (recur sim' tmsg-in tmsg-out'))
+
          (< ext-tn int-tn)          (let [[[t msg*] & tmsg-in'] tmsg-in]
                                       (recur (ext-update sim msg* t)
                                              tmsg-in'
                                              tmsg-out))
+
          :else                      (let [[[t msg*] & tmsg-in'] tmsg-in
                                           [sim' out] (con-update sim msg* t)
                                           tmsg-out'  (if (seq out)
-                                                       (conj! tmsg-out [(tn sim) out])
+                                                       (conj! tmsg-out [int-tn out])
                                                        tmsg-out)]
                                       (recur sim'
                                              tmsg-in'
