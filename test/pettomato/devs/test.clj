@@ -22,16 +22,12 @@
   (is (eq?
        (-> (generator 5 10)
            atomic-simulator
-           (immediate-system 0 100 []))
+           (immediate-system 0 50 []))
        [[10 {:out [5]}]
         [20 {:out [5]}]
         [30 {:out [5]}]
         [40 {:out [5]}]
-        [50 {:out [5]}]
-        [60 {:out [5]}]
-        [70 {:out [5]}]
-        [80 {:out [5]}]
-        [90 {:out [5]}]])))
+        [50 {:out [5]}]])))
 
 (defn switch [processing-time]
   (atomic-model

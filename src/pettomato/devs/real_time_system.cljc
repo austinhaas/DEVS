@@ -3,7 +3,7 @@
    #?(:clj  [clojure.core.async :as async :refer [timeout close! alts! go <! >! chan]]
       :cljs [cljs.core.async :as async :refer [timeout close! alts! <! >! chan]])
    [pettomato.devs.util :refer [infinity now]]
-   [pettomato.devs.immediate-system :refer [immediate-step]]
+   [pettomato.devs.simulation-advance :refer [advance]]
    [pettomato.devs.Simulator :refer [init int-update ext-update con-update tl tn]])
   #?(:cljs (:require-macros [cljs.core.async.macros :refer [go]])))
 
@@ -32,9 +32,9 @@
             (if (nil? v)
               (println "Stopping real-time-system.")
               (let [tmsg*      (map (fn [m] [(dec sim-t) m]) v)
-                    [sim' out] (immediate-step sim (tl sim) sim-t tmsg*)]
+                    [sim' out] (advance sim sim-t tmsg*)]
                 (when (seq out) (>! chan-out out))
                 (recur sim')))
-            (let [[sim' out] (immediate-step sim (tl sim) sim-t)]
+            (let [[sim' out] (advance sim sim-t)]
               (when (seq out) (>! chan-out out))
               (recur sim'))))))))
