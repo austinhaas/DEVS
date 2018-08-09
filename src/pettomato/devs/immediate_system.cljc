@@ -1,6 +1,6 @@
 (ns pettomato.devs.immediate-system
   (:require
-   [pettomato.devs.simulation-advance :refer [advance]]
+   [pettomato.devs.simulation :refer [advance]]
    [pettomato.devs.Simulator :refer [init]]))
 
 (defn immediate-system

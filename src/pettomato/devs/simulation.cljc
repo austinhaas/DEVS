@@ -1,4 +1,4 @@
-(ns pettomato.devs.simulation-advance
+(ns pettomato.devs.simulation
   (:require
    [pettomato.devs.util :refer [infinity]]
    [pettomato.devs.Simulator :refer [int-update ext-update con-update tl tn]]))
