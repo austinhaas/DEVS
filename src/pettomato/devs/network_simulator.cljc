@@ -7,8 +7,7 @@
    [clojure.set :refer [difference]]
    [pettomato.devs.Simulator :refer [Simulator]]
    [pettomato.devs.priority-queue :as pq]
-   [pettomato.devs.util :refer [infinity]]
-   [pettomato.devs.util :refer [group]]
+   [pettomato.devs.util :refer [infinity group-cons]]
    [pettomato.devs.models :refer [atomic? executive? network?
                                   initial-state int-update-fn ext-update-fn con-update-fn output-fn time-advance-fn
                                   get-components get-connections
@@ -171,38 +170,13 @@
     (assert (= t tn) (str "(= " t " " tn ")"))
     (let [{:keys [P M C S Q find-receivers-m]} pkg
           imminent   (pq/peek Q)
-
-          ;;;; An arguably more readable version than the expression
-          ;;;; below, with similar performance. Not using, because I'm
-          ;;;; not sure if this is an abuse of atoms and if it has
-          ;;;; different implications for clj and cljs.
-          ;; k->msg*    (let [m (atom {})]
-          ;;              (doseq [k             imminent
-          ;;                      :let [k-parent (P k)]
-          ;;                      [port val*]   ((get-in M [k :output-fn]) (get-in S [k :state]))
-          ;;                      [k' port' t] (find-receivers-m P M C k-parent k port)]
-          ;;                (let [val*' (map t val*)]
-          ;;                  (swap! m update-in [k' port'] into val*')))
-          ;;              @m)
-
-          k->msg*    (reduce
-                      (fn [m k]
-                        (let [k-parent (P k)]
-                          (reduce-kv
-                           (fn [m port val*]
-                             (reduce
-                              (fn [m [k' port' t]]
-                                (let [val*' (into [] t val*)]
-                                  (if (seq val*')
-                                    (update-in m [k' port'] into val*')
-                                    m)))
-                              m
-                              (find-receivers-m P M C k-parent k port)))
-                           m
-                           ((get-in M [k :output-fn]) (get-in S [k :state])))))
-                      {}
-                      imminent)
-
+          input      (for [k             imminent
+                           :let [k-parent (P k)]
+                           [port val]    ((get-in M [k :output-fn]) (get-in S [k :state]))
+                           [k' port' t]  (find-receivers-m P M C k-parent k port)]
+                       (let [val' (first (into [] t [val]))]
+                         [k' [port' val']]))
+          k->msg*    (group-cons first second input)
           k->msg*'   (dissoc k->msg* ())
           receivers  (keys k->msg*')
           {re true
@@ -218,16 +192,11 @@
   (ext-update [this x t]
     (assert (<= tl t tn) (str "(<= " tl " " t " " tn ")"))
     (let [{:keys [P M C find-receivers-m]} pkg
-          input     (for [[port val*] x
+          input     (for [[port val] x
                           [k' port' t] (find-receivers-m P M C () () port)]
-                      (let [val*' (into [] t val*)]
-                        [k' [port' val*']]))
-          k->msg*   (reduce (fn [m [k [port val*]]]
-                              (if (seq val*)
-                                (update-in m [k port] into val*)
-                                m))
-                            {}
-                            input)
+                      (let [val' (first (into [] t [val]))]
+                        [k' [port' val']]))
+          k->msg*   (group-cons first second input)
           receivers (keys k->msg*)
           pkg'      (update-sim* pkg receivers k->msg* t)
           ;; Update network structures.
@@ -241,21 +210,16 @@
                        [])
           input1     (for [k             imminent
                            :let [k-parent (P k)]
-                           [port val*]   ((get-in M [k :output-fn]) (get-in S [k :state]))
+                           [port val]   ((get-in M [k :output-fn]) (get-in S [k :state]))
                            [k' port' t] (find-receivers-m P M C k-parent k port)]
-                       (let [val*' (into [] t val*)]
-                         [k' [port' val*']]))
-          input2     (for [[port val*] x
+                       (let [val' (first (into [] t [val]))]
+                         [k' [port' val']]))
+          input2     (for [[port val] x
                            [k' port' t] (find-receivers-m P M C () () port)]
-                       (let [val*' (into [] t val*)]
-                         [k' [port' val*']]))
+                       (let [val' (first (into [] t [val]))]
+                         [k' [port' val']]))
           input      (concat input1 input2)
-          k->msg*    (reduce (fn [m [k [port val*]]]
-                               (if (seq val*)
-                                 (update-in m [k port] into val*)
-                                 m))
-                             {}
-                             input)
+          k->msg*    (group-cons first second input)
           k->msg*'   (dissoc k->msg* ())
           receivers  (keys k->msg*')
           {re true

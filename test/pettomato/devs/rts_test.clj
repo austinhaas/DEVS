@@ -7,7 +7,7 @@
    [pettomato.devs.models :refer [atomic-model executive-model network-model register unregister connect disconnect]]
    [pettomato.devs.atomic-simulator :refer [atomic-simulator]]
    [pettomato.devs.network-simulator :refer [network-simulator]]
-   [pettomato.devs.real-time-system :refer [real-time-system]]))
+   [pettomato.devs.root-simulator :as rs]))
 
 (defn generator [value period]
   (atomic-model

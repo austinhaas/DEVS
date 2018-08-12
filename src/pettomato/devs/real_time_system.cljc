@@ -3,8 +3,8 @@
    #?(:clj  [clojure.core.async :as async :refer [timeout close! alts! go <! >! chan]]
       :cljs [cljs.core.async :as async :refer [timeout close! alts! <! >! chan]])
    [pettomato.devs.util :refer [infinity now]]
-   [pettomato.devs.simulation-advance :refer [advance]]
-   [pettomato.devs.Simulator :refer [init int-update ext-update con-update tl tn]])
+   [pettomato.devs.Simulator :refer [init int-update ext-update con-update tl tn]]
+   [pettomato.devs.root-simulator :as rs])
   #?(:cljs (:require-macros [cljs.core.async.macros :refer [go]])))
 
 ;; Note that with Clojurescript, core.async's timeout depends on

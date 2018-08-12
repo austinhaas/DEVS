@@ -2,7 +2,30 @@
   (:require
    [pettomato.devs.util :refer [now]]
    [pettomato.devs.Simulator :refer [init tl]]
-   [pettomato.devs.immediate-system :refer [immediate-step]]))
+   [pettomato.devs.simulation-advance :refer [advance]]))
+
+(defn rAF-start
+  "Repeatedly calls a function f according to requestAnimationFrame,
+  presumably for side-effects. f returns either a new update function,
+  to replace f in the next call, or a false value indicating that the
+  update cycle should end immediately.
+
+  Note that the time passed to f is the current time, not the time
+  that requestAnimationFrame was invoked (which is what callbacks to
+  rAF usually receive).
+
+  https://developer.mozilla.org/en-US/docs/Web/API/window/requestAnimationFrame"
+  [f]
+  (let [handle (atom nil)]
+    (letfn [(tick []
+              (when-let [tick (f (now))]
+                (reset! handle (js/requestAnimationFrame tick))))]
+      (reset! handle (js/requestAnimationFrame tick)))
+    handle))
+
+(defn rAF-stop
+  [handle]
+  (js/cancelAnimationFrame @handle))
 
 (defn aF-real-time-system-start!
   "sim is an instance of a network-simulator.
@@ -20,6 +43,8 @@
   max-delta, and then resume updating at the rate dictated by
   requestAnimationFrame.
 
+  https://developer.mozilla.org/en-US/docs/Web/API/window/requestAnimationFrame
+
   input! is a function that takes no arguments and returns a seq of
   input values.
 
@@ -34,19 +59,30 @@
   ([sim start-time max-delta input!]
    (aF-real-time-system-start! sim start-time max-delta input! (constantly nil)))
   ([sim start-time max-delta input! output!]
-   (let [aF (atom nil)]
-     (letfn [(step [sim sim-t t t']
-               (let [delta      (- t' t)
-                     delta'     (min delta max-delta)
-                     sim-t'     (+ sim-t delta')
-                     ev*        (input!)
-                     tmsg*      (map (fn [m] [(dec sim-t') m]) ev*)
-                     [sim' out] (immediate-step sim (tl sim) sim-t' tmsg*)]
-                 (doseq [x out] (output! x))
-                 (reset! aF (js/requestAnimationFrame (fn [t] (step sim' sim-t' t' t))))))]
-       (step (init sim start-time) start-time (now) (now))
-       aF))))
+   (letfn [(tick [sim last-sim-time last-wall-time curr-wall-time]
+             (let [actual-delta    (- cur-wall-time last-wall-time)
+                   adjusted-delta  (min actual-delta max-delta)
+                   curr-sim-time   (+ last-sim-time adjusted-delta)
+                   tmsg-in         (input!)
+                   [sim' tmsg-out] (advance sim curr-sim-time tmsg-in)]
+               (doseq [tmsg tmsg-out] (output! tmsg))
+               (fn [_] (tick sim' curr-sim-time curr-wall-time (now)))))]
+     (rAF-start (tick (init sim start-time) start-time (now) (now))))))
+
+;; Compose a function to calculate the current sim time.
+;; (May need to be stateful.)
+
+;; (defn governor [max-delta initial-value]
+;;   (let [prev (atom initial-value)]
+;;     (fn [curr]
+;;       ;; This isn't what we want. We want to reset the target time so
+;;       ;; that we don't have to keep trying to catch up.
+
+;;       (let [delta (min (- curr @prev))])
+;;       )))
+
+;; (comp (partial max max-delta) now)
+
 
 (defn aF-real-time-system-stop! [handle]
-  (js/cancelAnimationFrame @handle)
-  nil)
+  (rAF-stop handle))

@@ -7,7 +7,7 @@
    [pettomato.devs.models :refer [atomic-model executive-model network-model register unregister connect disconnect]]
    [pettomato.devs.atomic-simulator :refer [atomic-simulator]]
    [pettomato.devs.network-simulator :refer [network-simulator]]
-   [pettomato.devs.immediate-system :refer [immediate-system]]))
+   [pettomato.devs.root-simulator :as rs]))
 
 (defn generator [value period]
   (atomic-model
@@ -15,19 +15,21 @@
    identity
    nil
    nil
-   (constantly {:out [value]})
+   (constantly [[:out value]])
    (constantly period)))
 
 (deftest generator-test
   (is (eq?
        (-> (generator 5 10)
            atomic-simulator
-           (immediate-system 0 50 []))
-       [[10 {:out [5]}]
-        [20 {:out [5]}]
-        [30 {:out [5]}]
-        [40 {:out [5]}]
-        [50 {:out [5]}]])))
+           (rs/root-simulator 0)
+           (rs/advance 50)
+           second)
+       [[10 [[:out 5]]]
+        [20 [[:out 5]]]
+        [30 [[:out 5]]]
+        [40 [[:out 5]]]
+        [50 [[:out 5]]]])))
 
 (defn switch [processing-time]
   (atomic-model
@@ -39,7 +41,7 @@
    (fn int-update [s]
      (assoc s :phase :passive :sigma infinity))
    (fn ext-update [s e x]
-     (let [[port [val & _]] (first x)]
+     (let [[port val] (first x)]
        (if (= (:phase s) :passive)
          (assoc s
                 :phase  :busy
@@ -53,25 +55,28 @@
      (case (:phase s)
        :busy (case (:switch? s)
                true (case (:inport s)
-                      :in1 {:out1 [(:store s)]}
-                      :in2 {:out2 [(:store s)]})
+                      :in1 [[:out1 (:store s)]]
+                      :in2 [[:out2 (:store s)]])
                false (case (:inport s)
-                       :in1 {:out2 [(:store s)]}
-                       :in2 {:out1 [(:store s)]}))))
+                       :in1 [[:out2 (:store s)]]
+                       :in2 [[:out1 (:store s)]]))))
    :sigma))
 
 (deftest switch-test
   (is (eq? (-> (switch 5)
                atomic-simulator
-               (immediate-system 0 100 [[10 {:in1 [1]}]
-                                        [12 {:in1 [1]}]
-                                        [15 {:in1 [1]}]
-                                        [20 {:in1 [1]}]
-                                        [25 {:in2 [2]}]]))
-           [[15 {:out2 [1]}]
-            [20 {:out1 [1]}]
-            [25 {:out2 [1]}]
-            [30 {:out2 [2]}]])))
+               (rs/root-simulator 0)
+               (rs/schedule* [[10 [:in1 1]]
+                              [12 [:in1 1]]
+                              [15 [:in1 1]]
+                              [20 [:in1 1]]
+                              [25 [:in2 2]]])
+               (rs/advance 100)
+               second)
+           [[15 [[:out2 1]]]
+            [20 [[:out1 1]]]
+            [25 [[:out2 1]]]
+            [30 [[:out2 2]]]])))
 
 (defn simple-delay-component [processing-time]
   (atomic-model
@@ -82,14 +87,14 @@
    (fn [s e x]
      (assert (= 1 (count x)))
      (let [[phase sigma store] s
-           [p [v & _]]               (first x)]
+           [p v]               (first x)]
        (if (= phase "passive")
          ["busy" processing-time v]
          ["passive" (- sigma e) store])))
    nil
    (fn [s]
      (let [[phase sigma store] s]
-       {'out [store]}))
+       [['out store]]))
    (fn [s]
      (let [[phase sigma store] s]
        sigma))))
@@ -116,28 +121,25 @@
               (-> s
                   (update :Q rest)
                   (update :idle rest)
-                  (update-in [:output ['out (first (:idle s))]] conj (first (:Q s))))
+                  (update :output conj [['out (first (:idle s))] (first (:Q s))]))
               s))
           (enqueue [s v]
             (update s :Q conj v))
           (send [s v]
-            (update-in s [:output 'out] conj v))
+            (update s :output conj ['out v]))
           (dispatch [s ev]
-            (let [[port v*] ev]
-              (reduce (fn [s v]
-                       (case port
-                         add    (-> s (add-server v) (idle v) maybe-process-next)
-                         remove (-> s (rem-server (first (:idle s))) (update :idle rest)
-                                    (update-in [:output 'send] conj (first (:idle s))))
-                         in     (-> s (enqueue v) maybe-process-next)
-                         (case (first port)
-                           in (-> s (send v) (idle (second port)) maybe-process-next))))
-                      s
-                      v*)))]
+            (let [[port v] ev]
+              (case port
+                add    (-> s (add-server v) (idle v) maybe-process-next)
+                remove (-> s (rem-server (first (:idle s))) (update :idle rest)
+                           (update :output conj ['send (first (:idle s))]))
+                in     (-> s (enqueue v) maybe-process-next)
+                (case (first port)
+                  in (-> s (send v) (idle (second port)) maybe-process-next)))))]
     (executive-model
      ;; Initial state.
      (let [Q []
-           S (-> {:idle s* :Q Q :sigma 0 :output {'init [[(count Q) (count s*)]]}}
+           S (-> {:idle s* :Q Q :sigma 0 :output [['init [(count Q) (count s*)]]]}
                  (connect :N 'in k 'in)
                  (connect :N 'remove k 'remove)
                  (connect :N 'add k 'add)
@@ -147,12 +149,12 @@
                  (connect k 'out :N 'out))]
        (reduce add-server S s*))
      (fn int-update [s]
-       (assoc s :sigma infinity :output {}))
+       (assoc s :sigma infinity :output []))
      (fn ext-update [s e x]
        (let [s' (-> (reduce dispatch s x)
                     ;; Assuming every external event results in an output message.
                     (assoc :sigma 0))]
-         (update-in s' [:output 'size] conj [(count (:Q s')) (count (:idle s'))])))
+         (update s' :output conj ['size [(count (:Q s')) (count (:idle s'))]])))
      nil
      :output
      :sigma)))
@@ -175,30 +177,27 @@
                   [k1-transit k2-transit] (:in-transit-to s)]
               (cond
                 (and (> k1-idle 0) (> (- k2-q k2-transit) threshold)) (-> s
-                                                                          (update-in [:output ['ask 0]] conj nil)
+                                                                          (update :output conj [['ask 0] nil])
                                                                           (update-in [:in-transit-to 1] inc))
                 (and (> k2-idle 0) (> (- k1-q k1-transit) threshold)) (-> s
-                                                                          (update-in [:output ['ask 1]] conj nil)
+                                                                          (update :output conj [['ask 1] nil])
                                                                           (update-in [:in-transit-to 0] inc))
                 :else s)))]
     (atomic-model
-     {:output      {}
+     {:output      []
       :sigma       infinity
       :queue-sizes [0 0]
       :idle-sizes  [0 0]}
      (fn int-update [s]
-       (assoc s :sigma infinity :output {}))
+       (assoc s :sigma infinity :output []))
      (fn ext-update [s e x]
        (let [s (assoc s :in-transit-to [0 0])]
-         (-> (reduce (fn [s [port v*]]
-                       (reduce (fn [s [q-size idle-size]]
-                                (case port
-                                  init1 (update-size s 0 q-size idle-size)
-                                  init2 (update-size s 1 q-size idle-size)
-                                  size1 (update-size s 0 q-size idle-size)
-                                  size2 (update-size s 1 q-size idle-size)))
-                               s
-                               v*))
+         (-> (reduce (fn [s [port [q-size idle-size]]]
+                       (case port
+                         init1 (update-size s 0 q-size idle-size)
+                         init2 (update-size s 1 q-size idle-size)
+                         size1 (update-size s 0 q-size idle-size)
+                         size2 (update-size s 1 q-size idle-size)))
                      (assoc s :sigma 0)
                      x)
              maybe-move)))
@@ -237,21 +236,32 @@
          (and (= (count ev*) 2)
               (= (first (first ev*)) 1001)
               (= (first (second ev*)) 2001)
-              (= (count (get (second (first ev*)) 'out)) 5)
-              (= (count (get (second (second ev*)) 'out)) 5)))
+              (= (count (second (first ev*))) 5)
+              (= (count (second (second ev*))) 5)))
        (-> network-1
            network-simulator
-           (immediate-system 0 infinity [[1 {'in1 (range 10)}]])))))
+           (rs/root-simulator 0)
+           (rs/schedule* [[1 ['in1 0]]
+                          [1 ['in1 1]]
+                          [1 ['in1 2]]
+                          [1 ['in1 3]]
+                          [1 ['in1 4]]
+                          [1 ['in1 5]]
+                          [1 ['in1 6]]
+                          [1 ['in1 7]]
+                          [1 ['in1 8]]
+                          [1 ['in1 9]]])
+           (rs/advance infinity)
+           second))))
 
 (defn delay-1 [processing-time]
   (let [int-update (fn [s]
                      (assoc s :phase :passive :sigma infinity))
         ext-update (fn [s e x]
                      (assert (= 1 (count x)))
-                     (let [[port v*] (first x)]
-                       (assert (= 1 (count v*)))
+                     (let [[port v] (first x)]
                        (case (:phase s)
-                         :passive (assoc s :phase :busy :sigma processing-time :store (first v*))
+                         :passive (assoc s :phase :busy :sigma processing-time :store v)
                          :busy    (update s :sigma - e))))]
    (atomic-model
     {:phase :passive
@@ -261,7 +271,7 @@
     ext-update
     (fn con-update [s e x]
       (ext-update (int-update s) 0 x))
-    (fn output [s] {:out [(:store s)]})
+    (fn output [s] [[:out (:store s)]])
     :sigma)))
 
 ;; Same as above, but the confluent fn prioritizes ext-update over int-update.
@@ -270,10 +280,9 @@
                      (assoc s :phase :passive :sigma infinity))
         ext-update (fn [s e x]
                      (assert (= 1 (count x)))
-                     (let [[port v*] (first x)]
-                       (assert (= 1 (count v*)))
+                     (let [[port v] (first x)]
                        (case (:phase s)
-                         :passive (assoc s :phase :busy :sigma processing-time :store (first v*))
+                         :passive (assoc s :phase :busy :sigma processing-time :store v)
                          :busy    (update s :sigma - e))))]
    (atomic-model
     {:phase :passive
@@ -283,25 +292,31 @@
     ext-update
     (fn con-update [s e x]
       (int-update (ext-update s e x)))
-    (fn output [s] {:out [(:store s)]})
+    (fn output [s] [[:out (:store s)]])
     :sigma)))
 
 (deftest confluence-test
   (is (eq? (-> (delay-1 10)
                atomic-simulator
-               (immediate-system 0 100 [[0  {:in [1]}]
-                                        [10 {:in [2]}]]))
-           [[10 {:out [1]}]
-            [20 {:out [2]}]]))
+               (rs/root-simulator 0)
+               (rs/schedule* [[0  [:in 1]]
+                              [10 [:in 2]]])
+               (rs/advance 100)
+               second)
+           [[10 [[:out 1]]]
+            [20 [[:out 2]]]]))
 
   ;; The second input value should be ignored, since the model is in
   ;; the busy state and external inputs have higher priority in
   ;; delay-2.
   (is (eq? (-> (delay-2 10)
                atomic-simulator
-               (immediate-system 0 100 [[0  {:in [1]}]
-                                        [10 {:in [2]}]]))
-           [[10 {:out [1]}]]))
+               (rs/root-simulator 0)
+               (rs/schedule* [[0  [:in 1]]
+                              [10 [:in 2]]])
+               (rs/advance 100)
+               second)
+           [[10 [[:out 1]]]]))
 
   (is (eq? (-> (network-model
                 :exec
@@ -312,10 +327,13 @@
                      (connect :delay :out :N :out))
                  nil nil nil nil (constantly infinity)))
                network-simulator
-               (immediate-system 0 100 [[0  {:in [1]}]
-                                        [10 {:in [2]}]]))
-           [[10 {:out [1]}]
-            [20 {:out [2]}]]))
+               (rs/root-simulator 0)
+               (rs/schedule* [[0  [:in 1]]
+                              [10 [:in 2]]])
+               (rs/advance 100)
+               second)
+           [[10 [[:out 1]]]
+            [20 [[:out 2]]]]))
 
   (is (eq? (-> (network-model
                 :exec
@@ -326,6 +344,9 @@
                      (connect :delay :out :N :out))
                  nil nil nil nil (constantly infinity)))
                network-simulator
-               (immediate-system 0 100 [[0  {:in [1]}]
-                                        [10 {:in [2]}]]))
-           [[10 {:out [1]}]])))
+               (rs/root-simulator 0)
+               (rs/schedule* [[0  [:in 1]]
+                              [10 [:in 2]]])
+               (rs/advance 100)
+               second)
+           [[10 [[:out 1]]]])))
