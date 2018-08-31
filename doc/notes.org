@@ -79,7 +79,22 @@
 * DEVS
 ** Refactor aF-real-time-system.
 *** Clean up these notes.
+*** Fix issue with timing.
+    - Why isn't the time increasing?
+
+    - I think the simple tests are working, because the loop in
+      advance is fine.
+
 *** Implement the quickest, easiest system.
+**** Consider adding an API (or protocol) for the root-simulator.
+     - Only implement ext-update (instead of schedule).
+
+       - Also, int-update, instead of advance?
+
+     - Motivation: we need tn for real-time-system, and it makes sense
+       to follow the Simulator protocol already established.
+
+
 **** Proposal: Keep it simple, with external input fed in via aF.
      - But add helper fns to make it easier to wire in new "real time"
        models.
@@ -249,8 +264,22 @@
 **** real-time-system should just be a version that uses channels
      - Do we even need that? Is it better than our io-function
        abstraction.
+
 ** aF-real-time-system: Add functions to pause and resume.
 ** Set up a simulation with an experimental frame.
+   - Make it something that can be used to benchmark.
+** Benchmark simulators defined with defrecord vs. a map.
+** Consider changing models.cljc to use a protocol instead of a map.
+   - I think my main argument against using protocols is that users
+     have to define models and I don't want a protocol to be part of
+     the interface.
+     - That's not correct. We still use a function for the API. The
+       function creates the map (or record).
+
+** Performance
+   - http://www.i3s.unice.fr/~muzy/Publications/oicms_revised_Nov_21_2005.pdf
+     - Only active models need simulators
+     - One coordinator can manage a hierarchy of networked models.
 ** Consider flattening coupled models.
    - Every paper says they do that to minimize communication delays
      between atomic models.

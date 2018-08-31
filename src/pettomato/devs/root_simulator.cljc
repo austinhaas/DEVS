@@ -1,5 +1,20 @@
 (ns pettomato.devs.root-simulator
-  "A root-coordinator."
+  "Aka, root-coordinator.
+
+  In the literature, a root-coordinator is a closed system that runs
+  the simulation. In this implementation, that behavior has been
+  divided into two components:
+
+  1. The root-simulator, defined in this namespace. This component
+  wraps the supplied simulator with an API for stepping through the
+  simulation, and scheduling events into the future.
+
+  2. A system, which drives the root-simulator.
+
+  This separation was motivated by the desire to abstract a base
+  system (this namespace) from parts that may vary. For instance, for
+  CLJS, there is a system that uses requestAnimationFrame to drive the
+  updates."
   (:require
    [pettomato.devs.util :refer [infinity]]
    [pettomato.devs.priority-queue :as pq]
@@ -78,10 +93,14 @@
                                                     tmsg-out))))))))
 
 (defn schedule [root t msg]
-  (let [[sim' pq] root]
-    [sim' (pq/insert pq t msg)]))
+  (let [[sim pq] root]
+    [sim (pq/insert pq t msg)]))
 
 (defn schedule* [root tmsgs]
   (reduce (fn [root [t msg]] (schedule root t msg))
           root
           tmsgs))
+
+(defn time-of-next-event [root]
+  (let [[sim pq] root]
+    (min (tn sim) (or (pq/peek-key pq) infinity))))

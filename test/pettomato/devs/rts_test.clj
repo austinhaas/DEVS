@@ -7,33 +7,41 @@
    [pettomato.devs.models :refer [atomic-model executive-model network-model register unregister connect disconnect]]
    [pettomato.devs.atomic-simulator :refer [atomic-simulator]]
    [pettomato.devs.network-simulator :refer [network-simulator]]
+   [pettomato.devs.real-time-system :refer [real-time-system]]
    [pettomato.devs.root-simulator :as rs]))
 
 (defn generator [value period]
   (atomic-model
    {}
    (fn [s]
-     (Thread/sleep 100)
+     ;; Uncomment this sleep expression to see what happens when the
+     ;; simulator can't catch up.
+     ;;(Thread/sleep 15)
      s)
    nil
    nil
    (constantly [[:out value]])
    (constantly period)))
 
-#_
-(let [chan-in  (chan 100)
-      chan-out (chan 100)
-      sim      (atomic-simulator (generator 5 10))]
+(comment
 
-  (go (loop [i 0]
-        (when (> i 10)
-          (close! chan-in))
-        (if-let [v (<! chan-out)]
-          (do (println "[" (first v) "]" (second v))
-              (recur (inc i)))
-          (println 'done))))
+  (let [chan-in  (chan 100)
+        chan-out (chan 100)
+        sim      (atomic-simulator (generator 5 1000))]
 
-  (real-time-system sim 0 chan-in chan-out))
+    ;; Print 10 values.
+    (go (loop [i 0]
+          (printf "i: %s\n" i)
+          (if (> i 5)
+            (close! chan-in)
+            (if-let [v (<! chan-out)]
+              (do (printf "v: %s\n" v)
+                  (recur (inc i)))
+              (println 'done)))))
+
+    (real-time-system sim 0 chan-in chan-out true))
+
+  )
 
 (defn switch [processing-time]
   (atomic-model

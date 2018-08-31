@@ -2,7 +2,9 @@
   "Muzy, Alexander, and James J. Nutaro. \"Algorithms for efficient
    implementations of the DEVS & DSDEVS abstract simulators.\"
    1st Open International Conference on Modeling & Simulation (OICMS). 2005.
-   http://www.i3s.unice.fr/~muzy/Publications/oicms_revised_Nov_21_2005.pdf"
+   http://www.i3s.unice.fr/~muzy/Publications/oicms_revised_Nov_21_2005.pdf
+
+  In the literature, this is usually referred to as a coordinator."
   (:require
    [clojure.set :refer [difference]]
    [pettomato.devs.Simulator :refer [Simulator]]

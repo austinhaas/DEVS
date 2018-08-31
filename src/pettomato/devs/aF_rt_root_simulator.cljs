@@ -32,39 +32,40 @@
 ;;------------------------------------------------------------------------------
 
 (defn aF-rt-root-simulator [sim start-time max-delta output!]
-  (let [af-handle nil]
-    (atom [(rs/root-simulator sim start-time) max-delta output! af-handle])))
+  (atom {:root-sim   (rs/root-simulator sim start-time)
+         :start-time start-time
+         :max-delta  max-delta
+         :output!    output!
+         :af-handle  nil}))
 
 ;; The advance function is replaced by start! and stop!.
 
 ;; time is decremented to avoid confluence issues with messages that
 ;; could still arrive at the current time.
 
-(defn step [root last-sim-time last-wall-time curr-wall-time output!]
-  (let [actual-delta     (- cur-wall-time last-wall-time)
-        adjusted-delta   (min actual-delta max-delta)
-        curr-sim-time    (+ last-sim-time adjusted-delta)
-        [root' tmsg-out] (rs/advance root curr-sim-time)]
+(defn step [root-sim max-delta last-sim-time last-wall-time curr-wall-time output!]
+  (let [actual-delta         (- curr-wall-time last-wall-time)
+        adjusted-delta       (min actual-delta max-delta)
+        curr-sim-time        (+ last-sim-time adjusted-delta)
+        [root-sim' tmsg-out] (rs/advance root-sim curr-sim-time)]
     (doseq [tmsg tmsg-out] (output! tmsg))
-    (fn [_] (step root' curr-sim-time curr-wall-time (now) output!))))
+    (fn [_] (step root-sim' curr-sim-time curr-wall-time (now) output!))))
 
-(defn start! [rootx]
-  (let [[root max-delta output! _] @rootx]
-    ;; This root is probably wrong.
-    [reset! rootx [root max-delta output (rAF-start! (tick root start-time (now) (now)))]]))
+(defn start! [pkg]
+  (swap! pkg (fn [{:keys [root-sim start-time max-delta] :as pkg}]
+               (assoc pkg :af-handle (rAF-start! (step root-sim max-delta start-time (now) (now)))))))
 
-(defn stop! [root]
-  (let [[_ _ _ af-handle] @root]
-    (rAF-stop! af-handle)
-    root))
+(defn stop! [pkg]
+  (rAF-stop! (:af-handle @pkg))
+  pkg)
 
-(defn schedule! [root t msg]
-  (swap! root update 0 rs/schedule t msg)
-  root)
+(defn schedule! [pkg t msg]
+  (swap! pkg update :root-sim rs/schedule t msg)
+  pkg)
 
-(defn schedule*! [root tmsgs]
-  (swap! root update 0 rs/schedule* tmsgs)
-  root)
+(defn schedule*! [pkg tmsgs]
+  (swap! pkg update :root-sim rs/schedule* tmsgs)
+  pkg)
 
-(defn schedule-now! [root msg]
-  (rs/schedule! root (now) msg))
+(defn schedule-now! [pkg msg]
+  (schedule! pkg (now) msg))
