@@ -30,7 +30,7 @@
           e      (- t tl)
           state' ((con-update-fn model) state e x)
           this'  (AtomicSimulator. model state' t (+ t (checked-time-advance model state')))]
-      [this' y]))ount
+      [this' y]))
   (tl         [this] tl)
   (tn         [this] tn))
 

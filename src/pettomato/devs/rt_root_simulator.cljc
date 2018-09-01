@@ -1,9 +1,9 @@
-(ns pettomato.devs.real-time-system
+(ns pettomato.devs.rt-root-simulator
   (:require
    #?(:clj  [clojure.core.async :as async :refer [timeout close! alts! go <! >! chan]]
       :cljs [cljs.core.async :as async :refer [timeout close! alts! <! >! chan]])
    [pettomato.devs.util :refer [infinity now]]
-   [pettomato.devs.root-simulator :as rs])
+   [pettomato.devs.root-simulator-base :as rs])
   #?(:cljs (:require-macros [cljs.core.async.macros :refer [go]])))
 
 ;; Note that with Clojurescript, core.async's timeout depends on
@@ -12,7 +12,7 @@
 ;; events that are very close together, this could cause the
 ;; simulation to run slower than real-time.
 
-(defn real-time-system
+(defn rt-root-simulator
   "Runs until chan-in is closed."
   [sim sim-start-time chan-in chan-out close?]
   (let [wc-start-time (now)]

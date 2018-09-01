@@ -4,7 +4,7 @@
   (:require
    [pettomato.devs.util :refer [now]]
    [pettomato.devs.Simulator :refer [init tl]]
-   [pettomato.devs.root-simulator :as rs]))
+   [pettomato.devs.root-simulator-base :as rs]))
 
 (defn- rAF-start!
   "Repeatedly calls a function f according to requestAnimationFrame,

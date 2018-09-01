@@ -1,5 +1,5 @@
-(ns pettomato.devs.root-simulator
-  "Aka, root-coordinator.
+(ns pettomato.devs.root-simulator-base
+  "Aka, part of a root-coordinator.
 
   In the literature, a root-coordinator is a closed system that runs
   the simulation. In this implementation, that behavior has been

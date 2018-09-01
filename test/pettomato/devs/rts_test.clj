@@ -7,8 +7,7 @@
    [pettomato.devs.models :refer [atomic-model executive-model network-model register unregister connect disconnect]]
    [pettomato.devs.atomic-simulator :refer [atomic-simulator]]
    [pettomato.devs.network-simulator :refer [network-simulator]]
-   [pettomato.devs.real-time-system :refer [real-time-system]]
-   [pettomato.devs.root-simulator :as rs]))
+   [pettomato.devs.rt-root-simulator :refer [rt-root-simulator]]))
 
 (defn generator [value period]
   (atomic-model
@@ -38,7 +37,7 @@
                   (recur (inc i)))
               (println 'done)))))
 
-    (real-time-system sim 0 chan-in chan-out true))
+    (rt-root-simulator sim 0 chan-in chan-out true))
 
   )
 
@@ -93,7 +92,7 @@
 
    (onto-chan chan-in input false)
 
-   (real-time-system sim 0 chan-in chan-out true)
+   (rt-root-simulator sim 0 chan-in chan-out true)
 
    #_
    (let [wc-start (now)]
