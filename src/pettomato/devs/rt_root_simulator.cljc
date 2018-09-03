@@ -1,4 +1,6 @@
 (ns pettomato.devs.rt-root-simulator
+  "This is just an example of a root-simulator that runs in real-time
+  and is built on core.async."
   (:require
    #?(:clj  [clojure.core.async :as async :refer [timeout close! alts! go <! >! chan]]
       :cljs [cljs.core.async :as async :refer [timeout close! alts! <! >! chan]])
