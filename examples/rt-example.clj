@@ -1,4 +1,4 @@
-(ns pettomato.devs.rts-test
+(ns rt-example
   (:require
    [clojure.test :refer :all]
    [clojure.core.async :as async :refer [go chan <! timeout close! >! put! onto-chan]]
