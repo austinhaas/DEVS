@@ -4,9 +4,9 @@
    [clojure.core.async :as async :refer [<! chan close! go put!]]
    [pettomato.devs.util :refer [infinity]]
    [pettomato.devs.atomic-simulator :refer [atomic-simulator]]
+   [pettomato.devs.immediate-root-simulator :refer [immediate-root-simulator]]
    [pettomato.devs.network-simulator :refer [network-simulator]]
-   [pettomato.devs.immediate-system :refer [immediate-system]]
-   [pettomato.devs.real-time-system :refer [real-time-system]]
+   [pettomato.devs.rt-root-simulator :refer [rt-root-simulator]]
    [pettomato.devs.models :refer [atomic-model executive-model network-model register unregister connect disconnect]]))
 
 ;; This is a tutorial walk-through of this DEVS implementation.
@@ -50,7 +50,7 @@
 
 (-> (timer-1 3000)
     atomic-simulator
-    (immediate-system 0 10000))
+    (immediate-root-simulator 0 10000 []))
 
 ;; => []
 
@@ -61,7 +61,7 @@
 
 (-> (timer-1 3000)
     atomic-simulator
-    (immediate-system 0 10000 [[1000 nil]]))
+    (immediate-root-simulator 0 10000 [[1000 nil]]))
 
 ;; => [[4000 "Ding!"]]
 
@@ -94,8 +94,9 @@
 
 (-> (timer-1 3000)
     atomic-simulator
-    (real-time-system 0 chan-in chan-out))
+    (rt-root-simulator 0 chan-in chan-out true))
 
+;; TODO: Fix this. It doesn't work, because it expects time to be set.
 (put! chan-in [nil])
 
 ;; Wait for 3 seconds. You should see something like "> [[6147
@@ -202,7 +203,7 @@
      {:phase 'passive :sigma infinity})
    (fn ext-update [s e x]
      (case (:phase s)
-       passive {:phase 'active  :sigma x}
+       passive {:phase 'active  :sigma (first x)}
        active  {:phase 'passive :sigma infinity}))
    nil
    (fn output [s] "Ding!")
@@ -210,8 +211,8 @@
 
 (-> timer-2
     atomic-simulator
-    (immediate-system 0 10000 [[1000 2000]
-                               [5000 1333]]))
+    (immediate-root-simulator 0 10000 [[1000 2000]
+                                       [5000 1333]]))
 
 ;; => [[3000 "Ding!"] [6333 "Ding!"]]
 
@@ -220,8 +221,8 @@
 
 (-> timer-2
     atomic-simulator
-    (immediate-system 0 10000 [[1000 2000]
-                               [3000 1333]]))
+    (immediate-root-simulator 0 10000 [[1000 2000]
+                                       [3000 1333]]))
 
 ;; => [[3000 "Ding!"] [4333 "Ding!"]]
 
@@ -240,7 +241,7 @@
                      {:phase 'passive :sigma infinity})
         ext-update (fn ext-update [s e x]
                      (case (:phase s)
-                       passive {:phase 'active  :sigma x}
+                       passive {:phase 'active  :sigma (first x)}
                        active  {:phase 'passive :sigma infinity}))]
    (atomic-model
     {:phase 'passive
@@ -249,14 +250,14 @@
     ext-update
     (fn con-update [s e x]
       ;; (ext-update (int-update s) 0 x) <-- This is the default.
-      (int-update (ext-update s e x)))
+      (int-update (ext-update s e (first x))))
     (fn output [s] "Ding!")
     :sigma)))
 
 (-> timer-3
     atomic-simulator
-    (immediate-system 0 10000 [[1000 2000]
-                               [3000 1333]]))
+    (immediate-root-simulator 0 10000 [[1000 2000]
+                                       [3000 1333]]))
 
 ;; => [[3000 "Ding!"]]
 
@@ -276,7 +277,7 @@
                        ding    {:phase 'passive :sigma infinity}))
         ext-update (fn ext-update [s e x]
                      (case (:phase s)
-                       passive {:phase 'active  :sigma x}
+                       passive {:phase 'active  :sigma (first x)}
                        active  {:phase 'passive :sigma infinity}))]
    (atomic-model
     {:phase 'passive
@@ -292,8 +293,8 @@
 
 (-> timer-4
     atomic-simulator
-    (immediate-system 0 10000 [[1000 2000]
-                               [3000 1333]]))
+    (immediate-root-simulator 0 10000 [[1000 2000]
+                                       [3000 1333]]))
 
 ;; => []
 
@@ -315,8 +316,8 @@
 
 (-> (timer-5 3000)
     atomic-simulator
-    (immediate-system 0 10000 [[1000 nil]
-                               [2000 nil]]))
+    (immediate-root-simulator 0 10000 [[1000 nil]
+                                       [2000 nil]]))
 
 ;; => [[4000 "Ding!"]]
 
@@ -364,27 +365,24 @@
    (fn int-update [s]
      {:phase 'passive :duration (:duration s) :sigma infinity})
    (fn ext-update [s e x]
-     (as-> s s
-       (update s :sigma - e)
-       (reduce (fn [s v] (assoc s :duration v))
-               s
-               (:set-time x))
-       (reduce (fn [s _]
-                 (case (:phase s)
-                   passive (assoc s :phase 'active  :sigma (:duration s))
-                   active  (assoc s :phase 'passive :sigma infinity)))
-               s
-               (:toggle x))))
+     (reduce (fn [s v]
+               (case (first v)
+                 :set-time (assoc s :duration (second v))
+                 :toggle   (case (:phase s)
+                             passive (assoc s :phase 'active  :sigma (:duration s))
+                             active  (assoc s :phase 'passive :sigma infinity))))
+             (update s :sigma - e)
+             x))
    nil
-   (fn output [s] {:out ["Ding!"]})
+   (fn output [s] [:out "Ding!"])
    :sigma))
 
 (-> (timer-6 1000)
     atomic-simulator
-    (immediate-system 0 10000 [[1000 {:set-time [2000]}]
-                               [2000 {:toggle   [nil]}]
-                               [3000 {:set-time [1234]}]
-                               [4000 {:toggle   [nil]}]]))
+    (immediate-root-simulator 0 10000 [[1000 [:set-time 2000]]
+                                       [2000 [:toggle   nil]]
+                                       [3000 [:set-time 1234]]
+                                       [4000 [:toggle   nil]]]))
 
 ;; This example doesn't illustrate the value of multiple incoming
 ;; values arriving on the same port, but you can imagine a model that
@@ -434,11 +432,11 @@
 ;; models. This ensures that there aren't any straggler messages when
 ;; the executive changes state.
 
-;; Here's an example:
+;; Here's an example.
 
-;; First, we create an atomic delay model to build upon. This model
-;; takes an input value on an :in port and returns that value on an
-;; :out port after processing-time.
+;; First, we create an atomic delay model. This model takes an input
+;; value on an :in port and returns that value on an :out port after
+;; processing-time.
 
 (defn delay [processing-time]
   (atomic-model
@@ -452,18 +450,17 @@
        passive (assoc s
                       :phase 'busy
                       :sigma processing-time
-                      :store (first (:in x)))
+                      :store (second (first x)))
        busy    (update s :sigma - e)))
    nil
-   (fn output [s]
-     {:out [(:store s)]})
+   (fn output [s] [[:out (:store s)]])
    :sigma))
 
 (-> (delay 1000)
     atomic-simulator
-    (immediate-system 0 10000 [[1000 {:in ["Apple"]}]]))
+    (immediate-root-simulator 0 10000 [[1000 [:in "Apple"]]]))
 
-;; => [[2000 {:out ["Apple"]}]]
+;; => [[2000 [[:out "Apple"]]]]
 
 ;; Here is the executive model.
 
@@ -482,12 +479,13 @@
 ;; appropriate network structure data to the state.
 
 ;; :N stands for the network that is the parent model to this
-;; executive and any models the executive contains in the network
-;; structure in its state.
+;; executive (and the parent to the models in the network structure in
+;; the executive's state). In other words, :N represents the
+;; boundary of the current network.
 
 ;; This executive model has no behavior. The state transition
 ;; functions and the output function are not defined because they will
-;; never be called. It only serves to supply the network structure.
+;; never be called. It only serves to provide the network structure.
 
 ;; Now we will create a network, with exec-1 as the network executive.
 
@@ -495,13 +493,13 @@
 
 (-> network-1
     network-simulator
-    (immediate-system 0 10000 [[1000 {:in ["Banana"]}]]))
+    (immediate-root-simulator 0 10000 [[1000 [:in "Banana"]]]))
 
-;; => [[2500 {:out ("Banana")}]]
+;; => [[2500 ([:out "Banana"])]]
 
 ;; There can be multiple connections to/from a single port. For
 ;; instance, you could add another delay, delay-3, to the network
-;; above that runs parallel to delay-2, with the same inputs and
+;; above, that runs parallel to delay-2, with the same inputs and
 ;; outputs. delay-1 would send each output to both delay-2 and
 ;; delay-3, and delay-2 and delay-3 would both send output to :N. You
 ;; cannot, however, have more than one connection between the same two
@@ -511,6 +509,8 @@
 
 ;; This network executive monitors a stream of input jobs and creates
 ;; new "servers", represented as delay models, to meet the demand.
+
+;; `threshold` is the maximum number of jobs that can be waiting.
 
 (defn exec-2 [id threshold]
   (let [add-server (fn [s]
@@ -528,13 +528,13 @@
                            (disconnect sid :out       id  [:in sid])
                            (update :idle pop))))
         ingest     (fn [s x]
-                     (reduce-kv
-                      (fn [s port v*]
+                     (reduce
+                      (fn [s [port v]]
                         (case port
-                          :in (update s :job-queue into v*)
+                          :in (update s :job-queue conj v)
                           (let [[_ sid] port]
                             (-> s
-                                (update-in [:output :out] conj ['done (first v*)])
+                                (update :output conj [:out ['done v]])
                                 (update :idle conj sid)))))
                       s
                       x))
@@ -556,19 +556,19 @@
                          (-> s
                              (update :idle      pop)
                              (update :job-queue pop)
-                             (update-in [:output [:out sid]] conj job)
+                             (update :output conj [[:out sid] job])
                              recur))
                        s))]
     (executive-model
      (-> {:idle      []
           :job-queue []
-          :output    {}
+          :output    []
           :sigma     infinity}
          (connect :N :in  id :in)
          (connect id :out :N :out)
          add-server)
      (fn int-update [s]
-       (assoc s :output {} :sigma infinity))
+       (assoc s :output [] :sigma infinity))
      (fn ext-update [s e x]
        (-> s
            (ingest x)
@@ -580,11 +580,12 @@
      :output
      :sigma)))
 
-(def network-2 (network-model :exec (exec-2 :exec 5)))
+(def network-2 (network-model :exec (exec-2 :exec 3)))
 
 (-> network-2
     network-simulator
-    (immediate-system 0 100000 [[0 {:in (range 10)}]])
+    (immediate-root-simulator 0 100000 (for [i (range 10)]
+                                         [0 [:in i]]))
     pprint)
 
 ;; Note that the ports connecting the executive to the servers have
