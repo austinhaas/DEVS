@@ -3,13 +3,6 @@
 (def infinity #?(:clj  Double/POSITIVE_INFINITY
                  :cljs (.-POSITIVE_INFINITY js/Number)))
 
-#?(:clj
-   (defn now [] (.getTime (java.util.Date.)))
-   :cljs
-   (if (.now (.-performance js/window))
-     (defn now [] (.now (.-performance js/window)))
-     (defn now [] (.getTime (js/Date.)))))
-
 (defn group
   "Returns a map of the elements of coll keyed by the result of key-fn
   on each element. The value at each key will be a data structure of

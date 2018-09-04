@@ -77,14 +77,21 @@
 **** DONE Document this.
 ** DONE Refactor step.
 * DEVS
+** Clean up these notes.
+** Remove the real-time root simulators.
+** Make a cljs example.
+   - What is the simplest way to do that?
+
+     - Consider creating a root directory with new projects that
+       depend on devs.
+** Consider putting all of the models in one example directory.
+   - Tests and examples can use the models.
+** Make input take [time msg*].
+   - To be consistent w/ output.
+   - To assert that msg* are the only messages at time.
 ** Refactor aF-real-time-system.
-*** Clean up these notes.
-*** Fix issue with timing.
-    - Why isn't the time increasing?
-
-    - I think the simple tests are working, because the loop in
-      advance is fine.
-
+   - Still not sure that driving the simulation with aF is the right
+     thing to do.
 *** Implement the quickest, easiest system.
 **** Consider adding an API (or protocol) for the root-simulator.
      - Only implement ext-update (instead of schedule).
@@ -93,7 +100,6 @@
 
      - Motivation: we need tn for real-time-system, and it makes sense
        to follow the Simulator protocol already established.
-
 
 **** Proposal: Keep it simple, with external input fed in via aF.
      - But add helper fns to make it easier to wire in new "real time"
@@ -264,7 +270,8 @@
 **** real-time-system should just be a version that uses channels
      - Do we even need that? Is it better than our io-function
        abstraction.
-
+** Check that we are using the high resolution timer for the browser.
+   - (now) is, but I thought there was a shim for rAF, too.
 ** aF-real-time-system: Add functions to pause and resume.
 ** Set up a simulation with an experimental frame.
    - Make it something that can be used to benchmark.
@@ -275,7 +282,6 @@
      the interface.
      - That's not correct. We still use a function for the API. The
        function creates the map (or record).
-
 ** Performance
    - http://www.i3s.unice.fr/~muzy/Publications/oicms_revised_Nov_21_2005.pdf
      - Only active models need simulators
