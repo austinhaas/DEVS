@@ -20,8 +20,10 @@
   [f]
   (let [handle (atom nil)]
     (letfn [(tick []
-              (when-let [tick (f (now))]
-                (reset! handle (js/requestAnimationFrame tick))))]
+              (println 'tick)
+              (if-let [tick (f (now))]
+                (reset! handle (js/requestAnimationFrame tick))
+                (println 'quitting)))]
       (reset! handle (js/requestAnimationFrame tick)))
     handle))
 
@@ -32,28 +34,25 @@
 ;;------------------------------------------------------------------------------
 
 (defn aF-rt-root-simulator [sim start-time max-delta output!]
-  (atom {:root-sim   (rs/root-simulator sim start-time)
-         :start-time start-time
-         :max-delta  max-delta
-         :output!    output!
-         :af-handle  nil}))
-
-;; The advance function is replaced by start! and stop!.
-
-;; time is decremented to avoid confluence issues with messages that
-;; could still arrive at the current time.
+  (atom {:root-sim       (rs/root-simulator sim start-time)
+         :sim-start-time start-time
+         :max-delta      max-delta
+         :output!        output!
+         :af-handle      nil}))
 
 (defn step [root-sim max-delta last-sim-time last-wall-time curr-wall-time output!]
+  (println 'step)
   (let [actual-delta         (- curr-wall-time last-wall-time)
         adjusted-delta       (min actual-delta max-delta)
         curr-sim-time        (+ last-sim-time adjusted-delta)
         [root-sim' tmsg-out] (rs/advance root-sim curr-sim-time)]
     (doseq [tmsg tmsg-out] (output! tmsg))
-    (fn [_] (step root-sim' curr-sim-time curr-wall-time (now) output!))))
+    (fn [_] (step root-sim' max-delta curr-sim-time curr-wall-time (now) output!))))
 
 (defn start! [pkg]
-  (swap! pkg (fn [{:keys [root-sim start-time max-delta] :as pkg}]
-               (assoc pkg :af-handle (rAF-start! (step root-sim max-delta start-time (now) (now)))))))
+  (swap! pkg (fn [{:keys [root-sim sim-start-time max-delta output!] :as pkg}]
+               (assoc pkg :af-handle (rAF-start! (step root-sim max-delta sim-start-time (now) (now) output!)))))
+  pkg)
 
 (defn stop! [pkg]
   (rAF-stop! (:af-handle @pkg))
