@@ -94,6 +94,7 @@
 
 (defn schedule [root t msg]
   (let [[sim pq] root]
+    (assert (<= (tl sim) t) "Cannot schedule event before most recently executed event.")
     [sim (pq/insert pq t msg)]))
 
 (defn schedule* [root tmsgs]
