@@ -16,18 +16,23 @@
   CLJS, there is a system that uses requestAnimationFrame to drive the
   updates."
   (:require
+   [pettomato.lib.log :as log]
+
    [pettomato.devs.util :refer [infinity]]
    [pettomato.devs.priority-queue :as pq]
    [pettomato.devs.Simulator :refer [init int-update ext-update con-update tl tn]]))
 
 (defn root-simulator [sim start-time]
-  [(init sim start-time) (pq/init)])
+  (log/info "root-simulator")
+  {:sim (init sim start-time)
+   :pq  (pq/init)
+   :tl  start-time})
 
 (defn advance
   "Advances the simulator no later than max-time.
 
    Returns an updated root and a collection of timestamped messages,
-  sorted by timestamp, that the simulator outputs during the update.
+  sorted by timestamp, that the simulator output during the update.
 
    The simulator records the last time that it was updated and will
   throw errors if an attempt is made to update it before that
@@ -50,11 +55,11 @@
   advance, and then schedule an event at max-time. The internal and
   external event should be handled by the confluent function, but in
   this case they won't. If that is possible, for example, when using a
-  real-time system, then the client should fix that issue. One
+  real-time system, then the client should resolve that issue. One
   solution is to decrement max-time by 1 before calling this function,
   so that any undiscovered events will always be after max-time."
   [root max-time]
-  (let [[sim pq] root]
+  (let [{:keys [sim pq tl]} root]
     (loop [sim      sim
            tmsg-in  pq
            tmsg-out (transient [])]
@@ -68,7 +73,10 @@
           (and (or (< max-time int-tn)
                    (= int-tn infinity))
                (or (< max-time ext-tn)
-                   (= ext-tn infinity))) [[sim tmsg-in] (persistent! tmsg-out)]
+                   (= ext-tn infinity))) [{:sim sim
+                                           :pq  tmsg-in
+                                           :tl  max-time}
+                                          (persistent! tmsg-out)]
           ;; The sim internal update is next.
           (< int-tn ext-tn)              (let [[sim' msg*] (int-update sim int-tn)]
                                            (recur sim'
@@ -93,15 +101,22 @@
                                                     tmsg-out))))))))
 
 (defn schedule [root t msg]
-  (let [[sim pq] root]
-    (assert (<= (tl sim) t) "Cannot schedule event before most recently executed event.")
-    [sim (pq/insert pq t msg)]))
+  (assert (<= (:tl root) t) )
+  (when (< t (:tl root))
+    (throw (ex-info "Cannot schedule event before last update time."
+                    {:t   t
+                     :msg msg
+                     :tl  (:tl root)})))
+  (update root :pq pq/insert t msg))
 
 (defn schedule* [root tmsgs]
   (reduce (fn [root [t msg]] (schedule root t msg))
           root
           tmsgs))
 
+(defn time-of-last-update [root]
+  (:tl root))
+
 (defn time-of-next-event [root]
-  (let [[sim pq] root]
+  (let [{:keys [sim pq]} root]
     (min (tn sim) (or (pq/peek-key pq) infinity))))

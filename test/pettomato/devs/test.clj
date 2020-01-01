@@ -3,7 +3,7 @@
    [clojure.test :refer :all]
    [pettomato.devs.util :refer [dissoc-in infinity]]
    [pettomato.devs.test-util :refer [eq?]]
-   [pettomato.devs.models :refer [atomic-model executive-model network-model register unregister connect disconnect]]
+   [pettomato.devs.models :refer [atomic-model executive-model network-model network-id register unregister connect disconnect]]
    [pettomato.devs.atomic-simulator :refer [atomic-simulator]]
    [pettomato.devs.network-simulator :refer [network-simulator]]
    [pettomato.devs.root-simulator-base :as rs]))
@@ -139,13 +139,13 @@
      ;; Initial state.
      (let [Q []
            S (-> {:idle s* :Q Q :sigma 0 :output [['init [(count Q) (count s*)]]]}
-                 (connect :N 'in k 'in)
-                 (connect :N 'remove k 'remove)
-                 (connect :N 'add k 'add)
-                 (connect k 'size :N 'size)
-                 (connect k 'init :N 'init)
-                 (connect k 'send :N 'send)
-                 (connect k 'out :N 'out))]
+                 (connect network-id 'in k 'in)
+                 (connect network-id 'remove k 'remove)
+                 (connect network-id 'add k 'add)
+                 (connect k 'size network-id 'size)
+                 (connect k 'init network-id 'init)
+                 (connect k 'send network-id 'send)
+                 (connect k 'out network-id 'out))]
        (reduce add-server S s*))
      (fn int-update [s]
        (assoc s :sigma infinity :output []))
@@ -212,18 +212,18 @@
         (register :control (control 5))
         (register :node-1 (node [1 2]))
         (register :node-2 (node [3 4]))
-        (connect :N 'in1 :node-1 'in)
-        (connect :N 'in2 :node-2 'in)
+        (connect network-id 'in1 :node-1 'in)
+        (connect network-id 'in2 :node-2 'in)
         (connect :control ['ask 0] :node-1 'remove)
         (connect :control ['ask 1] :node-2 'remove)
         (connect :node-1 'size :control 'size1)
         (connect :node-1 'init :control 'init1)
         (connect :node-1 'send :node-2 'add)
-        (connect :node-1 'out :N 'out)
+        (connect :node-1 'out network-id 'out)
         (connect :node-2 'size :control 'size2)
         (connect :node-2 'init :control 'init2)
         (connect :node-2 'send :node-1 'add)
-        (connect :node-2 'out :N 'out))
+        (connect :node-2 'out network-id 'out))
     nil nil nil
     nil (constantly infinity))))
 
@@ -322,8 +322,8 @@
                 (executive-model
                  (-> {}
                      (register :delay (delay-1 10))
-                     (connect :N :in :delay :in)
-                     (connect :delay :out :N :out))
+                     (connect network-id :in :delay :in)
+                     (connect :delay :out network-id :out))
                  nil nil nil nil (constantly infinity)))
                network-simulator
                (rs/root-simulator 0)
@@ -339,8 +339,8 @@
                 (executive-model
                  (-> {}
                      (register :delay (delay-2 10))
-                     (connect :N :in :delay :in)
-                     (connect :delay :out :N :out))
+                     (connect network-id :in :delay :in)
+                     (connect :delay :out network-id :out))
                  nil nil nil nil (constantly infinity)))
                network-simulator
                (rs/root-simulator 0)

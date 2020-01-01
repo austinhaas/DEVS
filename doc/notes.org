@@ -76,6 +76,43 @@
       - Is that a collection of messages?
 **** DONE Document this.
 ** DONE Refactor step.
+* Old code
+** DEVS message passing optimization
+   Didn't make a significant improvement.
+
+          k->msg*      (reduce (fn [acc k]
+                                 (let [xs (compute pkg k)]
+                                   (case (count xs)
+                                     0 acc
+                                     1 (let [[port val] (first xs)
+                                             xs (find-receivers-m P M C (P k) k port)]
+                                         (case (count xs)
+                                           0 acc
+                                           1 (let [[k' port' t*] (first xs)
+                                                   val' (reduce #(%2 %1) val t*)]
+                                               (update acc k' conj [port' val']))
+                                           (reduce (fn [acc [k' port' t*]]
+                                                     (let [val' (reduce #(%2 %1) val t*)]
+                                                       (update acc k' conj [port' val'])))
+                                                   acc
+                                                   xs)))
+                                     (reduce (fn [acc [port val]]
+                                               (let [xs (find-receivers-m P M C (P k) k port)]
+                                                 (case (count xs)
+                                                   0 acc
+                                                   1 (let [[k' port' t*] (first xs)
+                                                           val' (reduce #(%2 %1) val t*)]
+                                                       (update acc k' conj [port' val']))
+                                                   (reduce (fn [acc [k' port' t*]]
+                                                             (let [val' (reduce #(%2 %1) val t*)]
+                                                               (update acc k' conj [port' val'])))
+                                                           acc
+                                                           xs))))
+                                             acc
+                                             xs))))
+                               {}
+                               imminent)
+
 * DEVS
 ** Clean up these notes.
 ** Remove the real-time root simulators.

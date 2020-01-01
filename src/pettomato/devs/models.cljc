@@ -31,8 +31,8 @@
 (defn time-advance-fn [m] (:time-advance-fn m))
 
 (defn executive-model [init int ext con out ta]
-  (assert (contains? init :components))
-  (assert (contains? init :connections))
+  #_(assert (contains? init :components) "This network has no components.")
+  #_(assert (contains? init :connections) "This network has no connections.")
   (-> (atomic-model init int ext con out ta)
       (assoc :type ::executive)))
 
@@ -58,6 +58,10 @@
   (for [[k m] (get-in s [:connections k1 p1])
         [p t] m]
     [k p t]))
+
+(def network-id
+  "Represents the network in connections."
+  ::N)
 
 (defn network-model [exec-name exec-model]
   (assert (executive? exec-model))
