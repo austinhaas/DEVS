@@ -1,12 +1,12 @@
 (ns pettomato.devs.test
   (:require
    [clojure.test :refer :all]
-   [pettomato.devs.util :refer [dissoc-in infinity]]
-   [pettomato.devs.test-util :refer [eq?]]
-   [pettomato.devs.models :refer [atomic-model executive-model network-model network-id register unregister connect disconnect]]
+   [pettomato.devs.afap-root-simulator :as root-sim :refer [afap-root-simulator]]
    [pettomato.devs.atomic-simulator :refer [atomic-simulator]]
+   [pettomato.devs.models :refer [atomic-model executive-model network-model network-id register unregister connect disconnect]]
    [pettomato.devs.network-simulator :refer [network-simulator]]
-   [pettomato.devs.root-simulator-base :as rs]))
+   [pettomato.devs.test-util :refer [eq?]]
+   [pettomato.devs.util :refer [infinity]]))
 
 (defn generator [value period]
   (atomic-model
@@ -21,14 +21,12 @@
   (is (eq?
        (-> (generator 5 10)
            atomic-simulator
-           (rs/root-simulator 0)
-           (rs/advance 50)
-           second)
+           (afap-root-simulator 0 50 [])
+           root-sim/output)
        [[10 [[:out 5]]]
         [20 [[:out 5]]]
         [30 [[:out 5]]]
-        [40 [[:out 5]]]
-        [50 [[:out 5]]]])))
+        [40 [[:out 5]]]])))
 
 (defn switch [processing-time]
   (atomic-model
@@ -64,14 +62,12 @@
 (deftest switch-test
   (is (eq? (-> (switch 5)
                atomic-simulator
-               (rs/root-simulator 0)
-               (rs/schedule* [[10 [:in1 1]]
-                              [12 [:in1 1]]
-                              [15 [:in1 1]]
-                              [20 [:in1 1]]
-                              [25 [:in2 2]]])
-               (rs/advance 100)
-               second)
+               (afap-root-simulator 0 100 [[10 [:in1 1]]
+                                           [12 [:in1 1]]
+                                           [15 [:in1 1]]
+                                           [20 [:in1 1]]
+                                           [25 [:in2 2]]])
+               root-sim/output)
            [[15 [[:out2 1]]]
             [20 [[:out1 1]]]
             [25 [[:out2 1]]]
@@ -239,19 +235,17 @@
               (= (count (second (second ev*))) 5)))
        (-> network-1
            network-simulator
-           (rs/root-simulator 0)
-           (rs/schedule* [[1 ['in1 0]]
-                          [1 ['in1 1]]
-                          [1 ['in1 2]]
-                          [1 ['in1 3]]
-                          [1 ['in1 4]]
-                          [1 ['in1 5]]
-                          [1 ['in1 6]]
-                          [1 ['in1 7]]
-                          [1 ['in1 8]]
-                          [1 ['in1 9]]])
-           (rs/advance infinity)
-           second))))
+           (afap-root-simulator 0 infinity [[1 ['in1 0]]
+                                            [1 ['in1 1]]
+                                            [1 ['in1 2]]
+                                            [1 ['in1 3]]
+                                            [1 ['in1 4]]
+                                            [1 ['in1 5]]
+                                            [1 ['in1 6]]
+                                            [1 ['in1 7]]
+                                            [1 ['in1 8]]
+                                            [1 ['in1 9]]])
+           root-sim/output))))
 
 (defn delay-1 [processing-time]
   (let [int-update (fn [s]
@@ -297,11 +291,9 @@
 (deftest confluence-test
   (is (eq? (-> (delay-1 10)
                atomic-simulator
-               (rs/root-simulator 0)
-               (rs/schedule* [[0  [:in 1]]
-                              [10 [:in 2]]])
-               (rs/advance 100)
-               second)
+               (afap-root-simulator 0 100 [[0  [:in 1]]
+                                           [10 [:in 2]]])
+               root-sim/output)
            [[10 [[:out 1]]]
             [20 [[:out 2]]]]))
 
@@ -310,11 +302,9 @@
   ;; delay-2.
   (is (eq? (-> (delay-2 10)
                atomic-simulator
-               (rs/root-simulator 0)
-               (rs/schedule* [[0  [:in 1]]
-                              [10 [:in 2]]])
-               (rs/advance 100)
-               second)
+               (afap-root-simulator 0 100 [[0  [:in 1]]
+                                           [10 [:in 2]]])
+               root-sim/output)
            [[10 [[:out 1]]]]))
 
   (is (eq? (-> (network-model
@@ -326,11 +316,9 @@
                      (connect :delay :out network-id :out))
                  nil nil nil nil (constantly infinity)))
                network-simulator
-               (rs/root-simulator 0)
-               (rs/schedule* [[0  [:in 1]]
-                              [10 [:in 2]]])
-               (rs/advance 100)
-               second)
+               (afap-root-simulator 0 100 [[0  [:in 1]]
+                                           [10 [:in 2]]])
+               root-sim/output)
            [[10 [[:out 1]]]
             [20 [[:out 2]]]]))
 
@@ -343,9 +331,7 @@
                      (connect :delay :out network-id :out))
                  nil nil nil nil (constantly infinity)))
                network-simulator
-               (rs/root-simulator 0)
-               (rs/schedule* [[0  [:in 1]]
-                              [10 [:in 2]]])
-               (rs/advance 100)
-               second)
+               (afap-root-simulator 0 100 [[0  [:in 1]]
+                                           [10 [:in 2]]])
+               root-sim/output)
            [[10 [[:out 1]]]])))

@@ -180,7 +180,7 @@
 (defrecord NetworkSimulator [pkg model tl tn]
   Simulator
   (init       [this t]
-    (log/info "NetworkSimulator init")
+    (trace "NetworkSimulator init")
     (trace "[%s] ************************************" t)
     (trace "[%s] NS/init" t)
     (let [pkg'  {:P {}
