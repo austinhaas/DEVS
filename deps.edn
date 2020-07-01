@@ -1,0 +1,14 @@
+{:deps    {org.clojure/clojure {:mvn/version "1.10.1"}
+           pettomato/lib       {:local/root    "../lib"
+                                :deps/manifest :deps}}
+ :paths   ["src"]
+ :aliases {:test        {:extra-paths ["test"]}
+           :clj-runner  {:extra-deps {com.cognitect/test-runner {:git/url "https://github.com/cognitect-labs/test-runner.git"
+                                                                 :sha     "209b64504cb3bd3b99ecfec7937b358a879f55c1"}}
+                         :main-opts  ["-m" "cognitect.test-runner"]}
+           :cljs-runner {:extra-deps {olical/cljs-test-runner {:mvn/version "3.7.0"}}
+                         :main-opts  ["-m" "cljs-test-runner.main"
+                                      "--out" ".cljs-test-runner-out"]}
+           :socket      {:jvm-opts ["-Dclojure.server.repl={:port,5555,:accept,cljs.server.node/repl,:args,[{:opts,{:warn-on-undeclared,false},:env-opts,{}}]}"]}
+           :node-repl   {:main-opts ["--main" "cljs.main"
+                                     "--repl-env node"]}}}
