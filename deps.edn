@@ -9,6 +9,7 @@
            :cljs-runner {:extra-deps {olical/cljs-test-runner {:mvn/version "3.7.0"}}
                          :main-opts  ["-m" "cljs-test-runner.main"
                                       "--out" ".cljs-test-runner-out"]}
-           :socket      {:jvm-opts ["-Dclojure.server.repl={:port,5555,:accept,cljs.server.node/repl,:args,[{:opts,{:warn-on-undeclared,false},:env-opts,{}}]}"]}
+           :clj-socket  {:jvm-opts ["-Dclojure.server.repl={:port,5555,:accept,clojure.core.server/repl}"]}
+           :cljs-socket {:jvm-opts ["-Dclojure.server.repl={:port,5555,:accept,cljs.server.node/repl,:args,[{:opts,{:warn-on-undeclared,false},:env-opts,{}}]}"]}
            :node-repl   {:main-opts ["--main" "cljs.main"
                                      "--repl-env node"]}}}
