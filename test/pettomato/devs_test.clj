@@ -1,4 +1,4 @@
-(ns pettomato.devs.test
+(ns pettomato.devs-test
   (:require
    [clojure.test :refer :all]
    [pettomato.devs.afap-root-simulator :as root-sim :refer [afap-root-simulator]]
