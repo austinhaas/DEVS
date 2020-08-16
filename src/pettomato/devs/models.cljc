@@ -23,41 +23,55 @@
    :output-fn       out
    :time-advance-fn ta})
 
-(defn initial-state   [m] (:initial-state   m))
-(defn int-update-fn   [m] (:int-update-fn   m))
-(defn ext-update-fn   [m] (:ext-update-fn   m))
-(defn con-update-fn   [m] (:con-update-fn   m))
-(defn output-fn       [m] (:output-fn       m))
-(defn time-advance-fn [m] (:time-advance-fn m))
+(defn initial-state   [model] (:initial-state   model))
+(defn int-update-fn   [model] (:int-update-fn   model))
+(defn ext-update-fn   [model] (:ext-update-fn   model))
+(defn con-update-fn   [model] (:con-update-fn   model))
+(defn output-fn       [model] (:output-fn       model))
+(defn time-advance-fn [model] (:time-advance-fn model))
 
 (defn executive-model [init int ext con out ta]
-  #_(assert (contains? init :components) "This network has no components.")
-  #_(assert (contains? init :connections) "This network has no connections.")
   (-> (atomic-model init int ext con out ta)
       (assoc :type ::executive)))
 
-(defn register [s k m]
-  (assoc-in s [:components k] m))
+(defn register
+  "Register the model with the key in state."
+  [state k model]
+  (assoc-in state [:components k] model))
 
-(defn unregister [s k]
-  (dissoc-in s [:components k]))
+(defn unregister
+  "Unregister the model with the key in state."
+  [state k]
+  (dissoc-in state [:components k]))
 
-(defn get-components [s]
-  (:components s))
+(defn get-components
+  "Returns a map from keys to models."
+  [state]
+  (:components state))
 
 (defn connect
-  ([s k1 p1 k2 p2 t]
-   (assert (nil? (get-in s [:connections k1 p1 k2 p2])) (str "There is already a connection between these ports: " [k1 p1] " " [k2 p2]))
-   (assoc-in s [:connections k1 p1 k2 p2] t))
-  ([s k1 p1 k2 p2]   (connect s k1 p1 k2 p2 identity)))
+  "Add a connection to state s between key k1, port p1 and key k2, port p2.
 
-(defn disconnect [s k1 p1 k2 p2]
+  An optional transducer can be supplied, which will be applied to each value
+  that passes across this connection."
+  ([s k1 p1 k2 p2]
+   (connect s k1 p1 k2 p2 identity))
+  ([s k1 p1 k2 p2 xform]
+   (assert (nil? (get-in s [:connections k1 p1 k2 p2])) (str "There is already a connection between these ports: " [k1 p1] " " [k2 p2]))
+   (assoc-in s [:connections k1 p1 k2 p2] xform)))
+
+(defn disconnect
+  "Remove a connection from state s between key k1, port p1 and key k2, port p2."
+  [s k1 p1 k2 p2]
   (dissoc-in s [:connections k1 p1 k2 p2]))
 
-(defn get-connections [s k1 p1]
-  (for [[k m] (get-in s [:connections k1 p1])
-        [p t] m]
-    [k p t]))
+(defn get-connections
+  "Returns a seq of [k p xform], where k, p is the key, port of the receiver and
+  xform is the transducer to apply to each message."
+  [s k1 p1]
+  (for [[k m]     (get-in s [:connections k1 p1])
+        [p xform] m]
+    [k p xform]))
 
 (def network-id
   "Represents the network in connections."
@@ -69,5 +83,5 @@
    :executive-name  exec-name
    :executive-model exec-model})
 
-(defn exec-name  [m] (:executive-name  m))
-(defn exec-model [m] (:executive-model m))
+(defn exec-name  [model] (:executive-name  model))
+(defn exec-model [model] (:executive-model model))
