@@ -1,4 +1,6 @@
 (ns pettomato.devs.afap-root-simulator
+  "As fast as possible. Runs a simulation from start to finish as fast as the host
+  computer can compute it."
   (:require
    [pettomato.devs.root-simulator-base :as rsb]))
 
