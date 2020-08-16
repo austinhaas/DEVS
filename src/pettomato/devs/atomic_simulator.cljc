@@ -3,9 +3,9 @@
    [pettomato.devs.Simulator :refer [Simulator]]
    [pettomato.devs.models :refer [atomic? initial-state int-update-fn ext-update-fn con-update-fn output-fn time-advance-fn]]))
 
-(defn- checked-time-advance [m s]
-  (let [sigma ((time-advance-fn m) s)]
-    (assert (>= sigma 0))
+(defn- checked-time-advance [model state]
+  (let [sigma ((time-advance-fn model) state)]
+    (assert (<= 0 sigma))
     sigma))
 
 (defrecord AtomicSimulator [model state tl tn]
