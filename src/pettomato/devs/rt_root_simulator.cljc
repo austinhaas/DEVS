@@ -1,4 +1,6 @@
 (ns pettomato.devs.rt-root-simulator
+  "Real-time root simulator. Tries to synchronize the simulation time with a
+  real-world clock."
   (:require
    #?(:cljs [goog.async.Delay :as gdelay])
    [pettomato.devs.root-simulator-base :as rsb]
