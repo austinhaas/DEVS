@@ -16,7 +16,7 @@ See [doc/tutorial.clj](./doc/tutorial.clj).
 
 ## License
 
-Copyright © 2016 Austin Haas
+Copyright © 2020 Austin Haas
 
 Distributed under the Eclipse Public License either version 1.0 or (at
 your option) any later version.
