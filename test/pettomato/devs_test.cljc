@@ -1,6 +1,9 @@
 (ns pettomato.devs-test
   (:require
-   [clojure.test :refer :all]
+   #?(:clj
+      [clojure.test :refer :all]
+      :cljs
+      [cljs.test :refer-macros [deftest is testing]])
    [pettomato.devs.afap-root-simulator :as root-sim :refer [afap-root-simulator]]
    [pettomato.devs.atomic-simulator :refer [atomic-simulator]]
    [pettomato.devs.models :refer [atomic-model executive-model network-model network-id register unregister connect disconnect]]
@@ -62,11 +65,11 @@
 (deftest switch-test
   (is (eq? (-> (switch 5)
                atomic-simulator
-               (afap-root-simulator 0 100 [[10 [:in1 1]]
-                                           [12 [:in1 1]]
-                                           [15 [:in1 1]]
-                                           [20 [:in1 1]]
-                                           [25 [:in2 2]]])
+               (afap-root-simulator 0 100 [[10 [[:in1 1]]]
+                                           [12 [[:in1 1]]]
+                                           [15 [[:in1 1]]]
+                                           [20 [[:in1 1]]]
+                                           [25 [[:in2 2]]]])
                root-sim/output)
            [[15 [[:out2 1]]]
             [20 [[:out1 1]]]
@@ -235,16 +238,16 @@
               (= (count (second (second ev*))) 5)))
        (-> network-1
            network-simulator
-           (afap-root-simulator 0 infinity [[1 ['in1 0]]
-                                            [1 ['in1 1]]
-                                            [1 ['in1 2]]
-                                            [1 ['in1 3]]
-                                            [1 ['in1 4]]
-                                            [1 ['in1 5]]
-                                            [1 ['in1 6]]
-                                            [1 ['in1 7]]
-                                            [1 ['in1 8]]
-                                            [1 ['in1 9]]])
+           (afap-root-simulator 0 infinity [[1 [['in1 0]
+                                                ['in1 1]
+                                                ['in1 2]
+                                                ['in1 3]
+                                                ['in1 4]
+                                                ['in1 5]
+                                                ['in1 6]
+                                                ['in1 7]
+                                                ['in1 8]
+                                                ['in1 9]]]])
            root-sim/output))))
 
 (defn delay-1 [processing-time]
@@ -291,8 +294,8 @@
 (deftest confluence-test
   (is (eq? (-> (delay-1 10)
                atomic-simulator
-               (afap-root-simulator 0 100 [[0  [:in 1]]
-                                           [10 [:in 2]]])
+               (afap-root-simulator 0 100 [[0  [[:in 1]]]
+                                           [10 [[:in 2]]]])
                root-sim/output)
            [[10 [[:out 1]]]
             [20 [[:out 2]]]]))
@@ -302,8 +305,8 @@
   ;; delay-2.
   (is (eq? (-> (delay-2 10)
                atomic-simulator
-               (afap-root-simulator 0 100 [[0  [:in 1]]
-                                           [10 [:in 2]]])
+               (afap-root-simulator 0 100 [[0  [[:in 1]]]
+                                           [10 [[:in 2]]]])
                root-sim/output)
            [[10 [[:out 1]]]]))
 
@@ -316,8 +319,8 @@
                      (connect :delay :out network-id :out))
                  nil nil nil nil (constantly infinity)))
                network-simulator
-               (afap-root-simulator 0 100 [[0  [:in 1]]
-                                           [10 [:in 2]]])
+               (afap-root-simulator 0 100 [[0  [[:in 1]]]
+                                           [10 [[:in 2]]]])
                root-sim/output)
            [[10 [[:out 1]]]
             [20 [[:out 2]]]]))
@@ -331,7 +334,7 @@
                      (connect :delay :out network-id :out))
                  nil nil nil nil (constantly infinity)))
                network-simulator
-               (afap-root-simulator 0 100 [[0  [:in 1]]
-                                           [10 [:in 2]]])
+               (afap-root-simulator 0 100 [[0  [[:in 1]]]
+                                           [10 [[:in 2]]]])
                root-sim/output)
            [[10 [[:out 1]]]])))

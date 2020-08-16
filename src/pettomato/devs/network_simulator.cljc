@@ -155,7 +155,7 @@
                        S'))
                    S
                    k*)
-        Q' (pq/modify* Q (for [k k*] [(:tn (S k)) k (:tn (S' k))]))]
+        Q' (pq/change-priority* Q (for [k k*] [(:tn (S k)) k (:tn (S' k))]))]
     (assoc pkg :S S' :Q Q')))
 
 (defn- update-network [pkg pkg' re t]

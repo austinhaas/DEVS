@@ -66,7 +66,9 @@
                                           (assoc :sim sim')
                                           (update :input pq/pop))))))))
 
-(defn schedule [pkg t msg]
+(defn schedule
+  "Schedule msg at time t."
+  [pkg t msg]
   (when (< t (tl (:sim pkg)))
     (throw (ex-info "Cannot schedule event before last update time."
                     {:t   t
@@ -74,10 +76,15 @@
                      :tl  (tl (:sim pkg))})))
   (update pkg :input pq/insert t msg))
 
-(defn schedule* [pkg tmsgs]
-  (reduce (fn [pkg [t msg]] (schedule pkg t msg))
+(defn schedule*
+  "Schedule messages. tmsgs is a seq of [t msgs]."
+  [pkg tmsgs]
+  (reduce (fn [pkg [t msg]]
+            (schedule pkg t msg))
           pkg
-          tmsgs))
+          (for [[t msgs] tmsgs
+                msg      msgs]
+            [t msg])))
 
 (defn time-of-last-update [pkg]
   (tl (:sim pkg)))

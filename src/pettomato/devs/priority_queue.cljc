@@ -12,7 +12,7 @@
   This implementation is intended to be used in cases where delete and
   update are required; and the range of current keys is relatively
   small, so many values map to the same key."
-  (:refer-clojure :exclude [peek pop])
+  (:refer-clojure :exclude [empty? peek pop])
   (:require
    [pettomato.devs.util :refer [infinity group]]))
 
@@ -23,60 +23,70 @@
   ([] (sorted-map))
   ([& keyvals] (reduce (fn [m [k v]] (insert m k v)) (sorted-map) (partition 2 keyvals))))
 
-(def conjs (fnil conj #{}))
+(defn empty?
+  "Returns true if pq has no items."
+  [pq]
+  (clojure.core/empty? pq))
 
 (defn insert
-  "Add v to priority-queue, pq, with priority k, unless k is nil or
-  infinity."
+  "Add v to pq, with priority k, unless k is nil or infinity."
   [pq k v]
   (if (or (nil? k) (= k infinity))
     pq
-    (update pq k conjs v)))
+    (update pq k (fnil conj #{}) v)))
 
-(defn insert* [pq k-v*]
-  (let [m (group first second [] k-v*)]
-    (reduce-kv (fn [m k v*]
-                 (if (or (nil? k) (= k infinity))
-                   m
-                   (assoc m k (persistent!
-                               (reduce (fn [m v] (conj! m v ))
-                                       (transient (get m k #{}))
-                                       v*)))))
-               pq
-               m)))
+(defn insert*
+  "Add each item in coll vs to pq with priority k, unless k is nil or infinity."
+  [pq k vs]
+  (if (or (nil? k) (= k infinity))
+    pq
+    (update pq k (fnil into #{}) vs)))
 
 (defn delete
-  "Remove v from priority-queue, pq."
+  "Delete item v with priority k from pq."
   [pq k v]
-  (let [pq' (update pq k disj v)]
-    (if (empty? (get pq' k))
-      (dissoc pq' k)
-      pq')))
+  (let [s  (get pq k)
+        s' (disj s v)]
+    ;; Empty sets are pruned, so the size doesn't grow if the set of possible
+    ;; keys is unbound.
+    (if (clojure.core/empty? s')
+      (dissoc pq k)
+      (assoc pq k s'))))
 
-(defn delete* [pq k-v*]
-  (let [m (group first second [] k-v*)]
-    (reduce-kv (fn [m k v*]
-                 (if (or (nil? k) (= k infinity))
-                   m
-                   (let [s' (persistent!
-                             (reduce (fn [m v] (disj! m v ))
-                                     (transient (get m k #{}))
-                                     v*))]
-                     (if (empty? s')
-                       (dissoc m k)
-                       (assoc m k s')))))
-               pq
-               m)))
+(defn delete*
+  "Delete each item in coll vs with priority k from pq."
+  [pq k vs]
+  (let [s  (get pq k)
+        s' (reduce disj s vs)]
+    ;; Empty sets are pruned, so the size doesn't grow if the set of possible
+    ;; keys is unbound.
+    (if (clojure.core/empty? s')
+      (dissoc pq k)
+      (assoc pq k s'))))
 
-(defn modify [pq k1 v k2]
+(defn change-priority
+  "Change the priority of item v from k1 to k2."
+  [pq k1 v k2]
   (if (= k1 k2)
     pq
     (-> pq (delete k1 v) (insert k2 v))))
 
-(defn modify* [pq k1-v-k2*]
-  (-> pq
-      (delete* (for [[k1 v k2] k1-v-k2* :when (not= k1 k2)] [k1 v]))
-      (insert* (for [[k1 v k2] k1-v-k2* :when (not= k1 k2)] [k2 v]))))
+(defn change-priority*
+  "Change the priority of each [k1 v k2] in k1-v-k2*."
+  [pq k1-v-k2*]
+  (let [[ds is] (reduce (fn [[ds is] [k1 v k2]]
+                          [(update ds k1 conj v)
+                           (update is k2 conj v)])
+                        [{} {}]
+                        k1-v-k2*)]
+    (as-> pq pq
+      (reduce-kv delete* pq ds)
+      (reduce-kv insert* pq is))))
+
+(defn peek-key
+  "Returns the highest priority in pq."
+  [pq]
+  (ffirst pq))
 
 (defn peek
   "Returns a set containing ALL items with highest priority."
@@ -88,7 +98,7 @@
   [pq]
   (dissoc pq (ffirst pq)))
 
-(defn peek-key
-  "Returns the highest priority in pq."
+(defn ->seq
+  "Returns the contents of priority-queue pq as an ordered seq."
   [pq]
-  (ffirst pq))
+  (seq pq))
