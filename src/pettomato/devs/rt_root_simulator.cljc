@@ -10,11 +10,13 @@
    [pettomato.lib.log :as log]))
 
 (defn- after [ms f]
-  #?(:clj (future (Thread/sleep ms)
-                  (f))
-     :cljs (let [d (goog.async.Delay. f ms)]
-             (.start d)
-             d)))
+  (if (< ms 0)
+    (do (f) nil)
+    #?(:clj (future (Thread/sleep ms)
+                    (f))
+       :cljs (let [d (goog.async.Delay. f ms)]
+               (.start d)
+               d))))
 
 (defn- cancel-after [x]
   (log/info "cancel-after")
