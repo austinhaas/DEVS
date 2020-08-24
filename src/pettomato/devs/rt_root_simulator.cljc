@@ -41,8 +41,8 @@
     #_(log/infof "tn: %s" tn)
     (- tn sim-time)))
 
-(defn- handle-next-event% [pkg id]
-  #_(log/infof "handle-next-event%: %s" id)
+(defn- handle-next-event [pkg id]
+  (log/infof "handle-next-event: %s" id)
   (let [root-sim  (:root-sim pkg)
         root-sim' (rsb/step root-sim)
         out-msgs  (rsb/output root-sim')
@@ -54,13 +54,22 @@
         (assoc :pending nil))))
 
 (defn handle-next-event! [apkg]
-  #_(log/info "handle-next-event!")
+  (log/info "handle-next-event!")
   (swap! apkg (fn [pkg]
                 (let [delta (ms-until-next-event pkg)
                       id    (gensym)]
-                  #_(log/infof "delta: %s, id: %s" delta id)
-                  (assoc pkg :pending (after delta #(do (swap! apkg (fn [pkg] (handle-next-event% pkg id)))
-                                                        (handle-next-event! apkg))))))))
+                  (log/infof "delta: %s, id: %s" delta id)
+                  (cond
+                    (<= delta 0)
+                    (recur (handle-next-event pkg id))
+
+                    (< delta infinity)
+                    (assoc pkg :pending (after delta #(do (swap! apkg (fn [pkg] (handle-next-event pkg id)))
+                                                          (handle-next-event! apkg))))
+
+                    :else
+                    (do (log/info "Nothing to do.")
+                        pkg))))))
 
 (defn start! [apkg]
   (log/info "start!")
