@@ -28,7 +28,7 @@
   (assert (<= (:wt clock) wt))
   (-> clock
       (assoc :wt wt)
-      (update :st + (* (- wt (:wt clock)) (:scale clock)))))
+      (update :st + (long (* (- wt (:wt clock)) (:scale clock))))))
 
 (defn set-time [clock wt st]
   (assoc clock :wt wt :st st))
