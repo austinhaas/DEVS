@@ -42,7 +42,7 @@
     (- tn sim-time)))
 
 (defn- handle-next-event [pkg id]
-  (log/infof "handle-next-event: %s" id)
+  #_(log/infof "handle-next-event: %s" id)
   (let [root-sim  (:root-sim pkg)
         root-sim' (rsb/step root-sim)
         out-msgs  (rsb/output root-sim')
@@ -54,11 +54,11 @@
         (assoc :pending nil))))
 
 (defn handle-next-event! [apkg]
-  (log/info "handle-next-event!")
+  #_(log/info "handle-next-event!")
   (swap! apkg (fn [pkg]
                 (let [delta (ms-until-next-event pkg)
                       id    (gensym)]
-                  (log/infof "delta: %s, id: %s" delta id)
+                  #_(log/infof "delta: %s, id: %s" delta id)
                   (cond
                     (<= delta 0)
                     (recur (handle-next-event pkg id))
@@ -68,8 +68,9 @@
                                                           (handle-next-event! apkg))))
 
                     :else
-                    (do (log/info "Nothing to do.")
-                        pkg))))))
+                    (do #_(log/info "Nothing to do.")
+                        pkg)))))
+  nil)
 
 (defn start! [apkg]
   (log/info "start!")
@@ -79,7 +80,7 @@
                   pkg)))
   ;; TODO: Don't do this if the clock is paused!
   (handle-next-event! apkg)
-  apkg)
+  nil)
 
 (defn stop! [apkg]
   (log/info "stop!")
@@ -89,7 +90,7 @@
                       (update :pending cancel-after)
                       (update :clock clock/pause (timestamp)))
                   pkg)))
-  apkg)
+  nil)
 
 (defn schedule! [apkg t msg]
   (log/infof "schedule!: %s" t)
@@ -101,15 +102,15 @@
                   (when (not (clock/paused? (:clock pkg)))
                     (handle-next-event! apkg))
                   pkg)))
-  apkg)
+  nil)
 
-(defn schedule-now! [pkg msg]
+(defn schedule-now! [apkg msg]
   (log/info "schedule-now!")
-  (swap! pkg (fn [pkg]
+  (swap! apkg (fn [pkg]
                (-> pkg
                    (update :pending cancel-after)
                    (update :root-sim rsb/schedule (clock/get-time (:clock pkg) (timestamp)) msg))))
-  (handle-next-event! pkg))
+  (handle-next-event! apkg))
 
 (comment
 
