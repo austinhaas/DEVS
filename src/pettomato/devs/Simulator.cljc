@@ -6,4 +6,4 @@
   (ext-update [sim x t] "Triggers an external update of the simulation. Returns new-sim.")
   (con-update [sim x t] "Triggers a confluent update of the simulation. Returns [new-sim output-messages].")
   (tl         [sim]     "Time of the last sim update.")
-  (tn         [sim]     "Time of the next internal sim update."))
+  (tn         [sim]     "Scheduled time of next sim internal update."))
