@@ -25,7 +25,7 @@
        (-> (generator 5 10)
            atomic-simulator
            (afap-root-simulator 0 50 [])
-           root-sim/output)
+           second)
        [[10 [[:out 5]]]
         [20 [[:out 5]]]
         [30 [[:out 5]]]
@@ -70,7 +70,7 @@
                                            [15 [[:in1 1]]]
                                            [20 [[:in1 1]]]
                                            [25 [[:in2 2]]]])
-               root-sim/output)
+               second)
            [[15 [[:out2 1]]]
             [20 [[:out1 1]]]
             [25 [[:out2 1]]]
@@ -248,7 +248,7 @@
                                                 ['in1 7]
                                                 ['in1 8]
                                                 ['in1 9]]]])
-           root-sim/output))))
+           second))))
 
 (defn delay-1 [processing-time]
   (let [int-update (fn [s]
@@ -296,7 +296,7 @@
                atomic-simulator
                (afap-root-simulator 0 100 [[0  [[:in 1]]]
                                            [10 [[:in 2]]]])
-               root-sim/output)
+               second)
            [[10 [[:out 1]]]
             [20 [[:out 2]]]]))
 
@@ -307,7 +307,7 @@
                atomic-simulator
                (afap-root-simulator 0 100 [[0  [[:in 1]]]
                                            [10 [[:in 2]]]])
-               root-sim/output)
+               second)
            [[10 [[:out 1]]]]))
 
   (is (eq? (-> (network-model
@@ -321,7 +321,7 @@
                network-simulator
                (afap-root-simulator 0 100 [[0  [[:in 1]]]
                                            [10 [[:in 2]]]])
-               root-sim/output)
+               second)
            [[10 [[:out 1]]]
             [20 [[:out 2]]]]))
 
@@ -336,5 +336,5 @@
                network-simulator
                (afap-root-simulator 0 100 [[0  [[:in 1]]]
                                            [10 [[:in 2]]]])
-               root-sim/output)
+               second)
            [[10 [[:out 1]]]])))

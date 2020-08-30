@@ -9,8 +9,12 @@
    [pettomato.lib.date :refer [timestamp]]
    [pettomato.lib.log :as log]))
 
-(defn- after [ms f]
-  (if (< ms 0)
+(defn- after
+  "Evaluate f, presumably for side effects, after ms milliseconds.
+
+  If ms is <= 0, it is evaluated immediately."
+  [ms f]
+  (if (<= ms 0)
     (do (f) nil)
     #?(:clj (future (Thread/sleep ms)
                     (f))
@@ -43,10 +47,8 @@
 
 (defn- handle-next-event [pkg id]
   #_(log/infof "handle-next-event: %s" id)
-  (let [root-sim  (:root-sim pkg)
-        root-sim' (rsb/step root-sim)
-        out-msgs  (rsb/output root-sim')
-        root-sim' (rsb/clear-output root-sim')]
+  (let [root-sim             (:root-sim pkg)
+        [root-sim' out-msgs] (rsb/step root-sim)]
     (when (seq out-msgs)
       ((:output-fn pkg) out-msgs))
     (-> pkg
