@@ -1,7 +1,8 @@
-(ns pettomato.devs-test
+(ns pettomato.devs.dsdevs-test
+  #_
   (:require
    #?(:clj
-      [clojure.test :refer :all]
+      [clojure.test :refer [deftest is testing]]
       :cljs
       [cljs.test :refer-macros [deftest is testing]])
    [pettomato.devs.afap-root-simulator :as root-sim :refer [afap-root-simulator]]
@@ -9,98 +10,13 @@
    [pettomato.devs.models :refer [atomic-model executive-model network-model network-id register unregister connect disconnect]]
    [pettomato.devs.network-simulator :refer [network-simulator]]
    [pettomato.devs.test-util :refer [eq?]]
-   [pettomato.devs.util :refer [infinity]]))
-
-(defn generator [value period]
-  (atomic-model
-   {}
-   identity
-   nil
-   nil
-   (constantly [[:out value]])
-   (constantly period)))
-
-(deftest generator-test
-  (is (eq?
-       (-> (generator 5 10)
-           atomic-simulator
-           (afap-root-simulator 0 50 [])
-           second)
-       [[10 [[:out 5]]]
-        [20 [[:out 5]]]
-        [30 [[:out 5]]]
-        [40 [[:out 5]]]])))
-
-(defn switch [processing-time]
-  (atomic-model
-   {:phase   :passive
-    :sigma   infinity
-    :inport  :in1
-    :store   nil
-    :switch? true}
-   (fn int-update [s]
-     (assoc s :phase :passive :sigma infinity))
-   (fn ext-update [s e x]
-     (let [[port val] (first x)]
-       (if (= (:phase s) :passive)
-         (assoc s
-                :phase  :busy
-                :sigma   processing-time
-                :inport  port
-                :store   val
-                :switch? (not (:switch? s)))
-         (assoc s :sigma (- (:sigma s) e)))))
-   nil
-   (fn output [s]
-     (case (:phase s)
-       :busy (case (:switch? s)
-               true (case (:inport s)
-                      :in1 [[:out1 (:store s)]]
-                      :in2 [[:out2 (:store s)]])
-               false (case (:inport s)
-                       :in1 [[:out2 (:store s)]]
-                       :in2 [[:out1 (:store s)]]))))
-   :sigma))
-
-(deftest switch-test
-  (is (eq? (-> (switch 5)
-               atomic-simulator
-               (afap-root-simulator 0 100 [[10 [[:in1 1]]]
-                                           [12 [[:in1 1]]]
-                                           [15 [[:in1 1]]]
-                                           [20 [[:in1 1]]]
-                                           [25 [[:in2 2]]]])
-               second)
-           [[15 [[:out2 1]]]
-            [20 [[:out1 1]]]
-            [25 [[:out2 1]]]
-            [30 [[:out2 2]]]])))
-
-(defn simple-delay-component [processing-time]
-  (atomic-model
-   ["passive" infinity 1]
-   (fn [s]
-     (let [[phase sigma store] s]
-       ["passive" infinity store]))
-   (fn [s e x]
-     (assert (= 1 (count x)))
-     (let [[phase sigma store] s
-           [p v]               (first x)]
-       (if (= phase "passive")
-         ["busy" processing-time v]
-         ["passive" (- sigma e) store])))
-   nil
-   (fn [s]
-     (let [[phase sigma store] s]
-       [['out store]]))
-   (fn [s]
-     (let [[phase sigma store] s]
-       sigma))))
+   [pettomato.devs.util :refer [infinity]])
+  )
 
 ;;; Example from Theory of Modeling and Simulation, 2nd Ed., pp. 237-240.
-
+#_
 (def server simple-delay-component)
-
+#_
 (defn queue [k s*]
   (letfn [(add-server [s k']
             (-> s
@@ -156,10 +72,10 @@
      nil
      :output
      :sigma)))
-
+#_
 (defn node [servers]
   (network-model :queue (queue :queue servers)))
-
+#_
 (defn control [threshold]
   (letfn [(update-size [s k q-size idle-size]
             (-> s
@@ -202,7 +118,7 @@
      nil
      :output
      :sigma)))
-
+#_
 (def network-1
   (network-model
    :network-1
@@ -225,7 +141,7 @@
         (connect :node-2 'out network-id 'out))
     nil nil nil
     nil (constantly infinity))))
-
+#_
 (deftest dynamic-network-test
   (is ((fn [ev*]
          ;; This is ugly. The idea is that there should only be two
@@ -249,7 +165,7 @@
                                                 ['in1 8]
                                                 ['in1 9]]]])
            second))))
-
+#_
 (defn delay-1 [processing-time]
   (let [int-update (fn [s]
                      (assoc s :phase :passive :sigma infinity))
@@ -271,6 +187,7 @@
     :sigma)))
 
 ;; Same as above, but the confluent fn prioritizes ext-update over int-update.
+#_
 (defn delay-2 [processing-time]
   (let [int-update (fn [s]
                      (assoc s :phase :passive :sigma infinity))
@@ -290,7 +207,7 @@
       (int-update (ext-update s e x)))
     (fn output [s] [[:out (:store s)]])
     :sigma)))
-
+#_
 (deftest confluence-test
   (is (eq? (-> (delay-1 10)
                atomic-simulator

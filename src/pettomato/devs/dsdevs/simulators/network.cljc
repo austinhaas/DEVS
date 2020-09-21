@@ -1,10 +1,8 @@
-(ns pettomato.devs.network-simulator
+(ns pettomato.devs.dsdevs.simulators.network
   "Muzy, Alexander, and James J. Nutaro. \"Algorithms for efficient
    implementations of the DEVS & DSDEVS abstract simulators.\"
    1st Open International Conference on Modeling & Simulation (OICMS). 2005.
-   http://www.i3s.unice.fr/~muzy/Publications/oicms_revised_Nov_21_2005.pdf
-
-  In the literature, this is usually referred to as a coordinator."
+   http://www.i3s.unice.fr/~muzy/Publications/oicms_revised_Nov_21_2005.pdf"
   (:require
    [clojure.set :refer [difference]]
    [pettomato.lib.log :as log]
@@ -56,12 +54,13 @@
                          (let [d' (if (= d network-id) p (cons d p))
                                m  (get M d')]
                            (cond
-                             (atomic? m)  [s* (conj r* [d' port' (apply comp (conj t* t))])]
-                             (= d' ())    [s* (conj r* [d' port' (apply comp (conj t* t))])]
-                             (= d' p)     [(conj s* [(get P d') d' port' (conj t* t)]) r*]
-                             (network? m) [(conj s* [d' (cons network-id (rest d')) port' (conj t* t)]) r*]
-                             :else        (throw (ex-info (str "No connection found from " src " to " d' " via port " port' ".")
-                                                          {})))))
+                             (or (atomic? m)
+                                 (executive? m)) [s* (conj r* [d' port' (apply comp (conj t* t))])]
+                             (= d' ())           [s* (conj r* [d' port' (apply comp (conj t* t))])]
+                             (= d' p)            [(conj s* [(get P d') d' port' (conj t* t)]) r*]
+                             (network? m)        [(conj s* [d' (cons network-id (rest d')) port' (conj t* t)]) r*]
+                             :else               (throw (ex-info (str "No connection found from " src " to " d' " via port " port' ".")
+                                                                 {})))))
                        [s*' r*]
                        connections)))
       r*)))
@@ -83,9 +82,9 @@
                                (-> pkg
                                    (update :P assoc p (rest p))
                                    (update :M assoc p m)
-                                   (update :S assoc p {:state  s
-                                                       :tl     t
-                                                       :tn     tn})
+                                   (update :S assoc p {:state s
+                                                       :tl    t
+                                                       :tn    tn})
                                    (update :C assoc p (get s :connections))
                                    (update :Q pq/insert tn p)
                                    (assoc :find-receivers-m (memoize find-receivers))))
@@ -94,9 +93,9 @@
                                (-> pkg
                                    (update :P assoc p (rest p))
                                    (update :M assoc p m)
-                                   (update :S assoc p {:state  s
-                                                       :tl     t
-                                                       :tn     tn})
+                                   (update :S assoc p {:state s
+                                                       :tl    t
+                                                       :tn    tn})
                                    (update :Q pq/insert tn p)))))
           pkg
           (flatten-model path model)))
@@ -183,8 +182,8 @@
     (trace "NetworkSimulator init")
     (trace "[%s] ************************************" t)
     (trace "[%s] NS/init" t)
-    (let [pkg'  {:P {}
-                 :M {}
+    (let [pkg'  {:P {} ;; parent
+                 :M {} ;; model
                  :S {}
                  :C {}
                  :Q (pq/init)

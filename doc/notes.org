@@ -114,6 +114,72 @@
                                imminent)
 
 * DEVS
+** DONE Finish coupled simulator
+** Create examples
+   - Put in examples ns.
+** Add tests.
+   - Use examples.
+** Consider alternatives to the current network-id implementation.
+** Document examples.
+** put this somewhere
+(defn normalize [tmsg*]
+  (->> tmsg*
+       (postwalk (fn [x] (if (number? x) (float x) x)))
+       (map (fn [[t m]] [t (set m)]))))
+
+(defn eq? [a b]
+  (= (normalize a) (normalize b)))
+
+(defn pprint-timestamped-msg* [tmsg*]
+  (doseq [[t msg] tmsg*] (println (format "[%.3f] %s" (float t) msg))))
+
+** Create a simple benchmark.
+   - Just want something to test against as we move forward.
+** Update DSDEVS implementation.
+*** Read the chapter in the book.
+*** Use map for messages.
+*** Clean up network simulator.
+**** Use readable identifiers.
+**** Update to support coupled models.
+*** Consider creating a version of the network simulator that does not flatten.
+    - Not sure we have a use case.
+** Determine how to to implement a sufficient root coordinator
+   - Refer to the Time Warp example.
+** update docs
+*** Put this documentation somewhere
+
+  The core of a root-simulator, but without an \"update driver\".
+
+  This core provides a priority-queue for scheduling future events, and a step
+  function to update the simulation based on the next event, which may be
+  internal, external, or both simultaneously.
+
+  A complete root-simulator implementation depends on the platform and
+  requirements. Some examples:
+
+  - An \"as-fast-as-possible\" simulator may run through an entire simulation in a single loop.
+  - A Real-Time simulator might synchronize the updates with a real-time clock.
+  - In the browser, a Real-Time simulator might use setInterval or updateAnimationFrame to drive the updates.
+  - On the JVM, a Real-Time simulator might use threads.
+
+  All cases need a way to schedule future events and all cases use the same
+  logic for determining the next event and processing it.
+
+  Note that \"simulator\" is synonymous with \"coordinator\". A coordinator is a
+  simulator associated with a coupled model. A coupled model may also be
+  referred to as a network model.
+
+  The symbols "key", "k", "k1", etc. are synonomous with "model name".
+
+** flashy demo
+   - It would be cool to do something 3D, but maybe better to do something that
+     can be shown in 100 LOC.
+   - Consider a cute educational virus sim.
+     - Bunnies turning green and coughing.
+     - Expose all parameters.
+       - E.g., how much masks help.
+
+** -----------------------------------------------------------------------------
 ** Clean up these notes.
 ** Remove the real-time root simulators.
 ** Make a cljs example.
@@ -319,14 +385,6 @@
      the interface.
      - That's not correct. We still use a function for the API. The
        function creates the map (or record).
-** Performance
-   - http://www.i3s.unice.fr/~muzy/Publications/oicms_revised_Nov_21_2005.pdf
-     - Only active models need simulators
-     - One coordinator can manage a hierarchy of networked models.
-** Consider flattening coupled models.
-   - Every paper says they do that to minimize communication delays
-     between atomic models.
-   - Are we doing that already? Should we?
 ** Consider declaring ports in models.
    - To elucidate the interface.
    - Could this buy additional clarity in the handling of messages?
