@@ -113,15 +113,7 @@
                                {}
                                imminent)
 
-* DEVS
-** DONE Finish coupled simulator
-** Create examples
-   - Put in examples ns.
-** Add tests.
-   - Use examples.
-** Consider alternatives to the current network-id implementation.
-** Document examples.
-** put this somewhere
+** old test helper code
 (defn normalize [tmsg*]
   (->> tmsg*
        (postwalk (fn [x] (if (number? x) (float x) x)))
@@ -133,6 +125,86 @@
 (defn pprint-timestamped-msg* [tmsg*]
   (doseq [[t msg] tmsg*] (println (format "[%.3f] %s" (float t) msg))))
 
+** switch code
+;; I think this version isn't intended for Parallel DEVS
+
+(defn switch [processing-time]
+  (atomic-model
+   [{:phase   :passive
+     :sigma   infinity
+     :inport  :in1
+     :store   nil
+     :switch? true} 0]
+   (fn int-update [s]
+     (assoc s :phase :passive :sigma infinity))
+   (fn ext-update [s e x]
+     (let [[port val] (first x)]
+       (if (= (:phase s) :passive)
+         (assoc s
+                :phase  :busy
+                :sigma   processing-time
+                :inport  port
+                :store   val
+                :switch? (not (:switch? s)))
+         (assoc s :sigma (- (:sigma s) e)))))
+   nil
+   (fn output [s]
+     (case (:phase s)
+       :busy (case (:switch? s)
+               true (case (:inport s)
+                      :in1 [[:out1 (:store s)]]
+                      :in2 [[:out2 (:store s)]])
+               false (case (:inport s)
+                       :in1 [[:out2 (:store s)]]
+                       :in2 [[:out1 (:store s)]]))))
+   :sigma))
+
+
+[[10 [[:in1 1]]]
+ [12 [[:in1 1]]]
+ [15 [[:in1 1]]]
+ [20 [[:in1 1]]]
+ [25 [[:in2 2]]]]
+
+(is (eq? (-> (switch 5)
+             atomic-simulator
+             (afap-root-simulator 0 100)
+             second)
+         [[15 [[:out2 1]]]
+          [20 [[:out1 1]]]
+          [25 [[:out2 1]]]
+          [30 [[:out2 2]]]]))
+
+
+(deftest switch-test
+  (let [models     {:gen-1  (generator 5 10)
+                    :gen-2  (generator 5 10)
+                    :switch (switch 5)}
+        routes     [[:gen-1 :out :switch :in1]
+                    [:gen-2 :out :switch :in2]]
+        simulators {:gen-1  atomic-simulator
+                    :gen-2  atomic-simulator
+                    :switch atomic-simulator}
+        coupled    (coupled-model models routes)
+        coupled'   (assoc coupled :simulators simulators)]
+    (-> coupled'
+        coupled-simulator
+        (afap-root-coordinator 0 100)))
+
+  )
+* DEVS
+** DONE Finish coupled simulator
+** Create more examples
+   - Put in examples ns.
+** Add more tests.
+   - Use examples.
+   - Confluence tests.
+   - Verify that parallel is working properly.
+   - Try some tricky situations.
+** Consider alternatives to the current network-id implementation.
+   - Is it supposed to work across Parallel DEVS and DSDEVS?
+     - Are we going to mix the two?
+** Document examples.
 ** Create a simple benchmark.
    - Just want something to test against as we move forward.
 ** Update DSDEVS implementation.
@@ -141,10 +213,13 @@
 *** Clean up network simulator.
 **** Use readable identifiers.
 **** Update to support coupled models.
-*** Consider creating a version of the network simulator that does not flatten.
+*** Consider creating a version of the dynamic network simulator that does not flatten.
     - Not sure we have a use case.
 ** Determine how to to implement a sufficient root coordinator
    - Refer to the Time Warp example.
+** Clean up
+*** standardize on names
+    - mail?
 ** update docs
 *** Put this documentation somewhere
 
