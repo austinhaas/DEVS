@@ -1,17 +1,17 @@
-(ns pettomato.devs.parallel.models.examples-test
+(ns pettomato.devs.examples-test
   (:require
    #?(:clj
       [clojure.test :refer [deftest is testing]]
       :cljs
       [cljs.test :refer-macros [deftest is testing]])
-   [pettomato.devs.parallel.root-coordinators.as-fast-as-possible
+   [pettomato.devs.afap-root-coordinator
     :refer [afap-root-coordinator lazy-afap-root-coordinator]]
-   [pettomato.devs.parallel.models.coupled :refer [coupled-model network-id]]
-   [pettomato.devs.parallel.models.examples :refer [generator
-                                                    lazy-seq-generator
-                                                    delay-component]]
-   [pettomato.devs.parallel.simulators.atomic :refer [atomic-simulator]]
-   [pettomato.devs.parallel.simulators.coupled :refer [coupled-simulator]]))
+   [pettomato.devs.coupled-model :refer [coupled-model network-id]]
+   [pettomato.devs.examples :refer [generator
+                                    lazy-seq-generator
+                                    delay-component]]
+   [pettomato.devs.atomic-simulator :refer [atomic-simulator]]
+   [pettomato.devs.coupled-simulator :refer [coupled-simulator]]))
 
 (deftest generator-test
   (is (= [[10 {:out [5]}]

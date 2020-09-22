@@ -1,4 +1,4 @@
-(ns pettomato.devs.parallel.models.coupled
+(ns pettomato.devs.coupled-model
   "A coupled model for Parallel DEVS.
 
   \"The DEVS formalism includes the means to build models from components.\"

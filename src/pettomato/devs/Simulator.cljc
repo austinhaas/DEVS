@@ -1,4 +1,4 @@
-(ns pettomato.devs.parallel.Simulator)
+(ns pettomato.devs.Simulator)
 
 ;; This implementation deviates from the book in a functional programming
 ;; style. Specifically, receive-*-message returns output, rather than sending a

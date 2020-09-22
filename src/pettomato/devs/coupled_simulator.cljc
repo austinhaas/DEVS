@@ -1,4 +1,4 @@
-(ns pettomato.devs.parallel.simulators.coupled
+(ns pettomato.devs.coupled-simulator
   "A Simulator for a coupled model. This is also referred to as a coordinator.
 
   This is a static, modular implementation. It does not flatten the network like
@@ -10,16 +10,16 @@
   programming style. Specifically, the implementation for \"receive y-message\"
   is included with \"receive-*-message\"."
   (:require
-   [pettomato.devs.parallel.models.coupled :refer [coupled-model?
-                                                   models
-                                                   routes
-                                                   network-id]]
-   [pettomato.devs.parallel.Simulator :refer [Simulator
-                                              receive-i-message
-                                              receive-*-message
-                                              receive-x-message
-                                              time-of-last-event
-                                              time-of-next-event]]
+   [pettomato.devs.coupled-model :refer [coupled-model?
+                                         models
+                                         routes
+                                         network-id]]
+   [pettomato.devs.Simulator :refer [Simulator
+                                     receive-i-message
+                                     receive-*-message
+                                     receive-x-message
+                                     time-of-last-event
+                                     time-of-next-event]]
    [pettomato.devs.priority-queue :as pq]))
 
 (defn route-messages

@@ -194,6 +194,46 @@
   )
 * DEVS
 ** DONE Finish coupled simulator
+** DONE Document examples.
+** Update the dynamic structure implementation.
+*** DONE Read the chapter in the book.
+*** Implement DSDE.
+    - The 1998 Barros paper seems like the simplest solution.
+    - I think we can also learn a few things from it:
+      - How to implement a root coordinator.
+        - Runs until the model becomes passive.
+      - Maybe we can do constructor/destructor.
+      - Ignore messages if time is not right.
+        - This might be something we messed up in the parallel coordinator,
+          because I thought the book was wrong.
+**** Consider including response for constructor and adding a destructor.
+
+
+
+*** Archive old implementation.
+*** Update namespaces.
+    - Everything is Parallel.
+    - We should just go back to everything in one ns.
+** Determine how to to implement a sufficient root coordinator
+   - Refer to the Time Warp example.
+
+   - I think we can implement an optimistic system that is based on our
+     knowledge that Viewer3D doesn't send messages.
+     - Viewer3D can implement rollbacks in some simple way.
+     - The game sim doesn't need to handle rollbacks.
+
+   - Processes will be gated by wallclock time. When straggler messages are
+     detected, we should be able to determine the latency, and we could possibly
+     shift the gate (i.e., wallclock time) to account for the expected latency.
+     - In other words, if a message arrives 200ms late, we set the upper bound
+       to wallclock-time - 200, to avoid future chance of rollback (and visual
+       jerkiness).
+
+   - I think we should implement Time Warp, but not now.
+
+** Consider alternatives to the current network-id implementation.
+   - Is it supposed to work across Parallel DEVS and DSDEVS?
+     - Are we going to mix the two?
 ** Create more examples
    - Put in examples ns.
 ** Add more tests.
@@ -201,22 +241,8 @@
    - Confluence tests.
    - Verify that parallel is working properly.
    - Try some tricky situations.
-** Consider alternatives to the current network-id implementation.
-   - Is it supposed to work across Parallel DEVS and DSDEVS?
-     - Are we going to mix the two?
-** Document examples.
 ** Create a simple benchmark.
    - Just want something to test against as we move forward.
-** Update DSDEVS implementation.
-*** Read the chapter in the book.
-*** Use map for messages.
-*** Clean up network simulator.
-**** Use readable identifiers.
-**** Update to support coupled models.
-*** Consider creating a version of the dynamic network simulator that does not flatten.
-    - Not sure we have a use case.
-** Determine how to to implement a sufficient root coordinator
-   - Refer to the Time Warp example.
 ** Clean up
 *** standardize on names
     - mail?
@@ -246,14 +272,22 @@
 
   The symbols "key", "k", "k1", etc. are synonomous with "model name".
 
-** flashy demo
-   - It would be cool to do something 3D, but maybe better to do something that
-     can be shown in 100 LOC.
-   - Consider a cute educational virus sim.
-     - Bunnies turning green and coughing.
-     - Expose all parameters.
-       - E.g., how much masks help.
-
+*** Why not use protocols for models?
+    - Don't know how to use a default implementation for the confluent function.
+      - Note that it also depends on two of the other fn implementations.
+    - The record would implement part of the simulator: maintaining state and
+      tl, tn, but this would preclude flattening the network (and maybe other
+      types of static analysis).
+** zombie demo
+*** notes
+    - See and hear.
+      - Growls and screams and footsteps.
+        - Zombie is always making some noise.
+    - Precompute LOS.
+*** Runs w/o graphics.
+*** 2D graphics
+    - green circles turn red
+*** 3D graphics.
 ** -----------------------------------------------------------------------------
 ** Clean up these notes.
 ** Remove the real-time root simulators.

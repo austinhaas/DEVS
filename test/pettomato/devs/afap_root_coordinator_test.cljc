@@ -1,13 +1,13 @@
-(ns pettomato.devs.parallel.root-coordinators.as-fast-as-possible-test
+(ns pettomato.devs.afap-root-coordinator-test
   (:require
    #?(:clj
       [clojure.test :refer [deftest is testing]]
       :cljs
       [cljs.test :refer-macros [deftest is testing]])
-   [pettomato.devs.parallel.models.examples :refer [generator]]
-   [pettomato.devs.parallel.root-coordinators.as-fast-as-possible
+   [pettomato.devs.examples :refer [generator]]
+   [pettomato.devs.afap-root-coordinator
     :refer [afap-root-coordinator lazy-afap-root-coordinator]]
-   [pettomato.devs.parallel.simulators.atomic :refer [atomic-simulator]]))
+   [pettomato.devs.atomic-simulator :refer [atomic-simulator]]))
 
 (deftest afap-test
   (is (= (-> (generator 5 10)

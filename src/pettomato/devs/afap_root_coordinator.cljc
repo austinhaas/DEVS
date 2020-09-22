@@ -1,4 +1,4 @@
-(ns pettomato.devs.parallel.root-coordinators.as-fast-as-possible
+(ns pettomato.devs.afap-root-coordinator
   "A root coordinator that executes a simulation as fast as possible.
 
   \"Analytic simulations typically execute 'as-fast-as-possible,' meaning that
@@ -9,10 +9,10 @@
 
     - Fujimoto. Parallel and Distributed Simulation Systems. 2000. p. 7."
   (:require
-   [pettomato.devs.parallel.Simulator :refer [receive-i-message
-                                              receive-*-message
-                                              receive-x-message
-                                              time-of-next-event]]))
+   [pettomato.devs.Simulator :refer [receive-i-message
+                                     receive-*-message
+                                     receive-x-message
+                                     time-of-next-event]]))
 
 (defn afap-root-coordinator [sim start-time end-time]
   (loop [sim (receive-i-message sim start-time)

@@ -1,13 +1,13 @@
-(ns pettomato.devs.parallel.simulators.atomic
+(ns pettomato.devs.atomic-simulator
   (:require
-   [pettomato.devs.parallel.Simulator :refer [Simulator]]
-   [pettomato.devs.parallel.models.atomic :refer [atomic-model?
-                                                  initial-state
-                                                  int-update-fn
-                                                  ext-update-fn
-                                                  con-update-fn
-                                                  output-fn
-                                                  time-advance-fn]]))
+   [pettomato.devs.Simulator :refer [Simulator]]
+   [pettomato.devs.atomic-model :refer [atomic-model?
+                                        initial-state
+                                        int-update-fn
+                                        ext-update-fn
+                                        con-update-fn
+                                        output-fn
+                                        time-advance-fn]]))
 
 ;; TODO: Consider passing the model fns instead of the model.
 (defrecord AtomicSimulator [model state tl tn]
