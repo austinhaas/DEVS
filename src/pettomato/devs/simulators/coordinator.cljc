@@ -1,8 +1,5 @@
-(ns pettomato.devs.coupled-simulator
-  "A Simulator for a coupled model. This is also referred to as a coordinator.
-
-  This is a static, modular implementation. It does not flatten the network like
-  pettomato.devs.dsdevs.simulators.network.
+(ns pettomato.devs.simulators.coordinator
+  "A simulator for a coupled model.
 
   Based on Ziegler, et al. Theory of Modeling and Simulation. 2nd Ed. Ch. 11.4.
 
@@ -10,10 +7,10 @@
   programming style. Specifically, the implementation for \"receive y-message\"
   is included with \"receive-*-message\"."
   (:require
-   [pettomato.devs.coupled-model :refer [coupled-model?
-                                         models
-                                         routes
-                                         network-id]]
+   [pettomato.devs.models.coupled :refer [coupled-model?
+                                          models
+                                          routes
+                                          network-id]]
    [pettomato.devs.Simulator :refer [Simulator
                                      receive-i-message
                                      receive-*-message
@@ -38,7 +35,7 @@
             {}
             flattened)))
 
-(defrecord CoupledSimulator [sims routes event-list tl tn]
+(defrecord Coordinator [sims routes event-list tl tn]
   Simulator
   (receive-i-message [this t]
     (let [sims       (zipmap (keys sims) (map #(receive-i-message % t) (vals sims)))
@@ -47,7 +44,7 @@
                                 sims)
           tl         (apply max (map time-of-last-event (vals sims)))
           tn         (pq/peek-key event-list)]
-      (CoupledSimulator. sims routes event-list tl tn)))
+      (Coordinator. sims routes event-list tl tn)))
   (receive-*-message [this t]
     ;; also includes receive-y-message
     (assert (= t tn) (str "(= " t " " tn ")"))
@@ -78,7 +75,7 @@
                                                  (time-of-next-event (get sims' k))]))
           tl             t
           tn             (pq/peek-key event-list)
-          sim            (CoupledSimulator. sims' routes event-list tl tn)]
+          sim            (Coordinator. sims' routes event-list tl tn)]
       [sim ext-mail]))
   (receive-x-message [this x t]
     (assert (<= tl t tn) (str "(<= " tl " " t " " tn ")"))
@@ -103,12 +100,12 @@
                                                (time-of-next-event (get sims' k))]))
           tl           t
           tn           (pq/peek-key event-list)
-          sim          (CoupledSimulator. sims routes event-list tl tn)]
+          sim          (Coordinator. sims routes event-list tl tn)]
       sim))
   (time-of-last-event [this] tl)
   (time-of-next-event [this] tn))
 
-(defn coupled-simulator
+(defn coordinator
   "A simulator for a coupled model.
 
   Note that this doesn't take a raw coupled model. It takes the same map,
@@ -123,4 +120,4 @@
                             (assoc m model-name (sim-fn model))))
                         {}
                         models)]
-    (CoupledSimulator. sims routes nil nil nil)))
+    (Coordinator. sims routes nil nil nil)))

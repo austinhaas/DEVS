@@ -1,4 +1,4 @@
-(ns pettomato.devs.atomic-model
+(ns pettomato.devs.models.atomic
   "An atomic model for Parallel DEVS with Ports.")
 
 (defn atomic-model [init int ext con out ta]

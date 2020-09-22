@@ -1,6 +1,6 @@
-(ns pettomato.devs.examples
+(ns pettomato.devs.models.examples
   (:require
-   [pettomato.devs.atomic-model :refer [atomic-model]]
+   [pettomato.devs.models.atomic :refer [atomic-model]]
    [pettomato.devs.util :refer [infinity]]))
 
 (defn generator
