@@ -53,11 +53,7 @@
   [models routes]
   {:type   ::coupled
    :models models
-   :routes (reduce (fn [m [k1 p1 k2 p2 f]]
-                     (assert (not= k1 k2) "Direct feedback loops are not allowed.") ;; TMS2000 p. 86.
-                     (assoc-in m [k1 p1 k2 p2] (or f identity)))
-                   {}
-                   routes)})
+   :routes routes})
 
 (defn models [model] (:models model))
 (defn routes [model] (:routes model))

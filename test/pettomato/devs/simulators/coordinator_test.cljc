@@ -11,6 +11,6 @@
   (is (mail-equal? {:b {:in [2 3 4]}
                     :c {:in [1 2 3]}}
                    (route-messages
-                    {:a {:out {:b {:in (map inc)}
+                    {:a {:out {:b {:in inc}
                                :c {:in identity}}}}
                     {:a {:out [1 2 3]}}))))

@@ -19,19 +19,28 @@
                                      time-of-next-event]]
    [pettomato.devs.priority-queue :as pq]))
 
+(defn factor-routes
+  ""
+  [routes]
+  (reduce (fn [m [k1 p1 k2 p2 f]]
+            (assert (not= k1 k2) "Direct feedback loops are not allowed.") ;; TMS2000 p. 86.
+            (assoc-in m [k1 p1 k2 p2] (or f identity)))
+          {}
+          routes))
+
 (defn route-messages
   "Returns receiver->port->vs."
   [routes sender->port->vs]
-  (let [flattened (for [[sender port->vs]         sender->port->vs
-                        [out-port vs]             port->vs
-                        [receiver in-port->xform] (get-in routes [sender out-port])
-                        [in-port xform]           in-port->xform]
-                    [sender out-port receiver in-port xform vs])]
+  (let [flattened (for [[sender port->vs]     sender->port->vs
+                        [out-port vs]         port->vs
+                        [receiver in-port->f] (get-in routes [sender out-port])
+                        [in-port f]           in-port->f]
+                    [sender out-port receiver in-port f vs])]
     ;; TODO: If several receivers apply the same transducer to the same output
-    ;; port, then it might be more efficient to group by [out-port xform] and
-    ;; ensure that we only apply the transducer once.
-    (reduce (fn [m [sender out-port receiver in-port xform vs]]
-              (update-in m [receiver in-port] into xform vs))
+    ;; port, then it might be more efficient to group by [out-port f] and
+    ;; ensure that we only apply the function once.
+    (reduce (fn [m [sender out-port receiver in-port f vs]]
+              (update-in m [receiver in-port] into (map f) vs))
             {}
             flattened)))
 
@@ -114,10 +123,11 @@
   specify which simulator to use for each model in the network."
   [{:keys [models routes simulators] :as model}]
   (assert (coupled-model? model))
-  (let [sims (reduce-kv (fn [m model-name model]
-                          (let [sim-fn (get simulators model-name)]
+  (let [sims   (reduce-kv (fn [m model-name model]
+                            (let [sim-fn (get simulators model-name)]
                             (assert sim-fn (str "No simulator specified for " model-name))
                             (assoc m model-name (sim-fn model))))
-                        {}
-                        models)]
+                          {}
+                        models)
+        routes (factor-routes routes)]
     (Coordinator. sims routes nil nil nil)))
