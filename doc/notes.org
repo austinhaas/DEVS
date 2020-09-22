@@ -207,13 +207,6 @@
         - This might be something we messed up in the parallel coordinator,
           because I thought the book was wrong.
 **** Consider including response for constructor and adding a destructor.
-
-
-
-*** Archive old implementation.
-*** Update namespaces.
-    - Everything is Parallel.
-    - We should just go back to everything in one ns.
 ** Determine how to to implement a sufficient root coordinator
    - Refer to the Time Warp example.
 
@@ -278,6 +271,9 @@
     - The record would implement part of the simulator: maintaining state and
       tl, tn, but this would preclude flattening the network (and maybe other
       types of static analysis).
+*** names
+    - A model name can be anything that can be compared for equality. Keywords,
+      symbols, and strings are good choices.
 ** zombie demo
 *** notes
     - See and hear.

@@ -1,4 +1,4 @@
-(ns pettomato.devs.models.examples-test
+(ns pettomato.devs.example-models-test
   (:require
    #?(:clj
       [clojure.test :refer [deftest is testing]]
@@ -6,10 +6,10 @@
       [cljs.test :refer-macros [deftest is testing]])
    [pettomato.devs.root-coordinators.as-fast-as-possible
     :refer [afap-root-coordinator lazy-afap-root-coordinator]]
-   [pettomato.devs.models.coupled :refer [coupled-model network-id]]
-   [pettomato.devs.models.examples :refer [generator
-                                           lazy-seq-generator
-                                           delay-component]]
+   [pettomato.devs.models :refer [coupled-model network-name]]
+   [pettomato.devs.example-models :refer [generator
+                                          lazy-seq-generator
+                                          delay-component]]
    [pettomato.devs.simulators.atomic :refer [atomic-simulator]]
    [pettomato.devs.simulators.coordinator :refer [coordinator]]))
 
@@ -34,7 +34,7 @@
          (let [models     {:gen   (generator 5 10)
                            :delay (delay-component 5)}
                routes     [[:gen :out :delay :in]
-                           [:delay :out network-id :out]]
+                           [:delay :out network-name :out]]
                simulators {:gen   atomic-simulator
                            :delay atomic-simulator}
                coupled    (coupled-model models routes)

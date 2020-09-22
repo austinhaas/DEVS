@@ -7,10 +7,10 @@
   programming style. Specifically, the implementation for \"receive y-message\"
   is included with \"receive-*-message\"."
   (:require
-   [pettomato.devs.models.coupled :refer [coupled-model?
-                                          models
-                                          routes
-                                          network-id]]
+   [pettomato.devs.models :refer [coupled-model?
+                                  models
+                                  routes
+                                  network-name]]
    [pettomato.devs.Simulator :refer [Simulator
                                      receive-i-message
                                      receive-*-message
@@ -56,8 +56,8 @@
           mail-out       (zipmap imminent (map second sim-mail-pairs))
           sims           (merge sims new-sims)
           mail-in        (route-messages routes mail-out)
-          ext-mail       (get    mail-in network-id)
-          int-mail       (dissoc mail-in network-id)
+          ext-mail       (get    mail-in network-name)
+          int-mail       (dissoc mail-in network-name)
           needs-update   (into imminent (keys int-mail))
           ;; Execute state transitions (in parallel).
           updated-sims   (map (fn [k]
