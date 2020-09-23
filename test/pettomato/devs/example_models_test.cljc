@@ -4,14 +4,13 @@
       [clojure.test :refer [deftest is testing]]
       :cljs
       [cljs.test :refer-macros [deftest is testing]])
-   [pettomato.devs.root-coordinators.as-fast-as-possible
-    :refer [afap-root-coordinator lazy-afap-root-coordinator]]
-   [pettomato.devs.models :refer [coupled-model network-name]]
+   [pettomato.devs.afap-root-coordinator :refer [afap-root-coordinator lazy-afap-root-coordinator]]
+   [pettomato.devs.models :refer [network-model network-name]]
    [pettomato.devs.example-models :refer [generator
                                           lazy-seq-generator
                                           delay-component]]
-   [pettomato.devs.simulators.atomic :refer [atomic-simulator]]
-   [pettomato.devs.simulators.coordinator :refer [coordinator]]))
+   [pettomato.devs.atomic-simulator :refer [atomic-simulator]]
+   [pettomato.devs.network-simulator :refer [network-simulator]]))
 
 (deftest generator-test
   (is (= [[10 {:out [5]}]
@@ -37,8 +36,8 @@
                            [:delay :out network-name :out]]
                simulators {:gen   atomic-simulator
                            :delay atomic-simulator}
-               coupled    (coupled-model models routes)
-               coupled'   (assoc coupled :simulators simulators)]
-           (-> coupled'
-               coordinator
+               network    (network-model models routes)
+               network'   (assoc network :simulators simulators)]
+           (-> network'
+               network-simulator
                (afap-root-coordinator 0 25))))))

@@ -9,4 +9,6 @@
   (receive-*-message  [sim t]   "Compute output. Returns [sim mail].")
   (receive-x-message  [sim x t] "Execute a state transition. Returns new sim.")
   (time-of-last-event [sim]     "Time of the last sim update.")
-  (time-of-next-event [sim]     "Scheduled time of next sim internal update."))
+  (time-of-next-event [sim]     "Scheduled time of next sim internal update.")
+
+  (apply-state-changes [sim state-changes]))

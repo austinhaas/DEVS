@@ -1,11 +1,11 @@
-(ns pettomato.devs.simulators.coordinator-test
+(ns pettomato.devs.network-simulator-test
   (:require
    #?(:clj
       [clojure.test :refer [deftest is testing]]
       :cljs
       [cljs.test :refer-macros [deftest is testing]])
    [pettomato.devs.util :refer [mail-equal?]]
-   [pettomato.devs.simulators.coordinator :refer [route-messages]]))
+   [pettomato.devs.network-simulator :refer [route-messages]]))
 
 (deftest route-messages-test
   (is (mail-equal? {:b {:in [2 3 4]}

@@ -197,33 +197,60 @@
 ** DONE Document examples.
 ** Update the dynamic structure implementation.
 *** DONE Read the chapter in the book.
-*** Implement DSDE.
-    - The 1998 Barros paper seems like the simplest solution.
-    - I think we can also learn a few things from it:
-      - How to implement a root coordinator.
-        - Runs until the model becomes passive.
-      - Maybe we can do constructor/destructor.
-      - Ignore messages if time is not right.
-        - This might be something we messed up in the parallel coordinator,
-          because I thought the book was wrong.
-**** Consider including response for constructor and adding a destructor.
-** Determine how to to implement a sufficient root coordinator
-   - Refer to the Time Warp example.
+*** Determine how to move forward.
+    - https://arxiv.org/pdf/1701.07697.pdf
+      - This recent DEVS intro paper points out that DS-DEVS is a mathematical
+        model, but real implementations can implement it differently.
+**** Proposal:
+     - Add DynamicSimulator protocol
+       - GetStateChanges
+       - ApplyStateChanges
+     - Add Constructor/Destructor protocol
+       - Can't block on javascript.
 
-   - I think we can implement an optimistic system that is based on our
-     knowledge that Viewer3D doesn't send messages.
+     - http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.302.3385&rep=rep1&type=pdf
+       - Section 3 has a good description.
+       - 3.2
+         1. Create models.
+         2. Create couplings.
+         3. Remove couplings.
+         4. Remove models.
+
+     - Structural change requests can be issued by an atomic model during one of
+       its transition functions.
+     - To avoid conflicts between structural and nonstructural changes, the
+       execution of structural changes are typically deferred until all
+       nonstructural changes in the region are completed.
+     - Bubble up state change messages.
+     - Give network a function that takes all of the component state change
+       datums for an up cycle and creates a new network.
+       - Example: 3 models. One returns the state change event [:add new-model
+         {}] and the others return nothing.
+*** Test inverting the control flow.
+    - In the current implementation, each coordinator maintains a priority
+      queue, and only the imminent or message receiving components are messaged.
+    - In the Barros implementation, each component is messaged, and the
+      component determines if it should update or not.
+
+    - Performance will depend on how many components there are and how many
+      update simultaneously. I suspect the Barros implementation is
+      mathematically correct, but generally less efficient.
+
+*** Consider including response for constructor and adding a destructor.
+*** Consider creating a system-init fn that takes a hierarchical model and a mapping to simulators.
+** Determine how to to implement a sufficient root coordinator
+   - I think we can implement an optimistic system, and not worry about
+     rollbacks b/c they aren't possible with the current structure.
      - Viewer3D can implement rollbacks in some simple way.
      - The game sim doesn't need to handle rollbacks.
-
+   - Takes user input, but only at the current time. It does not schedule events
+     into the future.
    - Processes will be gated by wallclock time. When straggler messages are
      detected, we should be able to determine the latency, and we could possibly
      shift the gate (i.e., wallclock time) to account for the expected latency.
      - In other words, if a message arrives 200ms late, we set the upper bound
        to wallclock-time - 200, to avoid future chance of rollback (and visual
        jerkiness).
-
-   - I think we should implement Time Warp, but not now.
-
 ** Consider alternatives to the current network-id implementation.
    - Is it supposed to work across Parallel DEVS and DSDEVS?
      - Are we going to mix the two?
@@ -274,6 +301,13 @@
 *** names
     - A model name can be anything that can be compared for equality. Keywords,
       symbols, and strings are good choices.
+*** abstract simulators
+    - These are meant to be mathematical structures, but we can also implement
+      them. But don't get too attached to an implementation; others are always
+      possible.
+      - For example, we could change all the function calls to use some
+        asynchronous method, and as long as we implement callbacks or whatever
+        to keep the model in tact, that is ok.
 ** zombie demo
 *** notes
     - See and hear.
