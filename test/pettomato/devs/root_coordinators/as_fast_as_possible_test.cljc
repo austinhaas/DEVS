@@ -4,9 +4,10 @@
       [clojure.test :refer [deftest is testing]]
       :cljs
       [cljs.test :refer-macros [deftest is testing]])
-   [pettomato.devs.example-models :refer [generator]]
-   [pettomato.devs.afap-root-coordinator :refer [afap-root-coordinator lazy-afap-root-coordinator]]
-   [pettomato.devs.atomic-simulator :refer [atomic-simulator]]))
+   [pettomato.devs.models.examples :refer [generator]]
+   [pettomato.devs.root-coordinators.as-fast-as-possible
+    :refer [afap-root-coordinator lazy-afap-root-coordinator]]
+   [pettomato.devs.simulators.atomic :refer [atomic-simulator]]))
 
 (deftest afap-test
   (is (= (-> (generator 5 10)

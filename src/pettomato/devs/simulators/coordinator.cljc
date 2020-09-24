@@ -1,7 +1,14 @@
-(ns pettomato.devs.network-simulator
+(ns pettomato.devs.simulators.coordinator
+  "A simulator for a coupled model.
+
+  Based on Ziegler, et al. Theory of Modeling and Simulation. 2nd Ed. Ch. 11.4.
+
+  This implementation differs from the textbook to follow a functional
+  programming style. Specifically, the implementation for \"receive y-message\"
+  is included with \"receive-*-message\"."
   (:require
-   [clojure.spec.alpha :as s]
-   [pettomato.devs.models :as m]
+   [pettomato.devs.models.coupled :refer [coupled-model?]]
+   [pettomato.devs.models.network-structure :refer [network-name factor-routes route-messages]]
    [pettomato.devs.Simulator :refer [Simulator
                                      receive-i-message
                                      receive-*-message
@@ -10,46 +17,16 @@
                                      time-of-next-event]]
    [pettomato.devs.priority-queue :as pq]))
 
-(defn factor-routes
-  "Convert the flat, human-readable expression of routes to a nested map, which
-  indexes the components for fast access.
-
-  [[k1 p1 k2 p2 f]
-   [k1 p3 k3 p4 f]]  -> {k1 {p1 {k2 {p2 f}}}
-                             p3 {k3 {p4 f}}}"
-  [routes]
-  (reduce (fn [m [k1 p1 k2 p2 f]]
-            (assert (not= k1 k2) "Direct feedback loops are not allowed.") ;; TMS2000 p. 86.
-            (assoc-in m [k1 p1 k2 p2] (or f identity)))
-          {}
-          routes))
-
-(defn route-messages
-  "Returns receiver->port->vs."
-  [routes sender->port->vs]
-  (let [flattened (for [[sender port->vs]     sender->port->vs
-                        [out-port vs]         port->vs
-                        [receiver in-port->f] (get-in routes [sender out-port])
-                        [in-port f]           in-port->f]
-                    [sender out-port receiver in-port f vs])]
-    ;; TODO: If several receivers apply the same function to the same output
-    ;; port, then it might be more efficient to group by [out-port f] and
-    ;; ensure that we only apply the function once.
-    (reduce (fn [m [sender out-port receiver in-port f vs]]
-              (update-in m [receiver in-port] into (map f) vs))
-            {}
-            flattened)))
-
-(defrecord NetworkSimulator [sims routes event-list tl tn]
+(defrecord Coordinator [sims routes event-list tl tn]
   Simulator
   (receive-i-message [this t]
     (let [sims       (zipmap (keys sims) (map #(receive-i-message % t) (vals sims)))
           event-list (reduce-kv (fn [pq k sim] (pq/insert pq (time-of-next-event sim) k))
                                 (pq/priority-queue)
                                 sims)
-          tl         (apply max-key time-of-last-event (vals sims))
+          tl         (apply max (map time-of-last-event (vals sims)))
           tn         (pq/peek-key event-list)]
-      (NetworkSimulator. sims routes event-list tl tn)))
+      (Coordinator. sims routes event-list tl tn)))
   (receive-*-message [this t]
     ;; also includes receive-y-message
     (assert (= t tn) (str "(= " t " " tn ")"))
@@ -61,8 +38,8 @@
           mail-out       (zipmap imminent (map second sim-mail-pairs))
           sims           (merge sims new-sims)
           mail-in        (route-messages routes mail-out)
-          ext-mail       (get    mail-in m/network-name)
-          int-mail       (dissoc mail-in m/network-name)
+          ext-mail       (get    mail-in network-name)
+          int-mail       (dissoc mail-in network-name)
           needs-update   (into imminent (keys int-mail))
           ;; Execute state transitions (in parallel).
           updated-sims   (map (fn [k]
@@ -80,7 +57,7 @@
                                                  (time-of-next-event (get sims' k))]))
           tl             t
           tn             (pq/peek-key event-list)
-          sim            (NetworkSimulator. sims' routes event-list tl tn)]
+          sim            (Coordinator. sims' routes event-list tl tn)]
       [sim ext-mail]))
   (receive-x-message [this x t]
     (assert (<= tl t tn) (str "(<= " tl " " t " " tn ")"))
@@ -105,19 +82,25 @@
                                                (time-of-next-event (get sims' k))]))
           tl           t
           tn           (pq/peek-key event-list)
-          sim          (NetworkSimulator. sims routes event-list tl tn)]
+          sim          (Coordinator. sims routes event-list tl tn)]
       sim))
   (time-of-last-event [this] tl)
   (time-of-next-event [this] tn))
 
-(defn network-simulator
+(defn coordinator
+  "A simulator for a coupled model.
+
+  Note that this doesn't take a raw coupled model. It takes the same map,
+  extended with an additional field, :simulators, that maps from the component
+  model names to appropriate simulator constructors. This allows the user to
+  specify which simulator to use for each model in the network."
   [{:keys [models routes simulators] :as model}]
-  (assert (s/valid? ::m/network-model model))
+  (assert (coupled-model? model))
   (let [sims   (reduce-kv (fn [m model-name model]
                             (let [sim-fn (get simulators model-name)]
-                              (assert sim-fn (str "No simulator specified for " model-name))
-                              (assoc m model-name (sim-fn model))))
+                            (assert sim-fn (str "No simulator specified for " model-name))
+                            (assoc m model-name (sim-fn model))))
                           {}
-                          models)
+                        models)
         routes (factor-routes routes)]
-    (NetworkSimulator. sims routes nil nil nil)))
+    (Coordinator. sims routes nil nil nil)))

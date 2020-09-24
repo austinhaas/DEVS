@@ -11,10 +11,9 @@
 
 (s/def ::initial-total-state (s/tuple any? ::elapsed-time))
 
-;; I don't think we can spec these functions, because they have to be broad
-;; enough for the entire space of implementations, and that isn't enough
-;; information for the spec implementation, which is based on generative
-;; testing, to handle.
+;; These functions can't be spec'd, because they have to be broad enough for the
+;; entire space of implementations, and that isn't enough information for the
+;; spec implementation, which is based on generative testing, to handle.
 (s/def ::int-update (s/nilable ifn?))
 (s/def ::ext-update (s/nilable ifn?))
 (s/def ::con-update (s/nilable ifn?))
@@ -22,20 +21,30 @@
 (s/def ::time-advance ifn? #_(s/fspec :args any?
                                       :ret number?))
 
+(s/def ::get-state-changes (s/nilable ifn?))
+(s/def ::apply-state-changes (s/nilable ifn?))
+
 (s/def ::atomic-model (s/keys :req-un [::initial-total-state
                                        ::time-advance]
                               :opt-un [::int-update
                                        ::ext-update
                                        ::con-update
-                                       ::output]))
+                                       ::output
+                                       ::get-state-changes
+                                       ::apply-state-changes]))
 
-(defn atomic-model [initial-total-state int-update ext-update con-update output time-advance]
+(defn atomic-model [initial-total-state int-update ext-update con-update output time-advance get-state-changes apply-state-changes]
   {:initial-total-state initial-total-state
    :int-update          int-update
    :ext-update          ext-update
    :con-update          (or con-update (fn [s e x] (ext-update (int-update s) 0 x)))
    :output              output
-   :time-advance        time-advance})
+   :time-advance        time-advance
+   :get-state-changes   (or get-state-changes (constantly nil))
+   :apply-state-changes apply-state-changes})
+
+(defn atomic-model? [model]
+  (s/valid? ::atomic-model model))
 
 ;;; Network model
 ;;; ----------------------------------------------------------------------------

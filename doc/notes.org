@@ -201,6 +201,80 @@
     - https://arxiv.org/pdf/1701.07697.pdf
       - This recent DEVS intro paper points out that DS-DEVS is a mathematical
         model, but real implementations can implement it differently.
+**** Proposal
+     - DSDE, but...
+       - executives and networks are implicit
+       - an exec is just indicated by an atomic with an additional network fn.
+       - to modelers, it looks like there is one type of model
+     - Users provide a function to map from [model-name model] to simulator.
+**** Proposal
+     - Every model can have a subnetwork.
+     - One model. One simulator.
+     - The semantics are equivalent to DSDE.
+       - I think, but I'm not sure, because in DSDE the exec owns the network it
+         is in, and I'm not sure if that means the network cannot be removed
+         entirely.
+     - Models have a network function: state -> network-structure
+       - This function is called after state change updates.
+
+     - receive-x-message
+       - Like DSDE.
+       - Calls network to get new network-structure.
+     - Special names in routes: ::parent, ::network
+
+     - Models will use well defined functions to change the network, and the
+       implementations can record the changes, to help the simulator know what
+       needs to be updated.
+
+       - The simulator needs to know which models are new, to initialize them.
+
+
+
+**** Determine how to structure networks
+***** Proposal: DSDE / Network has state.
+      - Normal routing.
+      - Normal messages.
+      - A special name is used to target the exec or network behavior model.
+      - Exec can execute any behavior.
+***** Proposal: Networks have a state change function, but no state.
+
+      - How can one model affect another model in a different network?
+        - We'd have to send messages up and down the structure.
+          - I don't like that this requires another system for routing,
+            although, it is for a different purpose.
+            - The messages aren't timestamped?
+              - No, they don't need to be, because they'd be driven by the
+                behavior.
+
+          - If every model can message every model, then the order of structural
+            changes needs to be well defined.
+
+
+      - It seems like, if we want to do anything creative, such as a message
+        from one network to another causing a structural change without it
+        knowing that it is causing a structural change, then we need the
+        messages and behavior to be in the model space.
+
+
+***** Proposal: All models can have children.
+      - Any model can send a message to any model.
+      - Every model is a network.
+      - A network can only change itself, directly, but can change other
+        networks indirectly.
+
+      - One model. One simulator.
+
+      - Same semantics as DSDE.
+
+****** How does the model that changes the simulation indicate to the simulator what changed?
+       - The model uses a set of well defined functions to change the network
+         structure.
+       - The simulator can replay the delta.
+******* Where does the model pass the network to the simulator?
+******** Proposal: The sim queries the state for it.
+******** Proposal: The sim queries the model for it.
+         - This.
+******** Proposal: The model passes it with the updated state.
 **** Proposal:
      - Add DynamicSimulator protocol
        - GetStateChanges
@@ -226,6 +300,10 @@
        datums for an up cycle and creates a new network.
        - Example: 3 models. One returns the state change event [:add new-model
          {}] and the others return nothing.
+**** Determine what the language is for state changes.
+***** Proposal: app defined
+***** Prososal: generic
+      - A state change request is a model and where to put it.
 *** Test inverting the control flow.
     - In the current implementation, each coordinator maintains a priority
       queue, and only the imminent or message receiving components are messaged.
@@ -308,6 +386,9 @@
       - For example, we could change all the function calls to use some
         asynchronous method, and as long as we implement callbacks or whatever
         to keep the model in tact, that is ok.
+*** if we do our own system
+    - Say what we borrowed from where.
+      - e.g., separation of model and simulator from DEVS
 ** zombie demo
 *** notes
     - See and hear.

@@ -1,4 +1,4 @@
-(ns pettomato.devs.afap-root-coordinator
+(ns pettomato.devs.root-coordinators.as-fast-as-possible
   "A root coordinator that executes a simulation as fast as possible.
 
   \"Analytic simulations typically execute 'as-fast-as-possible,' meaning that
