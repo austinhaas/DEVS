@@ -1,6 +1,6 @@
 (ns pettomato.devs.Simulator)
 
-;; This implementation deviates from the book in a functional programming
+;; This implementation deviates from the literature in a functional programming
 ;; style. Specifically, receive-*-message returns output, rather than sending a
 ;; y-message to its parent.
 

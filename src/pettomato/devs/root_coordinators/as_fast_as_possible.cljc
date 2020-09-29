@@ -1,5 +1,5 @@
 (ns pettomato.devs.root-coordinators.as-fast-as-possible
-  "A root coordinator that executes a simulation as fast as possible.
+  "An event-driven root coordinator that executes a simulation as fast as possible.
 
   \"Analytic simulations typically execute 'as-fast-as-possible,' meaning that
   the simulation attempts to complete its computations as quickly as it

@@ -81,12 +81,3 @@
 (defn mail-equal? [m1 m2]
   (= (frequencies (flatten-mail m1))
      (frequencies (flatten-mail m2))))
-
-(comment
-
-  (-> empty-network
-      (add-model :a nil)
-      (add-model :b nil)
-      (add-route [:a :out :b :in identity]))
-
-  )

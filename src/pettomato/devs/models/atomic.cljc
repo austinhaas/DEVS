@@ -24,8 +24,6 @@
   number indicating the time until the model is imminent, provided it does not
   receive any messages before that time.
 
-  network-fn - A function that takes a state and returns a network structure.
-
   A bag of messages is a map from ports to (unordered) sequences of messages."
   [initial-total-state
    internal-update-fn

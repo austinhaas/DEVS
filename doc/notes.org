@@ -196,151 +196,94 @@
 ** DONE Finish coupled simulator
 ** DONE Document examples.
 ** Update the dynamic structure implementation.
-*** DONE Read the chapter in the book.
-*** Determine how to move forward.
-    - https://arxiv.org/pdf/1701.07697.pdf
-      - This recent DEVS intro paper points out that DS-DEVS is a mathematical
-        model, but real implementations can implement it differently.
-**** Proposal
-     - DSDE, but...
-       - executives and networks are implicit
-       - an exec is just indicated by an atomic with an additional network fn.
-       - to modelers, it looks like there is one type of model
-     - Users provide a function to map from [model-name model] to simulator.
-**** Proposal
-     - Every model can have a subnetwork.
-     - One model. One simulator.
-     - The semantics are equivalent to DSDE.
-       - I think, but I'm not sure, because in DSDE the exec owns the network it
-         is in, and I'm not sure if that means the network cannot be removed
-         entirely.
-     - Models have a network function: state -> network-structure
-       - This function is called after state change updates.
-
-     - receive-x-message
-       - Like DSDE.
-       - Calls network to get new network-structure.
-     - Special names in routes: ::parent, ::network
-
-     - Models will use well defined functions to change the network, and the
-       implementations can record the changes, to help the simulator know what
-       needs to be updated.
-
-       - The simulator needs to know which models are new, to initialize them.
+*** DONE Re-read this: file:///home/austin/projects/tomato-system/doc/papers/VarStructDEVSXiao.pdf
+    - I think we can achieve the same effect without sacrificing the separation
+      of model and simulator.
+      - Seems like the paper is saying that this is ok, because modelers don't
+        see the implementation of "addCoupling".
+      - I don't think this works for us, though, because in FP, there is no way
+        for a function to effect a change on a parent like this.
+    - Does it say when it makes the structure changes?
+*** Finish old one.
+    - Clean up and check in.
+*** Problem
+    - Support for dynamic structure means violating core DEVS principles:
+      - atomic model / coupled model separation
+        - Models shouldn't have knowledge about their external network.
+      - model / simulator separation
 
 
 
-**** Determine how to structure networks
-***** Proposal: DSDE / Network has state.
-      - Normal routing.
-      - Normal messages.
-      - A special name is used to target the exec or network behavior model.
-      - Exec can execute any behavior.
-***** Proposal: Networks have a state change function, but no state.
+*** Proposal
+    - Models may have internal networks.
+    - An internal network is just a model implementation detail.
 
-      - How can one model affect another model in a different network?
-        - We'd have to send messages up and down the structure.
-          - I don't like that this requires another system for routing,
-            although, it is for a different purpose.
-            - The messages aren't timestamped?
-              - No, they don't need to be, because they'd be driven by the
-                behavior.
-
-          - If every model can message every model, then the order of structural
-            changes needs to be well defined.
+    - Implement it directly as a simulator.
 
 
-      - It seems like, if we want to do anything creative, such as a message
-        from one network to another causing a structural change without it
-        knowing that it is causing a structural change, then we need the
-        messages and behavior to be in the model space.
 
+*** Determine how to proceed
 
-***** Proposal: All models can have children.
-      - Any model can send a message to any model.
-      - Every model is a network.
-      - A network can only change itself, directly, but can change other
-        networks indirectly.
+**** Proposal: Models own their internal network.
 
-      - One model. One simulator.
+***** How to update state?
+      - If we are going to cross the model-simulation boundary, maybe we should
+        drop it entirely, and use records.
 
-      - Same semantics as DSDE.
+        - We still want to separate the simulator behavior from the model; how?
+          - There are 2 separate APIs: simulator and model.
+          - We'd be moving the state over to the model, which seems fine, since
+            the simulator doesn't do anything with it other than store it.
 
-****** How does the model that changes the simulation indicate to the simulator what changed?
-       - The model uses a set of well defined functions to change the network
-         structure.
-       - The simulator can replay the delta.
-******* Where does the model pass the network to the simulator?
-******** Proposal: The sim queries the state for it.
-******** Proposal: The sim queries the model for it.
-         - This.
-******** Proposal: The model passes it with the updated state.
-**** Proposal:
-     - Add DynamicSimulator protocol
-       - GetStateChanges
-       - ApplyStateChanges
-     - Add Constructor/Destructor protocol
-       - Can't block on javascript.
+          - Even if the manager model doesn't process the messages for its
+            children, its simulator does.
+            - What if there was a different way to manage routing? Like, the
+              model had additional functions, instead of the simulator handling
+              it all.
 
-     - http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.302.3385&rep=rep1&type=pdf
-       - Section 3 has a good description.
-       - 3.2
-         1. Create models.
-         2. Create couplings.
-         3. Remove couplings.
-         4. Remove models.
+**** DEVSJAVA
+     - provides fns to update models and simulators
 
-     - Structural change requests can be issued by an atomic model during one of
-       its transition functions.
-     - To avoid conflicts between structural and nonstructural changes, the
-       execution of structural changes are typically deferred until all
-       nonstructural changes in the region are completed.
-     - Bubble up state change messages.
-     - Give network a function that takes all of the component state change
-       datums for an up cycle and creates a new network.
-       - Example: 3 models. One returns the state change event [:add new-model
-         {}] and the others return nothing.
-**** Determine what the language is for state changes.
-***** Proposal: app defined
-***** Prososal: generic
-      - A state change request is a model and where to put it.
-*** Test inverting the control flow.
-    - In the current implementation, each coordinator maintains a priority
-      queue, and only the imminent or message receiving components are messaged.
-    - In the Barros implementation, each component is messaged, and the
-      component determines if it should update or not.
+       - This feels off. Maybe it is tension between FP and OOP. Like, they had
+         a nice declarative model and they went full OOP on it.
 
-    - Performance will depend on how many components there are and how many
-      update simultaneously. I suspect the Barros implementation is
-      mathematically correct, but generally less efficient.
+         - E.g., model functions call functions on the simulator. Why should
+           models know anything about simulators?
 
-*** Consider including response for constructor and adding a destructor.
-*** Consider creating a system-init fn that takes a hierarchical model and a mapping to simulators.
-** Determine how to to implement a sufficient root coordinator
-   - I think we can implement an optimistic system, and not worry about
-     rollbacks b/c they aren't possible with the current structure.
-     - Viewer3D can implement rollbacks in some simple way.
-     - The game sim doesn't need to handle rollbacks.
-   - Takes user input, but only at the current time. It does not schedule events
-     into the future.
-   - Processes will be gated by wallclock time. When straggler messages are
-     detected, we should be able to determine the latency, and we could possibly
-     shift the gate (i.e., wallclock time) to account for the expected latency.
-     - In other words, if a message arrives 200ms late, we set the upper bound
-       to wallclock-time - 200, to avoid future chance of rollback (and visual
-       jerkiness).
-** Consider alternatives to the current network-id implementation.
-   - Is it supposed to work across Parallel DEVS and DSDEVS?
-     - Are we going to mix the two?
-** Create more examples
-   - Put in examples ns.
+**** Consider "functional devs"
+     - That could be an organizing principle for this new version.
+     - The idea is to adhere to the semantics of DEVS, but within an FP framework.
+*** Include docs about allowed structure changes
+    - See: file:///home/austin/projects/tomato-system/doc/papers/VarStructDEVSXiao.pdf
+      - section 2.1
+** Create a dynamic example.
+   - Something we can use for benchmarking.
+** Consider renaming afap to fast or event-driven.
+** Create a simple benchmark.
+** Implement a RT root coordinator.
+   - Refer to file:///home/austin/projects/tomato-system/doc/papers/devsjava_2005.pdf
+     - p. 89
+     - The root coordinator gates child processes.
+
+   - http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.843.6421&rep=rep1&type=pdf
+     - Section 4.1: How to avoid accumulating delays due to actual execution
+       time.
+       - See last paragraph.
+** Implement flattening optimization.
+   - This should improve parallelism.
+   - In the hierarchical model, getting output is interleaved with distributing
+     that output locally. I think the flattened model may benefit from
+     distributing all messages in one pass, rather than one network at a time.
+   - Compare with not flat version.
+** Create new version that uses one model.
+*** First, transform this new model into the standard models.
+*** Then, if that works, write a simpler implementation just to support this new model.
+** Add constructor and destructor to models.
 ** Add more tests.
    - Use examples.
    - Confluence tests.
    - Verify that parallel is working properly.
    - Try some tricky situations.
-** Create a simple benchmark.
-   - Just want something to test against as we move forward.
 ** Clean up
 *** standardize on names
     - mail?
@@ -389,16 +332,10 @@
 *** if we do our own system
     - Say what we borrowed from where.
       - e.g., separation of model and simulator from DEVS
-** zombie demo
-*** notes
-    - See and hear.
-      - Growls and screams and footsteps.
-        - Zombie is always making some noise.
-    - Precompute LOS.
-*** Runs w/o graphics.
-*** 2D graphics
-    - green circles turn red
-*** 3D graphics.
+** Determine how to implement a Poisson distribution for customer arrivals.
+** Select and implement a suitable PRNG.
+** demo
+   - Restaurant
 ** -----------------------------------------------------------------------------
 ** Clean up these notes.
 ** Remove the real-time root simulators.

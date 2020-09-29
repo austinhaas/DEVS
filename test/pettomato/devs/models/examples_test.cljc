@@ -1,4 +1,4 @@
-(ns pettomato.devs.example-models-test
+(ns pettomato.devs.models.examples-test
   (:require
    #?(:clj
       [clojure.test :refer [deftest is testing]]

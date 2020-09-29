@@ -28,7 +28,7 @@
           tn         (pq/peek-key event-list)]
       (Coordinator. sims routes event-list tl tn)))
   (receive-*-message [this t]
-    ;; also includes receive-y-message
+    ;; This implementation includes receive-y-message.
     (assert (= t tn) (str "(= " t " " tn ")"))
     (let [imminent       (pq/peek event-list)
           ;; Compute output from all imminent simulators (in parallel).
