@@ -12,27 +12,32 @@
    [pettomato.devs.root-coordinators.as-fast-as-possible :refer
     [afap-root-coordinator]]
    [pettomato.devs.simulators.atomic :refer [atomic-simulator]]
+   [pettomato.devs.simulators.executive :refer [executive-simulator]]
    [pettomato.devs.simulators.network :refer [network-simulator]]
    [pettomato.devs.util :refer [infinity]]))
 
 (deftest network-test
-  (let [net-1 {:models {:a (generator :x 5)}
-               :routes [[:a :out network-name :a-out identity]]}
-        net-2 {:models {:a (generator :x 5)
-                        :b (generator :y 3)}
-               :routes [[:a :out network-name :a-out identity]
-                        [:b :out network-name :b-out identity]]}
-        exec  (executive-model
-               [net-1 0]
-               {net-1 net-2
-                net-2 net-1}
-               nil
-               nil
-               (constantly nil)
-               (constantly 5)
-               {net-1 net-2
-                net-2 net-1})
-        model (network-model :exec exec)]
+  (let [net-1   {:models {:a (generator :x 5)}
+                 :routes [[:a :out network-name :a-out identity]]}
+        net-2   {:models {:a (generator :x 5)
+                          :b (generator :y 3)}
+                 :routes [[:a :out network-name :a-out identity]
+                          [:b :out network-name :b-out identity]]}
+        exec    (executive-model
+                 [net-1 0]
+                 {net-1 net-2
+                  net-2 net-1}
+                 nil
+                 nil
+                 (constantly nil)
+                 (constantly 5)
+                 {net-1 net-2
+                  net-2 net-1})
+        model   (network-model :exec exec)
+        sim-fns (fn [model-name model]
+                  (case model-name
+                    :exec executive-simulator
+                    atomic-simulator))]
     (is (= [[ 3 {:b-out [:y]}]
             [ 5 {:a-out [:x]}]
             [10 {:a-out [:x]}]
@@ -41,5 +46,5 @@
             [20 {:a-out [:x]}]
             [23 {:b-out [:y]}]
             [25 {:a-out [:x]}]]
-           (-> (network-simulator (constantly atomic-simulator) model)
+           (-> (network-simulator sim-fns model)
                (afap-root-coordinator 0 25))))))

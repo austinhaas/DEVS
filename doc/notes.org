@@ -195,7 +195,7 @@
 * DEVS
 ** DONE Finish coupled simulator
 ** DONE Document examples.
-** Update the dynamic structure implementation.
+** DONE Update the dynamic structure implementation.
 *** DONE Re-read this: file:///home/austin/projects/tomato-system/doc/papers/VarStructDEVSXiao.pdf
     - I think we can achieve the same effect without sacrificing the separation
       of model and simulator.
@@ -204,26 +204,32 @@
       - I don't think this works for us, though, because in FP, there is no way
         for a function to effect a change on a parent like this.
     - Does it say when it makes the structure changes?
-*** Finish old one.
+*** DONE Finish old one.
     - Clean up and check in.
 *** Problem
     - Support for dynamic structure means violating core DEVS principles:
       - atomic model / coupled model separation
         - Models shouldn't have knowledge about their external network.
       - model / simulator separation
-
-
-
+    - We're also moving this knowledge and behavior that was external to the
+      system under construction, by the creator, into the system.
 *** Proposal
-    - Models may have internal networks.
-    - An internal network is just a model implementation detail.
+    - Base on DSDE.
+    - Implement custom simulator.
+    - Determine the API.
 
-    - Implement it directly as a simulator.
+    - The model communicates with the simulator through its API, not messages,
+      which are in the model space.
 
-
+    - Options:
+      1. The model returns an additional value when it is updated.
+      2. The model has a function that takes a state and returns structure
+         change messages.
+      3. The model uses an API to express structure changes.
+*** Finish network
+    - dynamic coupling
 
 *** Determine how to proceed
-
 **** Proposal: Models own their internal network.
 
 ***** How to update state?
@@ -260,6 +266,10 @@
    - Something we can use for benchmarking.
 ** Consider renaming afap to fast or event-driven.
 ** Create a simple benchmark.
+*** Test creating new records vs. updating properties.
+*** Don't factor-routes on every update.
+*** Don't update network if exec didn't change.
+*** Test pmap.
 ** Implement a RT root coordinator.
    - Refer to file:///home/austin/projects/tomato-system/doc/papers/devsjava_2005.pdf
      - p. 89

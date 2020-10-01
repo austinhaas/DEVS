@@ -22,7 +22,11 @@
                        (= t tn))     ((:confluent-update-fn model) state x)
                   (and (seq x)
                        (<= tl t tn)) ((:external-update-fn model) state (- t tl) x)
-                  :else              (throw (ex-info "error" {})))
+                  :else              (throw (ex-info "Can't determine which state transition function to call."
+                                                     {:x  x
+                                                      :tl tl
+                                                      :t  t
+                                                      :tn tn})))
           tl    t
           tn    (+ tl ((:time-advance-fn model) state))]
       (AtomicSimulator. model state tl tn)))

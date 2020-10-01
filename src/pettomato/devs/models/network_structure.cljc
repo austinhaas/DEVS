@@ -62,9 +62,9 @@
                         [receiver in-port->f] (get-in routes [sender out-port])
                         [in-port f]           in-port->f]
                     [sender out-port receiver in-port f vs])]
-    ;; TODO: If several receivers apply the same transducer to the same output
-    ;; port, then it might be more efficient to group by [out-port f] and
-    ;; ensure that we only apply the function once.
+    ;; TODO: If several receivers apply the same function to the same output
+    ;; port, then it might be more efficient to group by [out-port f] and ensure
+    ;; that we only apply the function once.
     (reduce (fn [m [sender out-port receiver in-port f vs]]
               (update-in m [receiver in-port] into (map f) vs))
             {}

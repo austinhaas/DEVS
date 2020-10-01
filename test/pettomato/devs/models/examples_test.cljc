@@ -35,10 +35,12 @@
                             :delay (delay-component 5)}
                routes      [[:gen :out :delay :in]
                             [:delay :out network-name :out]]
-               simulators  {:gen   atomic-simulator
-                            :delay atomic-simulator}
-               coordinator (coordinator {:models     models
-                                         :routes     routes
-                                         :simulators simulators})]
+               sim-fns     (fn [model-name model]
+                             (case model-name
+                               :gen   atomic-simulator
+                               :delay atomic-simulator))
+               model       {:models models
+                            :routes routes}
+               coordinator (coordinator sim-fns model)]
            (-> coordinator
                (afap-root-coordinator 0 25))))))

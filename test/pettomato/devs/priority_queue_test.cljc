@@ -9,6 +9,13 @@
 (deftest priority-queue-tests
   (is (pq/empty? (pq/priority-queue)))
 
+  (testing "constructor"
+    (is (= [[1 #{:a :d}]
+            [2 #{:b}]
+            [3 #{:c}]]
+           (-> (pq/priority-queue 2 :b 1 :a 3 :c 1 :d)
+               (pq/->seq)))))
+
   (testing "insert"
     (is (= [[1 #{:a :d}]
             [2 #{:b}]
