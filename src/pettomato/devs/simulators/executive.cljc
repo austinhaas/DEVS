@@ -4,13 +4,13 @@
    [pettomato.devs.ExecSimulator :refer [ExecSimulator]]
    [pettomato.devs.models.executive :refer [executive-model?]]))
 
-(defrecord ExecutiveSimulator [model state tl tn]
+(defrecord ExecutiveSimulator [id model state tl tn]
   Simulator
   (receive-i-message [this t]
     (let [[s e] (:initial-total-state model)
           tl    (- t e)
           tn    (+ tl ((:time-advance-fn model) s))]
-      (ExecutiveSimulator. model s tl tn)))
+      (ExecutiveSimulator. id model s tl tn)))
   (receive-*-message [this t]
     (assert (= t tn) (str "(= " t " " tn ")"))
     [this ((:output-fn model) state)])
@@ -26,12 +26,12 @@
                   :else              (throw (ex-info "error" {})))
           tl    t
           tn    (+ tl ((:time-advance-fn model) state))]
-      (ExecutiveSimulator. model state tl tn)))
+      (ExecutiveSimulator. id model state tl tn)))
   (time-of-last-event [this] tl)
   (time-of-next-event [this] tn)
   ExecSimulator
   (get-network-structure [this] ((:network-fn model) state)))
 
-(defn executive-simulator [model]
+(defn executive-simulator [id model]
   (assert (executive-model? model))
-  (ExecutiveSimulator. model nil nil nil))
+  (ExecutiveSimulator. id model nil nil nil))

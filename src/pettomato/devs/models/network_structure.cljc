@@ -22,7 +22,7 @@
 (defn rem-model [network model-name]
   (update network :models dissoc model-name))
 
-(defn add-route
+(defn connect
   "out-model - A model name.
    out-port  - A model port name.
    in-model  - A model name.
@@ -35,7 +35,7 @@
   [network [out-model out-port in-model in-port input-fn]]
   (assoc-in network [:routes out-model out-port in-model in-port] input-fn))
 
-(defn rem-route [network [out-model out-port in-model in-port input-fn]]
+(defn disconnect [network [out-model out-port in-model in-port input-fn]]
   (dissoc-in network [out-model out-port in-model in-port]))
 
 (def get-models :models)

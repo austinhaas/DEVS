@@ -14,9 +14,9 @@
   )
 
 ;;; Example from Theory of Modeling and Simulation, 2nd Ed., pp. 237-240.
-#_
+
 (def server simple-delay-component)
-#_
+
 (defn queue [k s*]
   (letfn [(add-server [s k']
             (-> s
@@ -72,10 +72,10 @@
      nil
      :output
      :sigma)))
-#_
+
 (defn node [servers]
   (network-model :queue (queue :queue servers)))
-#_
+
 (defn control [threshold]
   (letfn [(update-size [s k q-size idle-size]
             (-> s
@@ -118,7 +118,7 @@
      nil
      :output
      :sigma)))
-#_
+
 (def network-1
   (network-model
    :network-1

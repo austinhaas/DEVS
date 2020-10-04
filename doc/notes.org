@@ -1,81 +1,4 @@
-* DONE
-** DONE Consider switching back to bags as sequences instead of maps.
-   - Use group to aggregate the seq into a map for routing.
 
-   - Performance may suffer, but probably not by much. Building maps
-     for output can be more expensive than a seq.
-     - e.g., (update-in s [:output :out] conj v)
-       vs.   (update s :output conj [:out v])
-
-   - The most important thing is that seqs are easier to understand.
-
-   - Models that use labeled ports, like [:in 'x], will not be as
-     simple to aggregate and dispatch on as when message bags were a
-     seq.
-*** Write these two helper macros to capture the two most common message processing idioms.
-    - Not sure this is warranted any longer, since changing the message
-      bag to a map.
-
-    - They capture the two most common idioms.
-    - They are concise. They remove boilerplate, and also the
-      opportunity to make errors.
-    - They clarify intent.
-    - They make ports clearer.
-
-    - I don't think there is much room for improvement over these two idioms:
-      - Iterate sequentially over the bag, dispatching on port.
-      - Aggregate the bag's members in one linear traversal to collect
-        them, using group-by, and then handling the disjoint subsets
-        however--either sequentially or in batch.
-        - Note that there is only a single key-fn call on each element
-          of the bag to determine which subset it belongs to. A naive
-          pattern matcher would need to test each element against each
-          pattern until it succeeds.
-
-          "Partitions x by key-fn. Iterates through the clauses,
-          binding x to the subset given by the corresponding key, and
-          biding s to the result of the previous expr, or the original
-          s, if there is no previous expr.
-
-          Note that the expression is not evaluated if the subset is
-          empty.
-          "
-
-          (dispatch* [s e x key-fn]
-            key1 expr1
-            key2 expr2)
-
-          expands to
-
-          (fn ext-update [s e x]
-            (let [m (group-by key-fn x)]
-              (some-> s
-                (seq (m key1)) (let [x (m key1)] expr1)
-                (seq (m key2)) (let [x (m key2)] expr1))))
-
-
-
-          (dispatch [s e x key-fn]
-            key1 expr1
-            key2 expr2)
-
-          expands to
-
-          (fn ext-update [s e x]
-            (reduce-kv (fn [s x]
-                         (case (key-fn x)
-                           key1 expr1
-                           key2 expr2))
-                       s
-                       x))
-
-** DONE Refactor immediate-system.
-*** DONE Determine the shape of tmsg-in and tmsg-out.
-    - [timestamp ???]
-    - ??? is a map from a label to a collection of values.
-      - Is that a collection of messages?
-**** DONE Document this.
-** DONE Refactor step.
 * Old code
 ** DEVS message passing optimization
    Didn't make a significant improvement.
@@ -192,6 +115,76 @@
         (afap-root-coordinator 0 100)))
 
   )
+* DONE
+** DONE Consider switching back to bags as sequences instead of maps.
+   - Use group to aggregate the seq into a map for routing.
+
+   - Performance may suffer, but probably not by much. Building maps
+     for output can be more expensive than a seq.
+     - e.g., (update-in s [:output :out] conj v)
+       vs.   (update s :output conj [:out v])
+
+   - The most important thing is that seqs are easier to understand.
+
+   - Models that use labeled ports, like [:in 'x], will not be as
+     simple to aggregate and dispatch on as when message bags were a
+     seq.
+*** Write these two helper macros to capture the two most common message processing idioms.
+    - Not sure this is warranted any longer, since changing the message
+      bag to a map.
+
+    - They capture the two most common idioms.
+    - They are concise. They remove boilerplate, and also the
+      opportunity to make errors.
+    - They clarify intent.
+    - They make ports clearer.
+
+    - I don't think there is much room for improvement over these two idioms:
+      - Iterate sequentially over the bag, dispatching on port.
+      - Aggregate the bag's members in one linear traversal to collect
+        them, using group-by, and then handling the disjoint subsets
+        however--either sequentially or in batch.
+        - Note that there is only a single key-fn call on each element
+          of the bag to determine which subset it belongs to. A naive
+          pattern matcher would need to test each element against each
+          pattern until it succeeds.
+
+          "Partitions x by key-fn. Iterates through the clauses,
+          binding x to the subset given by the corresponding key, and
+          biding s to the result of the previous expr, or the original
+          s, if there is no previous expr.
+
+          Note that the expression is not evaluated if the subset is
+          empty.
+          "
+
+          (dispatch* [s e x key-fn]
+            key1 expr1
+            key2 expr2)
+
+          expands to
+
+          (fn ext-update [s e x]
+            (let [m (group-by key-fn x)]
+              (some-> s
+                (seq (m key1)) (let [x (m key1)] expr1)
+                (seq (m key2)) (let [x (m key2)] expr1))))
+
+
+
+          (dispatch [s e x key-fn]
+            key1 expr1
+            key2 expr2)
+
+          expands to
+
+          (fn ext-update [s e x]
+            (reduce-kv (fn [s x]
+                         (case (key-fn x)
+                           key1 expr1
+                           key2 expr2))
+                       s
+                       x))
 * DEVS
 ** DONE Finish coupled simulator
 ** DONE Document examples.
@@ -262,8 +255,45 @@
 *** Include docs about allowed structure changes
     - See: file:///home/austin/projects/tomato-system/doc/papers/VarStructDEVSXiao.pdf
       - section 2.1
+** DONE Change messages a map, where ports are keys.
+   - If this is simpler and more efficient, then we definitely should do it.
+   - Because order shouldn't matter.
+** Implement mathematical version of DSDE.
+   - Keep the whole thing as simple as possible.
+   - No optimization.
+*** Test it.
+    - Need a model.
+** Implement optimized version of DSDE.
+   - As simple as it can be, while maximizing efficiency.
+   - This may not resemble the examples in the DSDE paper, but it should be
+     functionally the same.
+** Implement flattened simulation.
+   - Feel free to deviate from DSDE.
+   - This should improve parallelism.
+   - In the hierarchical model, getting output is interleaved with distributing
+     that output locally. I think the flattened model may benefit from
+     distributing all messages in one pass, rather than one network at a time.
+   - Compare with not flat version.
+*** Consider alternate implementation
+**** graph based
+     - Might be easier to understand and debug.
+     - Might be able to have a receive-y-message.
+       - E.g., if the graph traversal is explicit.
+
+     - We need to be able to draw the graph.
+       - This seems critical.
+       - Might help w/ port api.
+***** Two graphs
+****** The parent/child hierarchy.
+****** The network of connected ports.
+**** Consider using a sorted set for queue.
 ** Create a dynamic example.
    - Something we can use for benchmarking.
+** Improve debugging
+*** Label trace with ks.
+*** Indent based on depth or label each line with k
+** Cleanup
+*** Change network-name to N.
 ** Consider renaming afap to fast or event-driven.
 ** Create a simple benchmark.
 *** Test creating new records vs. updating properties.
@@ -279,15 +309,6 @@
      - Section 4.1: How to avoid accumulating delays due to actual execution
        time.
        - See last paragraph.
-** Implement flattening optimization.
-   - This should improve parallelism.
-   - In the hierarchical model, getting output is interleaved with distributing
-     that output locally. I think the flattened model may benefit from
-     distributing all messages in one pass, rather than one network at a time.
-   - Compare with not flat version.
-** Create new version that uses one model.
-*** First, transform this new model into the standard models.
-*** Then, if that works, write a simpler implementation just to support this new model.
 ** Add constructor and destructor to models.
 ** Add more tests.
    - Use examples.
@@ -342,216 +363,14 @@
 *** if we do our own system
     - Say what we borrowed from where.
       - e.g., separation of model and simulator from DEVS
-** Determine how to implement a Poisson distribution for customer arrivals.
 ** Select and implement a suitable PRNG.
+   - https://en.wikipedia.org/wiki/Mersenne_Twister
+** Determine how to implement a Poisson distribution for customer arrivals.
 ** demo
    - Restaurant
 ** -----------------------------------------------------------------------------
-** Clean up these notes.
-** Remove the real-time root simulators.
-** Make a cljs example.
-   - What is the simplest way to do that?
-
-     - Consider creating a root directory with new projects that
-       depend on devs.
-** Consider putting all of the models in one example directory.
-   - Tests and examples can use the models.
-** Make input take [time msg*].
-   - To be consistent w/ output.
-   - To assert that msg* are the only messages at time.
-** Refactor aF-real-time-system.
-   - Still not sure that driving the simulation with aF is the right
-     thing to do.
-*** Implement the quickest, easiest system.
-**** Consider adding an API (or protocol) for the root-simulator.
-     - Only implement ext-update (instead of schedule).
-
-       - Also, int-update, instead of advance?
-
-     - Motivation: we need tn for real-time-system, and it makes sense
-       to follow the Simulator protocol already established.
-
-**** Proposal: Keep it simple, with external input fed in via aF.
-     - But add helper fns to make it easier to wire in new "real time"
-       models.
-
-  "sim is an instance of a network-simulator.
-
-  start-time is the simulation starting time, in milliseconds.
-
-  max-delta is the maximum step size the simulation will make, in
-  milliseconds. The actual step size depends on
-  requestAnimationFrame. max-delta prevents the simulation from
-  attempting to do too much work in a single step. For example, if the
-  simulation is in a tab that does not have focus, it will not update
-  until the user refocuses the tab. It may be very expensive to try to
-  catch up to the current wallclock time. Note that the system will
-  not try to make up for lost time. It will update once, up to
-  max-delta, and then resume updating at the rate dictated by
-  requestAnimationFrame.
-
-  https://developer.mozilla.org/en-US/docs/Web/API/window/requestAnimationFrame
-
-  input! is a function that takes no arguments and returns a seq of
-  input values.
-
-  output! is a function takes a [time output] pair and returns a value
-  that will be ignored.
-
-  The trailing bang indicates that these functions will most likely
-  employ side-effects.
-
-  Returns a handle that can be passed to aF-real-time-system-stop! to
-  stop the system."
-*** Implement an accurate or sound real-time system.
-**** Windowing / Confluence
-     - E.g., External events are collected in a window and processed
-       at the end of the window.
-     - Is there a way to understand this as a confluence period?
-     - Explain here about how the simulation advances, but not over
-       discrete intervals--from last update time (an actual event, not
-       the upper bound we impose with the step) to current time.
-       - Problem: This doesn't account for confluence discrepencies.
-***** Straggler messages
-      - A straggler message is an external event that arrives after the
-        last update (for a simulation that updates from
-        time-of-last-event to wallclock-time), with the same timestamp
-        as the last event.
-      - A straggler should've been processed by a confluence function,
-        with any other events with the same timestamp.
-      - This is one type of straggler message. In the literature,
-        straggler message is used to indicate various types of "late"
-        messages.
-      - It is impossible to determine that all messages are received at
-        a certain time, until another message arrives at a later time,
-        or something is polling for the current time.
-**** Does it make sense to use rAF as the only update engine?
-     - If smooth animation is important, it does.
-       - This isn't necessarily true. We just need to make sure the
-         simulation is up-to-date when rAF runs.
-**** How is threading handled?
-     - A real-time system should probably be multi-threaded, but we
-       might be able to cheat with JS events and running a stepwise
-       simulation.
-**** Proposal: A reactive RT system. (Do this!)
-     - Rename simulation-advance to root-simulator with the following
-       API.
-     - (advance sim max-time)
-       - Decrement wallclock-time by one unit when calling advance, to
-         avoid confluence problems. Events with a timestamp equal to
-         the upper-bound of the step will not be executed until the
-         next step. This avoids any confluence problems, at the cost
-         of the simulation being delayed by an infinitesimally small
-         amount.
-     - (schedule sim time event)
-       - time must be > TL(sim).
-       - The sim uses a priority queue.
-     - rAF updates the sim to wallclock-time, then updates any
-       graphical elements.
-     - This doesn't simplify the modeling of real-time events. There
-       still must be external wires that connect all the way down into
-       the receiver model.
-       - I think we should live with this flaw for now.
-**** Proposal: Delayed TN.
-     - Allow models to return a delayed value for TN.
-     - Only the simulators need to be changed. This includes
-       atomic-simulator, network-simulator, and simulation-advance.
-       - network-simulator can't use a priority queue.
-       - simulation-advance doesn't need to take external messages.
-     - The idea is that when a simulator is updated, it first tries to
-       dereference any delayed values. If they can be dereferenced,
-       their value is used to compute TN. If they can't be
-       dereferenced, they are treated as TN = infinity (for that step
-       only).
-     - I'm not sure how much change is required to support this. It
-       may be considerable, since everything is based on TN. It may
-       also be harder to understand and debug. I'm not sure how state
-       is handled, for instance. The parallel process responsible for
-       handling the real-time input must update the state of the
-       model. In addition to updating TN, it must contain the messages
-       that it will output.
-**** Proposal: A RT system where there is no TN.
-     - multi-threaded
-     - Every model is responsible for sending its messages at the
-       right time.
-
-*** Implement a modular, composable system.
-   - The end result of this refactoring should be a modular
-     system. We should be able to swap out components to achieve
-     different behaviors, such as an update strategy that tries to
-     catch up to present time but capping the step size, or a knob we
-     can turn to speed up or slow down the simulation.
-   - Consider other implementations of either feature, such as one
-     that tries to catch up to real-time, or one that can be paused
-     (maybe the update driver keeps sending wall time, but this
-     thing knows to pause sim time).
-   - Try connecting channels to input! and output!. It might be
-     straightforward to connect this system to channels.
-**** Determine how to update the current sim time.
-     - Consider slowing or speeding up simulation time.
-
-     - Consider that requestAnimationFrame could just be polling on
-       that interval. That may be distinct from the frequency that the
-       simulation is updating or the step size of the simulation.
-
-     - The timestamps of events can be set by the js event handlers
-       that are fired.
-
-     - How is the sim clock advanced?
-
-**** Consider supplying a now! or time! fn to aF-real-time-system-start!.
-
-     - The client that supplies now! and input! must guarantee that
-       as long as now! is called after input! no messages in input!
-       will be later than the value returned by now!.
-
-     - This is just for wall time, though, right? The mapping from
-       wall-time to sim-time is separate, and follows this in the
-       pipeline.
-
-**** Model a few configurations that take wall-time and compute sim-time.
-     - To include a governor.
-     - To include different catchup strategies.
-     - To add velocity controls.
-
-     - There are multiple clocks here. rAF, wall, sim.
-
-     - Consider that aRF may not fire if the tab is not focused.
-       - Consider adding a "backup" function that runs on an interval
-         and keeps the sim from getting more than n seconds behind.
-
-     - Consider separating sim update from rendering.
-
-     - Is there a different way to conceive of these modules? Can
-       they be in the sim?
-       - Did we determine that that is impossible?
-
-       - Ideally, any model could be backed by some external process
-         and we wouldn't have to set up a bunch of wires and
-         dispatching to make that happen.
-
-       - I think the problem is that a sim doesn't own its
-         state. There is no way to update a sim's state except for an
-         external event or polling.
-
-         - Are we doing any better than polling?
-           - We are scheduling events without any latency.
-
-**** real-time-system should just be a version that uses channels
-     - Do we even need that? Is it better than our io-function
-       abstraction.
 ** Check that we are using the high resolution timer for the browser.
    - (now) is, but I thought there was a shim for rAF, too.
-** aF-real-time-system: Add functions to pause and resume.
-** Set up a simulation with an experimental frame.
-   - Make it something that can be used to benchmark.
-** Benchmark simulators defined with defrecord vs. a map.
-** Consider changing models.cljc to use a protocol instead of a map.
-   - I think my main argument against using protocols is that users
-     have to define models and I don't want a protocol to be part of
-     the interface.
-     - That's not correct. We still use a function for the API. The
-       function creates the map (or record).
 ** Consider declaring ports in models.
    - To elucidate the interface.
    - Could this buy additional clarity in the handling of messages?
@@ -561,33 +380,13 @@
        within a port-translating macro.
    - Might help catch errors.
      - Don't let something connect to a non-existent port.
-** Consider adding a 5 argument form of atomic-model that doesn't include con-update.
 ** Bug: network-model, pass thru connection
    - Can't create a "pass thru" connection where an input to :N
      connects to an output of :N.
+   - I seem to recall this being explicitly disallowed in the literature, but I
+     can't recall where. I'm not sure what it means to allow this.
    - This would be useful for debugging.
-** Use clojure.spec to document and validate model input and output.
-   - Ports and messages.
-   - That should help catch a lot of user errors.
-*** Model output must be a map.
-*** immediate-system: check that input is a pair of [t []].
-** Add tests.
-*** Test port transducer functions.
-** Documentation
-*** Document network-simulator.
-    - It's impossible to follow what is going on there.
-    - Document how transducers are used.
-    - Document what each symbol signifies.
-*** Add docstrings.
-*** model -> simulator -> system
-*** Fix readme.
-*** Note that DEVS has no opinion on port identifiers.
-** Consider using a map to define models, rather than a function.
-   - Would necessitate tagging models with their type.
-   - Would need to move the default con-update handling to the
-     simulator, since with a map the int/ext fns could change and
-     there'd be know way to know that.
-** Print out coupled models using graphviz.
+** Render network using graphviz.
 ** Consider deleting models where sigma = infinity and no inports.
 ** Consider using monads in update fns.
    - Currently, it's annoying to have to organize the messages to

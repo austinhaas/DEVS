@@ -25,7 +25,7 @@
    [pettomato.devs.models.network-structure :refer [network-name factor-routes route-messages]]
    [pettomato.devs.priority-queue :as pq]
    [pettomato.devs.simulators.coordinator :refer [execute-output execute-state-transitions]]
-   [pettomato.devs.util :refer [infinity]]))
+   [pettomato.devs.util :refer [infinity trace]]))
 
 (defn update-network [sim-fns exec-name k->sim queue t]
   ;; Compare the old network to the new network to determine what has
@@ -56,7 +56,11 @@
                                   (let [model  (get k->model k)
                                         sim-fn (sim-fns k model)
                                         sim    (sim-fn model)
-                                        sim    (receive-i-message sim t)]
+                                        sim    (try (receive-i-message sim t)
+                                                    (catch Exception e
+                                                      (throw (ex-info "Error in model during recieve-i-message"
+                                                                      {:k k}
+                                                                      e))))]
                                     (assoc k->sim k sim)))
                                 k->sim
                                 added-ks)
@@ -89,13 +93,18 @@
 (defrecord NetworkSimulator [model sim-fns k->sim routes queue tl]
   Simulator
   (receive-i-message [this t]
-    #_(printf "[%s] receive-i-message\n" t)
+    (trace "[%s] ************************************" t)
+    (trace "[%s] NetworkSimulator/receive-i-message" t)
     (let [exec-name             (:executive-name  model)
           exec-model            (:executive-model model)
           sim-fn                (sim-fns exec-name exec-model)
           exec-sim              (sim-fn exec-model)
           ;; The exec needs to be initialized before its children.
-          exec-sim              (receive-i-message exec-sim t)
+          exec-sim              (try (receive-i-message exec-sim t)
+                                     (catch Exception e
+                                       (throw (ex-info "Error in model during recieve-i-message"
+                                                       {:k exec-name}
+                                                       e))))
           ;; Include the exec.
           k->sim                (assoc k->sim exec-name exec-sim)
           ;; Create a new queue. Seed with exec.
@@ -105,15 +114,21 @@
           tl                    (apply max (map time-of-last-event (vals k->sim)))]
       (NetworkSimulator. model sim-fns k->sim routes queue tl)))
   (receive-*-message [this t]
-    #_(printf "[%s] receive-*-message\n" t)
+    (trace "[%s] ====================================" t)
+    (trace "[%s] NetworkSimulator/receive-*-message" t)
     ;; Get mail. Distribute internal mail. Return external mail.
     ;; This implementation includes receive-y-message.
     (let [tn (time-of-next-event this)]
-      (assert (= t tn) (str "(= " t " " tn ")")))
+      (when-not (= t tn)
+        (throw (ex-info (str "synchronization error" " (= " t " " tn ")")
+                        {:t  t
+                         :tn tn
+                         :tl tl}))))
     (let [;; Compute output from all imminent simulators (in parallel).
           [k->sim' k->mail-from]   (execute-output k->sim queue t)
           ;; Route the mail.
           k->mail-to               (route-messages routes k->mail-from)
+          _                        (trace "[%s]   k->mail-to: %s" t k->mail-to)
           k->mail-to-ext           (get    k->mail-to network-name)
           k->mail-to-int           (dissoc k->mail-to network-name)
           ;; Execute state transitions (in parallel).
@@ -124,10 +139,16 @@
           sim                      (NetworkSimulator. model sim-fns k->sim' routes' queue' t)]
       [sim k->mail-to-ext]))
   (receive-x-message [this x t]
-    #_(printf "[%s] receive-x-message\n" t)
+    (trace "[%s] ====================================" t)
+    (trace "[%s] NetworkSimulator/receive-x-message: %s" t x)
     (let [tn (time-of-next-event this)]
-      (assert (<= tl t tn) (str "(<= " tl " " t " " tn ")")))
+      (when-not (<= tl t tn)
+        (throw (ex-info (str "synchronization error" " (<= " tl " " t " " tn ")")
+                        {:t  t
+                         :tn tn
+                         :tl tl}))))
     (let [k->mail-to               (route-messages routes x)
+          _                        (trace "[%s]   k->mail-to: %s" t k->mail-to)
           ;; Execute state transitions (in parallel).
           [k->sim' queue']         (execute-state-transitions k->sim queue k->mail-to t)
           ;; Update the network structure, if changed.

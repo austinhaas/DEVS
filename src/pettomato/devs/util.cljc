@@ -1,4 +1,6 @@
-(ns pettomato.devs.util)
+(ns pettomato.devs.util
+  (:require
+   [pettomato.lib.log :as log]))
 
 (def infinity #?(:clj  Double/POSITIVE_INFINITY
                  :cljs (.-POSITIVE_INFINITY js/Number)))
@@ -17,3 +19,9 @@
           (assoc m k v)))
       (dissoc m k))
     m))
+
+(def ^:dynamic *trace* false)
+
+(defn trace [& args]
+  (when *trace*
+    (apply log/infof args)))
