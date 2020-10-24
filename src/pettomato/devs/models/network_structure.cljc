@@ -35,11 +35,11 @@
   [network [out-model out-port in-model in-port input-fn]]
   (assoc-in network [:routes out-model out-port in-model in-port] input-fn))
 
-(defn disconnect [network [out-model out-port in-model in-port input-fn]]
+(defn disconnect [network [out-model out-port in-model in-port]]
   (dissoc-in network [out-model out-port in-model in-port]))
 
 (def get-models :models)
-
+#_
 (defn factor-routes
   "Convert the flat, human-readable expression of routes to a nested map, which
   indexes the components for fast access.
@@ -51,6 +51,21 @@
   (reduce (fn [m [k1 p1 k2 p2 f]]
             (assert (not= k1 k2) "Direct feedback loops are not allowed.") ;; TMS2000 p. 86.
             (assoc-in m [k1 p1 k2 p2] (or f identity)))
+          {}
+          routes))
+
+#_
+(defn fetch-mail
+  "Returns the mail for k, given routes and sims.
+
+  Mail is a map from port name to a seq of values."
+  [routes sims k]
+  (reduce (fn [m [out-model out-port in-model in-port f]]
+            (if (= k in-model)
+              (if-let [vs (seq (get-in sims [out-model :y out-port]))]
+                (update m in-port into vs)
+                m)
+              m))
           {}
           routes))
 

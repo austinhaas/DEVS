@@ -261,39 +261,93 @@
 ** Implement mathematical version of DSDE.
    - Keep the whole thing as simple as possible.
    - No optimization.
+*** Clean up
+**** DONE Consider improving how exec-state is accessed.
+     - Seems wrong, because this implementation is one simulator removed from
+       the one that manages the model state.
+     - This might be simpler in the flattened version, because this function
+       would have direct access to the process states.
+     - If this works, leave it.
+**** DONE The models still need simulators.
+     - This is another way the flattened version might be simpler.
+**** DONE Remove factor-routes.
+**** DONE Move examples to test ns.
+**** DONE Make it easier to debug
+     - Add log messages that indent and include sim time.
+**** DONE issues with dynamic structure example.
+***** The input isn't determining the work.
+***** Output more stats
+      - Cost?
+      - Max num workers
+**** Structure changes shouldn't depend solely on the name of the model.
+**** Don't return total state as one fn.
+     - Separate out returning the initial elapsed-time and make it default to 0.
+**** Change network-name to N.
 *** Test it.
-    - Need a model.
+**** Add dynamic structure model.
 ** Implement optimized version of DSDE.
    - As simple as it can be, while maximizing efficiency.
    - This may not resemble the examples in the DSDE paper, but it should be
      functionally the same.
+*** Use a priority queue to determine which simulators are imminent.
+    - I think this is compatible with the current locally-stored output, due to
+      the way we propagate messages forward, rather than backwards (i.e., by
+      employing "influencers").
+      - We will only invoke the output fn on the imminent set and we will only
+        collect output from the imminent set.
+*** Don't update structure unless the exec was modified.
 ** Implement flattened simulation.
-   - Feel free to deviate from DSDE.
    - This should improve parallelism.
+   - Feel free to deviate from DSDE.
    - In the hierarchical model, getting output is interleaved with distributing
-     that output locally. I think the flattened model may benefit from
-     distributing all messages in one pass, rather than one network at a time.
-   - Compare with not flat version.
-*** Consider alternate implementation
-**** graph based
-     - Might be easier to understand and debug.
-     - Might be able to have a receive-y-message.
-       - E.g., if the graph traversal is explicit.
+     that output locally. The flattened model may benefit from distributing all
+     messages in one pass, rather than one network at a time.
+   - The main question is how to represent the network in a way that works at
+     the model level and the simulation level.
+*** Proposal: Graph based, functions on the network
+    - Models are maps. Executives have an additional network-structure fn.
+      - Takes a state and a network structure. Returns a new network
+        structure. The user supplies the state, but not the network structure
+        (though, they do modify it).
+    - The network structure is like state, but a distinct entity.
+    - The system provides functions for operating on a network, such as add-node
+      and add-edge (or add-lp and connect).
+    - The implementation of these functions determine if the network is
+      flattened or not.
+    - The hierarchy is only preserved so that structural updates can be
+      performed in a consistent bottom up order.
+    - Can we translate between the flattened and hierarchical representations?
+      - I'm thinking that the flattened representation moves the hierarchy into
+        the names, like [:app :server-1 :queue].
+      - The routes are also optimized, by connecting terminal processes
+        directly.
+        - It should be possible to compress this lookup at runtime, like path
+          compression in the Union-Find algorithm.
+        - I'm not sure how difficult it would be, but we should also be able to
+          make surgical changes to this lookup when the network changes.
+      - How is the hierarchical representation known in graph theory?
+        - Subgraphs?
+**** How is the initial network structure realized?
+***** Proposal: In a loop.
+      - Instead of recursively.
+      - Because I think it may make it easier to build up the flattened
+        names. We lose the ancestry context if done recursively.
 
-     - We need to be able to draw the graph.
-       - This seems critical.
-       - Might help w/ port api.
-***** Two graphs
-****** The parent/child hierarchy.
-****** The network of connected ports.
-**** Consider using a sorted set for queue.
-** Create a dynamic example.
-   - Something we can use for benchmarking.
+      - Not sure how this jives with passing in a network and calling add-lp on
+        it.
+
+*** Consider my notes on graph paper about different categories of functions.
+    - behavior (int-update, etc.)
+    - structure (add-lp, connect, etc.)
+    - communication (send, receive)
+** Create an example for benchmarking.
 ** Improve debugging
 *** Label trace with ks.
 *** Indent based on depth or label each line with k
-** Cleanup
-*** Change network-name to N.
+*** Graphical animation
+*** Stepper
+    - Like prolog.
+    - Step forward and back in time. Inspect states.
 ** Consider renaming afap to fast or event-driven.
 ** Create a simple benchmark.
 *** Test creating new records vs. updating properties.
@@ -315,9 +369,6 @@
    - Confluence tests.
    - Verify that parallel is working properly.
    - Try some tricky situations.
-** Clean up
-*** standardize on names
-    - mail?
 ** update docs
 *** Put this documentation somewhere
 
@@ -363,8 +414,6 @@
 *** if we do our own system
     - Say what we borrowed from where.
       - e.g., separation of model and simulator from DEVS
-** Select and implement a suitable PRNG.
-   - https://en.wikipedia.org/wiki/Mersenne_Twister
 ** Determine how to implement a Poisson distribution for customer arrivals.
 ** demo
    - Restaurant
