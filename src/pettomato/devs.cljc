@@ -3,9 +3,9 @@
   logic, but functional and efficient."
   (:refer-clojure :exclude [run])
   (:require
-   [clojure.set :refer [union]]
+   [clojure.set :refer [subset?]]
    [pettomato.devs.priority-queue :as pq]
-   [pettomato.devs.util :refer [dissoc-in infinity]]
+   [pettomato.devs.util :refer [infinity]]
    [pettomato.lib.log :as log]))
 
 ;; This can be confusing, because there are two types of graphs:
@@ -27,31 +27,87 @@
 ;; networks are relatively rare.
 
 ;;------------------------------------------------------------------------------
-;; Model Protocols
+;; Models
 
-(defprotocol IModel
-  "A protocol for an atomic model."
-  (initial-total-state [this]                        "Returns [initial-state elapsed]. State can be anything; it is only used by the functions in this protocol.")
-  (internal-update     [this state]                  "Returns new state.")
-  (external-update     [this state elapsed messages] "Returns new state.")
-  (confluent-update    [this state messages]         "Returns new state.")
-  (output              [this state]                  "Returns mail, which is a map from port name to a seq of values.")
-  (time-advance        [this state]                  "Returns time until the next internal update."))
+;; Consider changing these to records, and adding an interface that is like the
+;; one that takes maps, but also validates and applies default values. It might
+;; be faster than using a hash to lookup the same fields over and over again in
+;; a map.
 
-(defprotocol IExecutive
-  "A protocol for an executive model."
-  (network-structure-output [this state] "Returns network structure messages."))
+(defn atomic-model
+  "An atomic Parallel DEVS model.
 
-(defprotocol INetwork
-  "A protocol for a network model."
-  (exec-name  [this] "Returns the name of the network executive.")
-  (exec-model [this] "Returns the network executive model."))
+  initial-total-state - [initial-state elapsed-time]
+
+  internal-update-fn - A function that takes a state and returns a new
+  state. Called when the model is imminent.
+
+  external-update-fn - A function that takes a state, an elapsed time, and a bag
+  of messages, and returns a new state. Called when the model has incoming
+  messages, but is not imminent.
+
+  confluent-update-fn - A function that takes a state and a bag of messages, and
+  returns a new state. Called when the model is imminent and has incoming
+  messages.
+
+  output-fn - A function that takes a state and returns a bag of messages.
+
+  time-advance-fn - A function that takes a state and returns a non-negative
+  number indicating the time until the model is imminent, provided it does not
+  receive any messages before that time.
+
+  A bag of messages is a map from ports to (unordered) sequences of messages."
+  [initial-total-state
+   internal-update-fn
+   external-update-fn
+   confluent-update-fn
+   output-fn
+   time-advance-fn
+   network-structure-fn]
+  (assert (and (sequential? initial-total-state)
+               (= 2 (count initial-total-state))
+               (number? (second initial-total-state))))
+  (assert (or (nil? internal-update-fn) (ifn? internal-update-fn)))
+  (assert (or (nil? external-update-fn) (ifn? external-update-fn)))
+  (assert (or (nil? confluent-update-fn) (ifn? confluent-update-fn)))
+  (assert (or (nil? output-fn) (ifn? output-fn)))
+  (assert (or (nil? time-advance-fn)  (ifn? time-advance-fn)))
+  (assert (or (nil? network-structure-fn)  (ifn? network-structure-fn)))
+  {:initial-total-state initial-total-state
+   :internal-update     internal-update-fn
+   :external-update     external-update-fn
+   :confluent-update    (or confluent-update-fn
+                            (fn [s x] (external-update-fn (internal-update-fn s) 0 x)))
+   :output              output-fn
+   :time-advance        time-advance-fn
+   :network-structure   (or network-structure-fn
+                            (constantly nil))})
+
+(defn atomic-model? [model]
+  (and (map? model)
+       (subset? #{:initial-total-state
+                  :internal-update
+                  :external-update
+                  :confluent-update
+                  :output
+                  :time-advance
+                  :network-structure}
+                (set (keys model)))))
+
+(defn network-model [models routes]
+  {:models models
+   :routes routes})
+
+(defn network-model? [model]
+  (and (map? model)
+       (subset? #{:models :routes}
+                (set (keys model)))))
 
 ;;------------------------------------------------------------------------------
 
 (def ^{:dynamic true :private true} *path*
   "Bound to the path to the current model in the network hierarchy."
-  [])
+  ())
 
 (def ^:dynamic *sim-time* nil)
 
@@ -74,10 +130,18 @@
   (when *trace*
     (apply log/infof
            (str "[" (pad-left 5 \  (str *sim-time*)) "]"
-                " " (str *path*)
-                " | " (apply str (repeat *indent* \ ))
+                " " (str (vec (reverse *path*)))
+                " " (apply str (repeat *indent* \ ))
                 (first args))
            (rest args))))
+
+(defn trace-mail [label mail]
+  (when *trace*
+    ;;(trace (str "+" (apply str (repeat (+ 2 (count label)) \-)) "+"))
+    (trace "%s" label)
+    ;;(trace (str "+" (apply str (repeat (+ 2 (count label)) \-)) "+"))
+    (doseq [[k vs] mail]
+      (trace " %s -> %s" (vec (reverse k)) (vec vs)))))
 
 ;;------------------------------------------------------------------------------
 
@@ -87,53 +151,42 @@
    :queue  (pq/priority-queue) ;; tn -> set of names
    })
 
-(declare apply-network-structure-messages)
-
-(defn- canonicalize-name
-  "Use paths as canonical names for models in a flattened hierarchy. Substitute
-  internal :network references with the model's external name."
-  [name]
-  (if (= :network name)
-    *path*
-    (conj *path* name)))
-
 (defn- add-atomic-model [pkg name model t]
   (trace "add-atomic-model: %s" name)
-  (let [[s e] (initial-total-state model)
+  (let [[s e] (:initial-total-state model)
         tl    (- t e)
-        tn    (+ tl (time-advance model s))
-        path  (canonicalize-name name)]
+        tn    (+ tl ((:time-advance model) s))
+        path  (cons name *path*)]
     (-> pkg
         (update :state assoc path {:model model :state s :tl tl :tn tn})
         (update :queue pq/insert tn path))))
 
-(defn- add-executive-model [pkg name model t]
-  (trace "add-executive-model: %s" name)
-  (let [pkg   (-> pkg
-                  (add-atomic-model name model t))
-        path  (canonicalize-name name)
-        state (get-in pkg [:state path :state])]
-    (let [xs (network-structure-output model state)]
-      ;; Recursive step.
-      (apply-network-structure-messages pkg xs t))))
+(declare add-model)
 
 (defn- add-network-model [pkg name model t]
   (trace "add-network-model: %s" name)
-  (binding [*path* (conj *path* name)]
-    (-> pkg
-        (add-executive-model (exec-name model) (exec-model model) t))))
+  (binding [*path* (cons name *path*)]
+    (as-> pkg pkg
+      (reduce-kv (fn [pkg name model]
+                   ;; Recursive step.
+                   (add-model pkg name model t))
+                 pkg
+                 (:models model))
+      (reduce connect
+              pkg
+              (:routes model)))))
 
 (defn- add-model [pkg name model t]
-  (trace "add-model: %s" name)
-  (condp satisfies? model
-    IModel     (add-atomic-model    pkg name model t)
-    IExecutive (add-executive-model pkg name model t)
-    INetwork   (add-network-model   pkg name model t)))
+  ;;(trace "add-model: %s" name)
+  (cond
+    (atomic-model?  model) (add-atomic-model pkg name model t)
+    (network-model? model) (add-network-model pkg name model t)
+    :else                  (throw (ex-info "Unknown model type." {:name name}))))
 
-;; TODO: Handle networks and executives.
+;; TODO: Handle networks.
 (defn- rem-model [pkg name]
   (trace "rem-model: %s" name)
-  (let [path (canonicalize-name name)
+  (let [path (cons name *path*)
         tn   (get-in pkg [:state path :tn])]
     (-> pkg
         (update :models dissoc path)
@@ -142,15 +195,23 @@
 (defn- connect
   [pkg [snd-name snd-port rcv-name rcv-port f]]
   (trace "connect: %s" [snd-name snd-port rcv-name rcv-port f])
-  (let [snd-path (canonicalize-name snd-name)
-        rcv-path (canonicalize-name rcv-name)]
+  (let [snd-path (if (= snd-name :network)
+                   *path*
+                   (cons snd-name *path*))
+        rcv-path (if (= rcv-name :network)
+                   *path*
+                   (cons rcv-name *path*))]
     (update-in pkg [:routes snd-path snd-port rcv-path rcv-port] (fnil conj #{}) f)))
 
 (defn- disconnect
   [pkg [snd-name snd-port rcv-name rcv-port f]]
   (trace "disconnect: %s" [snd-name snd-port rcv-name rcv-port f])
-  (let [snd-path (canonicalize-name snd-name)
-        rcv-path (canonicalize-name rcv-name)]
+  (let [snd-path (if (= snd-name :network)
+                   *path*
+                   (cons snd-name *path*))
+        rcv-path (if (= rcv-name :network)
+                   *path*
+                   (cons rcv-name *path*))]
     ;; TODO: Prune dead branches.
     (update-in pkg [:routes snd-path snd-port rcv-path rcv-port] disj f)))
 
@@ -158,32 +219,26 @@
   "mail - snd-name->snd-port->vs
 
   Returns rcv-name->rcv-port->vs."
-  [pkg mail]
-  (trace "route: %s" mail)
-  (let [routes    (:routes pkg)
-        terminal? (-> (:state pkg)
-                      keys
-                      set
-                      ;; root network
-                      (conj [:root]) )]
-    (loop [out (for [[snd-name snd-port->vs] mail
-                     [snd-port vs]           snd-port->vs]
-                 [snd-name snd-port vs])
-           in  []]
-      (if (empty? out)
-        ;; structure
-        (reduce (fn [m [rcv-name rcv-port vs]]
-                  (update-in m [rcv-name rcv-port] into vs))
-                {}
-                in)
-        (let [in'         (for [[snd-name snd-port vs]  out
-                                [rcv-name rcv-port->fs] (get-in routes [snd-name snd-port])
-                                [rcv-port fs]           rcv-port->fs
-                                f                       fs]
-                            [rcv-name rcv-port (map f vs)])
-              {in' true
-               net false} (group-by (comp boolean terminal? first) in')]
-          (recur net (concat in in')))))))
+  [routes terminal? mail]
+  ;;(trace "route: %s" mail)
+  (loop [out (for [[snd-name snd-port->vs] mail
+                   [snd-port vs]           snd-port->vs]
+               [snd-name snd-port vs])
+         in  []]
+    (if (empty? out)
+      ;; Convert the list of messages into a trie.
+      (reduce (fn [m [rcv-name rcv-port vs]]
+                (update-in m [rcv-name rcv-port] into vs))
+              {}
+              in)
+      (let [in'         (for [[snd-name snd-port vs]  out
+                              [rcv-name rcv-port->fs] (get-in routes [snd-name snd-port])
+                              [rcv-port fs]           rcv-port->fs
+                              f                       fs]
+                          [rcv-name rcv-port (map f vs)])
+            {in' true
+             net false} (group-by (comp terminal? first) in')]
+        (recur net (concat in in'))))))
 
 (defn- apply-network-structure-message [pkg msg t]
   (case (first msg)
@@ -198,12 +253,15 @@
 (defn- transition [state mail t]
   (let [{:keys [model state tl tn]} state]
     (let [state (if (empty? mail)
-                  (internal-update model state)
+                  (do (trace "internal-update")
+                      ((:internal-update model) state))
                   (if (= t tn)
-                    (confluent-update model state mail)
-                    (external-update model state (- t tl) mail)))
+                    (do (trace "confluent-update")
+                        ((:confluent-update model) state mail))
+                    (do (trace "external-update")
+                        ((:external-update model) state (- t tl) mail))))
           tl    t
-          tn    (+ tl (time-advance model state))]
+          tn    (+ tl ((:time-advance model) state))]
       {:model model
        :state state
        :tl    tl
@@ -211,58 +269,81 @@
 
 ;;------------------------------------------------------------------------------
 
+(defn collect-mail [m]
+  (reduce-kv (fn [m name {:keys [model state]}]
+               (binding [*path* name]
+                 (let [xs ((:output model) state)]
+                   (if (seq xs)
+                     (assoc m name xs)
+                     m))))
+             {}
+             m))
+
+(defn collect-structure-changes [m]
+  ;; TODO: Might be more efficient to not use a map.
+  (reduce-kv (fn [m name {:keys [model state]}]
+               (binding [*path* name]
+                 (let [xs ((:network-structure model) state)]
+                   (if (seq xs)
+                     (assoc m name xs)
+                     m))))
+             {}
+             m))
+
+(defn apply-transitions [m mail-in t]
+  (reduce-kv (fn [m name state]
+               (binding [*path* name]
+                 (let [mail (get mail-in name)]
+                   (assert state (str "No state found for " name))
+                   (assoc m name (transition state mail t)))))
+             {}
+             m))
+
 (defn step [{:keys [state routes queue] :as pkg} t]
   (binding [*sim-time* t]
-    (trace "step")
-    (let [imminent  (pq/peek queue)
-          _         (trace "imminent: %s" imminent)
+    (trace "*** step *********************************************")
+    (let [imminent       (pq/peek queue)
+          _              (trace "imminent: %s" (mapv (comp vec reverse) imminent))
           ;; ----- Collect mail -----
-          mail-out  (zipmap imminent (->> imminent
-                                          (map (fn [name]
-                                                 (binding [*path* name]
-                                                   (let [{:keys [model state]} (get state name)]
-                                                     (output model state)))))))
-          _         (trace "mail-out: %s" mail-out)
-          mail-in   (route pkg mail-out)
-          _         (trace "mail-in: %s" mail-in)
-          ;; TODO: Don't hardcode this.
-          receivers (-> (keys mail-in) set (disj [:root]))
-          _         (trace "receivers: %s" receivers)
-          activated (union imminent receivers)
-          _         (trace "activated: %s" activated)
+          _              (trace "--- Collect mail ------------------------------")
+          outbound-mail  (collect-mail (select-keys state imminent))
+          _              (trace-mail "outbound-mail" outbound-mail)
+          routes         (:routes pkg)
+          atomic?        (fn [name] (contains? state name))
+          root?          (fn [name] (= [:root] name))
+          terminal?      (some-fn atomic? root?)
+          inbound-mail   (route routes terminal? outbound-mail)
+          _              (trace-mail "inbound-mail" inbound-mail)
+          int-mail       (dissoc inbound-mail [:root])
+          _              (trace-mail "int-mail" int-mail)
+          ext-mail       (get inbound-mail [:root])
+          _              (trace-mail "ext-mail" (when (seq ext-mail) {[:root] ext-mail}))
+          activated      (select-keys state (into imminent (keys int-mail)))
+          _              (trace "activated: %s" (mapv (comp vec reverse) (keys activated)))
+          ;; ----- Collect network structure change messages -----
+          _              (trace "--- Collect network structure change messages -")
+          struct-changes (collect-structure-changes activated)
+          _              (trace "struct-changes: %s" (count struct-changes))
           ;; ----- Update models -----
-          updated   (map (fn [name]
-                           (binding [*path* name]
-                             (let [state (get state name)
-                                   mail  (get mail-in name)]
-                               (assert state (str "No state found for " name))
-                               (transition state mail t))))
-                         activated)
-          state'    (merge state (zipmap activated updated))
-          queue'    (pq/change-priority* queue (for [name activated]
-                                                 [(get-in state [name :tn])
-                                                  name
-                                                  (get-in state' [name :tn])]))
-          ;; TODO: Don't hardcode this.
-          net-mail  (get mail-in [:root])
-          _         (trace "net-mail: %s" net-mail)
-          pkg'      (assoc pkg
-                           :state state'
-                           :queue queue')
+          _              (trace "--- Update models -----------------------------")
+          state-delta    (apply-transitions activated int-mail t)
+          state'         (merge state state-delta)
+          queue'         (pq/change-priority* queue (for [name (keys activated)]
+                                                      [(get-in state [name :tn])
+                                                       name
+                                                       (get-in state' [name :tn])]))
+          pkg'           (assoc pkg :state state' :queue queue')
           ;; ----- Update network structure -----
-          act-execs (filter #(satisfies? IExecutive (get-in state' [% :model])) activated)
-          _         (trace "act-execs: %s" (vec act-execs))
-          pkg'      (reduce (fn [pkg name]
-                              (binding [*path* (vec (butlast name))] ;; TODO: Consider using a parent field.
-                                ;; Using old state!
-                                (let [model (get-in state [name :model])
-                                      state (get-in state [name :state])]
-                                  (let [xs (network-structure-output model state)]
-                                    (trace "network structure messages: %s" (count xs))
-                                    (apply-network-structure-messages pkg xs t)))))
-                            pkg'
-                            act-execs)]
-      [pkg' net-mail])))
+          _              (trace "--- Update network structure ------------------")
+          ;; Network structure messages must be processed bottom-up in the
+          ;; model hierarchy.
+          struct-changes (sort-by (comp count first) struct-changes)
+          pkg'           (reduce (fn [pkg [name vs]]
+                                   (binding [*path* (rest name)]
+                                     (apply-network-structure-messages pkg vs t)))
+                                 pkg'
+                                 struct-changes)]
+      [pkg' ext-mail])))
 
 (defn run
   "Run a simulation from start-time (inclusive) to end-time (exclusive). If

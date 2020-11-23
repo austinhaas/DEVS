@@ -5,8 +5,7 @@
       :cljs
       [cljs.test :refer-macros [deftest is testing]])
    [pettomato.lib.random :as rand]
-   [pettomato.devs :as devs :refer [IModel IExecutive INetwork
-                                    internal-update external-update
+   [pettomato.devs :as devs :refer [atomic-model network-model
                                     trace
                                     *trace*
                                     *sim-time*]]
@@ -15,124 +14,110 @@
 
 ;;; Test models
 
-(defrecord generator [value period]
-  IModel
-  (initial-total-state [model]
-    (let [s nil
-          e 0]
-      [s e]))
-  (internal-update     [model state] state)
-  (external-update     [model state elapsed messages] state)
-  (confluent-update    [model state messages] state)
-  (output              [model state] {:out [value]})
-  (time-advance        [model state] period))
+(defn generator
+  "A model that periodically emits value on a port labeled :out."
+  [value period]
+  (atomic-model
+   (let [s nil
+         e 0]
+     [s e])
+   identity
+   nil
+   nil
+   (constantly {:out [value]})
+   (constantly period)
+   nil))
 
-(defrecord lazy-seq-generator [s]
-  IModel
-  (initial-total-state [model]
-    (let [s s
-          e 0]
-      [s e]))
-  (internal-update     [model state] (next state))
-  (external-update     [model state elapsed messages] state)
-  (confluent-update    [model state messages] state)
-  (output              [model state] (second (first state)))
-  (time-advance        [model state] (if (seq state)
-                                       (ffirst state)
-                                       infinity)))
+(defn lazy-seq-generator
+  "A model that emits values according to a (possibly lazy and infinite) seq
+  of [sigma mail]."
+  [s]
+  (atomic-model
+   (let [s s
+         e 0]
+     [s e])
+   next
+   nil
+   nil
+   (comp second first)
+   (fn time-advance [s]
+     (if (seq s)
+       (ffirst s)
+       infinity))
+   nil))
 
-(defrecord delay1 [processing-time]
-  IModel
-  (initial-total-state [model]
-    (let [s {:queue (sorted-map)
-             :delta 0}
-          e 0]
-      [s e]))
-  (internal-update     [model state]
-    (-> state
-        (update :queue dissoc (ffirst (:queue state)))
-        (assoc :delta (ffirst (:queue state)))))
-  (external-update     [model state elapsed-time messages]
-    (let [delta (+ (:delta state) elapsed-time)
-          t     (+ delta processing-time)]
-      (-> state
-          (update-in [:queue t] into (:in messages))
-          (assoc :delta delta))))
-  (confluent-update    [model state messages]
-    (external-update model (internal-update model state) 0 messages))
-  (output              [model state]
-    {:out (second (first (:queue state)))})
-  (time-advance        [model state]
-    (if (empty? (:queue state))
-      infinity
-      (- (ffirst (:queue state))
-         (:delta state)))))
+(defn lazy-seq-generator-network-structure
+  [s]
+  (atomic-model
+   (let [s s
+         e 0]
+     [s e])
+   next
+   nil
+   nil
+   (constantly nil)
+   (fn time-advance [s]
+     (if (seq s)
+       (ffirst s)
+       infinity))
+   (comp second first)))
+
+(defn delay1
+  [processing-time]
+  (atomic-model
+   (let [s {:queue (sorted-map)
+            :delta 0}
+         e 0]
+     [s e])
+   (fn internal-update  [state]
+     (-> state
+         (update :queue dissoc (ffirst (:queue state)))
+         (assoc :delta (ffirst (:queue state)))))
+   (fn external-update  [state elapsed-time messages]
+     (let [delta (+ (:delta state) elapsed-time)
+           t     (+ delta processing-time)]
+       (-> state
+           (update-in [:queue t] into (:in messages))
+           (assoc :delta delta))))
+   nil
+   (fn output           [state]
+     {:out (second (first (:queue state)))})
+   (fn time-advance     [state]
+     (if (empty? (:queue state))
+       infinity
+       (- (ffirst (:queue state))
+          (:delta state))))
+   nil))
 
 ;; Like delay1, but messages are [processing-time value].
-(defrecord delay2 []
-  IModel
-  (initial-total-state [model]
-    (let [s {:queue (sorted-map)
-             :delta 0}
-          e 0]
-      [s e]))
-  (internal-update     [model state]
-    (-> state
-        (update :queue dissoc (ffirst (:queue state)))
-        (assoc :delta (ffirst (:queue state)))))
-  (external-update     [model state elapsed-time messages]
-    #_(trace "external-update: %s" messages)
-    (let [delta (+ (:delta state) elapsed-time)]
-      (reduce (fn [state [processing-time value]]
-                (let [t (+ delta processing-time)]
-                  (update-in state [:queue t] conj value)))
-              (assoc state :delta delta)
-              (:in messages))))
-  (confluent-update    [model state messages]
-    (external-update model (internal-update model state) 0 messages))
-  (output              [model state]
-    {:out (second (first (:queue state)))})
-  (time-advance        [model state]
-    (if (empty? (:queue state))
-      infinity
-      (- (ffirst (:queue state))
-         (:delta state)))))
-
-(defrecord static-network-exec [network]
-    IModel
-    (initial-total-state [model]
-      (let [s {:network network}
-            e 0]
-        [s e]))
-    (internal-update     [model state] (assoc state :network nil))
-    (external-update     [model state elapsed messages] state)
-    (confluent-update    [model state messages] state)
-    (output              [model state] nil)
-    (time-advance        [model state] infinity)
-    IExecutive
-    (network-structure-output [model state] (:network state)))
-
-(defrecord lazy-network-exec [network-seq]
-  IModel
-  (initial-total-state [model]
-    (let [s network-seq
-          e 0]
-      [s e]))
-  (internal-update     [model state] (next state))
-  (external-update     [model state elapsed messages] state)
-  (confluent-update    [model state messages] state)
-  (output              [model state] nil)
-  (time-advance        [model state] (if (seq state)
-                                       (ffirst state)
-                                       infinity))
-  IExecutive
-  (network-structure-output [model state]
-    (second (first state))))
-
-(defrecord network [exec-name exec-model]
-  INetwork
-  (exec-name [model] exec-name)
-  (exec-model [model] exec-model))
+(defn delay2
+  []
+  (atomic-model
+   (let [s {:queue (sorted-map)
+            :delta 0}
+         e 0]
+     [s e])
+   (fn internal-update  [state]
+     (-> state
+         (update :queue dissoc (ffirst (:queue state)))
+         (assoc :delta (ffirst (:queue state)))))
+   (fn external-update  [state elapsed-time messages]
+     #_(trace "external-update: %s" messages)
+     (let [delta (+ (:delta state) elapsed-time)]
+       (reduce (fn [state [processing-time value]]
+                 (let [t (+ delta processing-time)]
+                   (update-in state [:queue t] conj value)))
+               (assoc state :delta delta)
+               (:in messages))))
+   nil
+   (fn output           [state]
+     {:out (second (first (:queue state)))})
+   (fn time-advance     [state]
+     (if (empty? (:queue state))
+       infinity
+       (- (ffirst (:queue state))
+          (:delta state))))
+   nil))
 
 ;;; Tests
 
@@ -141,15 +126,13 @@
   (is (= [[5  {:del-out ["test msg"]}]
           [15 {:del-out ["test msg 2"]}]]
          (binding [*trace* false]
-           (let [gen     (lazy-seq-generator. [[0 {:out ["test msg"]}]
-                                               [10 {:out ["test msg 2"]}]])
-                 del     (delay1. 5)
-                 network [[:add-model :gen gen]
-                          [:add-model :del del]
-                          [:connect [:gen :out :del :in identity]]
-                          [:connect [:del :out :network :del-out identity]]]
-                 exec    (static-network-exec. network)
-                 net     (network. :exec exec)]
+           (let [gen (lazy-seq-generator [[0 {:out ["test msg"]}]
+                                          [10 {:out ["test msg 2"]}]])
+                 del (delay1 5)
+                 net (network-model {:gen gen
+                                     :del del}
+                                    [[:gen :out :del :in identity]
+                                     [:del :out :network :del-out identity]])]
              (devs/run net 0)))))
 
   ;; Note that messages get dropped when they have been delivered to a delay,
@@ -175,33 +158,28 @@
            [18 {:gen-out ("msg-18"), :del-2-out ("msg-16")}]
            [19 {:gen-out ("msg-19"), :del-2-out ("msg-17")}]]
          (binding [*trace* false]
-           (let [gen   (lazy-seq-generator. (for [i (range)] [1 {:out [(str "msg-" (inc i))]}]))
-                 del-1 (delay1. 1)
-                 del-2 (delay1. 2)
-                 exec  (lazy-network-exec. (concat [[0 [[:add-model :gen gen]
-                                                        [:add-model :del-1 del-1]
-                                                        [:connect [:gen :out :del-1 :in identity]]
-                                                        [:connect [:gen :out :network :gen-out identity]]
-                                                        [:connect [:del-1 :out :network :del-1-out identity]]]]]
-                                                   (cycle [[5 [[:disconnect [:gen :out :del-1 :in identity]]
-                                                               [:disconnect [:del-1 :out :network :del-1-out identity]]
-                                                               [:rem-model :del-1 del-1]
-
-                                                               [:add-model :del-2 del-2]
-                                                               [:connect [:gen :out :del-2 :in identity]]
-                                                               [:connect [:del-2 :out :network :del-2-out identity]]
-
-                                                               ]]
-                                                           [5 [[:disconnect [:gen :out :del-2 :in identity]]
-                                                               [:disconnect [:del-2 :out :network :del-2-out identity]]
-                                                               [:rem-model :del-2 del-2]
-
-                                                               [:add-model :del-1 del-1]
-                                                               [:connect [:gen :out :del-1 :in identity]]
-                                                               [:connect [:del-1 :out :network :del-1-out identity]]
-
-                                                               ]]])))
-                 net (network. :exec exec)]
+           (let [gen   (lazy-seq-generator (for [i (range)] [1 {:out [(str "msg-" (inc i))]}]))
+                 del-1 (delay1 1)
+                 del-2 (delay1 2)
+                 exec  (lazy-seq-generator-network-structure
+                        (cycle [[5 [[:disconnect [:gen :out :del-1 :in identity]]
+                                    [:disconnect [:del-1 :out :network :del-1-out identity]]
+                                    [:rem-model :del-1 del-1]
+                                    [:add-model :del-2 del-2]
+                                    [:connect [:gen :out :del-2 :in identity]]
+                                    [:connect [:del-2 :out :network :del-2-out identity]]]]
+                                [5 [[:disconnect [:gen :out :del-2 :in identity]]
+                                    [:disconnect [:del-2 :out :network :del-2-out identity]]
+                                    [:rem-model :del-2 del-2]
+                                    [:add-model :del-1 del-1]
+                                    [:connect [:gen :out :del-1 :in identity]]
+                                    [:connect [:del-1 :out :network :del-1-out identity]]]]]))
+                 net   (network-model {:gen   gen
+                                       :del-1 del-1
+                                       :exec  exec}
+                                      [[:gen :out :del-1 :in identity]
+                                       [:gen :out :network :gen-out identity]
+                                       [:del-1 :out :network :del-1-out identity]])]
              (devs/run net 0 20)))))
 
   )
@@ -220,44 +198,43 @@
 
 ;;; server
 
-(defn distribute-work [state]
-  (trace "distribute-work")
-  (loop [state state]
-    (if (or (empty? (:queue state))
-            (empty? (:workers state)))
-      state
-      (let [job    (peek (:queue state))
-            _      (trace "job: %s" job)
-            worker (peek (:workers state))]
-        (trace "worker: %s" worker)
-        (-> state
-            (update :output assoc [:out worker] [[(:effort job ) (assoc job :worker worker :start-time *sim-time*)]])
-            (update :queue pop)
-            (update :workers pop)
-            (assoc  :sigma 0))))))
-
 (defn add-worker [state k model]
   (trace "add-worker")
-  (update state :network conj
+  (update state :structure conj
           [:add-model k model]
           [:connect [k :out (:id state) [:out k] identity]]
           [:connect [(:id state) [:out k] k :in identity]]))
 
 (defn rem-worker [state k]
-  (update state :network conj
+  (trace "rem-worker")
+  (update state :structure conj
           [:rem-model k]
           [:disconnect [k :out (:id state) [:out k]]]
           [:disconnect [(:id state) [:out k] k :in]]))
+
+(defn distribute-work [state]
+  (trace "distribute-work")
+  (if (or (empty? (:queue state))
+          (empty? (:workers state)))
+    state
+    (let [job    (peek (:queue state))
+          worker (peek (:workers state))]
+      (trace "Assigning %s to %s" job worker)
+      (-> state
+          (update :output assoc [:out worker] [[(:effort job) (assoc job :worker worker :start-time *sim-time*)]])
+          (update :queue pop)
+          (update :workers pop)
+          (assoc  :sigma 0)))))
 
 (defn maybe-grow [state]
   (trace "maybe-grow")
   (if (< (:capacity state) (count (:queue state)))
     (let [k (symbol (str "w" (next-id)))]
       (-> state
-          (add-worker k (delay2.))
+          (add-worker k (delay2))
           (update :workers conj k)
           (update :capacity inc)
-          distribute-work))
+          recur))
     state))
 
 (defn maybe-shrink [state]
@@ -267,76 +244,50 @@
         (rem-worker (first (:workers state)))
         (update :workers pop)
         (update :capacity dec)
-        maybe-shrink)
+        recur)
     state))
 
 (defn intake-jobs [state jobs]
-  (update state :queue into jobs))
+  (let [jobs' (map #(assoc % :arrival-time *sim-time*) jobs)]
+    (update state :queue into jobs')))
 
-(defn export-artifacts [state vs]
-  (-> state
-      (update-in [:output :out] into vs)
-      (assoc :sigma 0)))
+(defn finish-jobs [state worker jobs]
+  (let [jobs' (map #(assoc % :departure-time *sim-time*) jobs)]
+    (-> state
+        (update :workers conj worker)
+        (update-in [:output :out] into jobs'))))
 
-(defrecord server-exec [id]
-  ;;----------------------------------------------------------------------------
-  IModel
-
-  (initial-total-state [model]
-    (trace "initial-total-state")
-    (let [s {:id       id
-             :queue    queue
-             :network  [[:connect [:network :in id :in identity]]
-                        [:connect [id :out :network :out identity]]]
-             :workers  queue ;; A FIFO of available workers.
-             :capacity 0
-             :output   {}
-             :sigma    0}
-          e 0]
-      [s e]))
-
-  (internal-update     [model state]
-    (trace "internal-update: %s" state)
-    (assoc state :output {} :sigma infinity :network nil))
-
-  (external-update     [model state elapsed messages]
-    (trace "external-update: %s" messages)
-    (reduce-kv (fn [state port vs]
-                 (trace "ext: %s" vs)
-                 (cond
-                   (= port :in) (-> state
-                                    (intake-jobs (map #(assoc % :arrival-time *sim-time*) vs))
-                                    distribute-work
-                                    maybe-grow)
-                   :else        (-> state
-                                    (export-artifacts (map #(assoc % :departure-time *sim-time*) vs))
-                                    (update :workers conj (second port))
-                                    distribute-work
-                                    maybe-shrink)))
-               state
-               messages))
-
-  (confluent-update    [model state messages]
-    (trace "confluent-update")
-    (external-update model (internal-update model state) 0 messages))
-
-  (output      [model state]
-    (:output state))
-
-  (time-advance        [model state]
-    (:sigma state))
-
-  ;;----------------------------------------------------------------------------
-  IExecutive
-
-  (network-structure-output [model state]
-    (:network state)))
-
-(defrecord server [exec-name exec-model]
-  INetwork
-  (exec-name [model] exec-name)
-  (exec-model [model] exec-model))
-
+(defn server [id]
+  (atomic-model
+   (let [s {:id        id
+            :queue     queue
+            :workers   queue ;; A FIFO of available workers.
+            :capacity  0
+            :output    {}
+            :structure []
+            :sigma     infinity}
+         e 0]
+      [s e])
+    (fn internal-update     [state]
+      (-> (assoc state :output {} :structure [] :sigma infinity)
+          distribute-work))
+    (fn external-update     [state elapsed messages]
+      (reduce-kv (fn [state port vs]
+                   (cond
+                     ;; incoming jobs
+                     (= port :in) (-> state
+                                      (intake-jobs vs)
+                                      maybe-grow)
+                     ;; completed jobs
+                     :else        (-> state
+                                      (finish-jobs (second port) vs)
+                                      maybe-shrink)))
+                 (assoc state :sigma 0)
+                 messages))
+    nil
+    :output
+    :sigma
+    :structure))
 
 ;;; Tests
 
@@ -344,8 +295,10 @@
   (let [log          (->> log
                           (map second)
                           (mapcat :out)
-                          (remove nil?))
-        start-delays (map #(- (:start-time %) (:arrival-time %)) log)]
+                          (remove nil?)
+                          (map #(assoc % :delay (- (:start-time %) (:arrival-time %)))))
+        start-delays (map :delay log)]
+    ;;(clojure.pprint/pprint log)
     (println "Total jobs: " (count log))
     (println "Total workers:" (count (distinct (map :worker log))))
     (println "Ave delay: " (float (/ (reduce + start-delays) (count start-delays))))
@@ -354,42 +307,22 @@
 (deftest dynamic-structure-test
 
   (time
-   (binding [*trace*        true
+   (binding [*trace*        false
              *print-length* 1000]
-     (let [gen        (lazy-seq-generator. (for [i (range)]
-                                             [(+ 1 (rand/rand-int 5)) {:out [{:id     (str "job-" i)
-                                                                              :effort (+ 1 (rand/rand-int 20))}]}]))
-           exec-name  :srv-exec
-           exec-model (server-exec. exec-name)
-           server     (server. exec-name exec-model)
-           network    [[:add-model :gen gen]
-                       [:add-model :server server]
-                       [:connect [:gen :out :server :in identity]]
-                       [:connect [:gen :out :network :gen-out identity]]
-                       [:connect [:server :out :network :out identity]]]
-           exec       (static-network-exec. network)
-           root       (network. :root-exec exec)]
+     (let [gen (lazy-seq-generator
+                (for [i (range)]
+                  [(+ 1 (rand/rand-int 5)) {:out [{:id     (str "job-" i)
+                                                   :effort (+ 1 (rand/rand-int 100))}]}]))
+           srv (server :server)
+           net (network-model
+                {:gen    gen
+                 :server srv}
+                [[:gen :out :server :in identity]
+                 [:gen :out :network :gen-out identity]
+                 [:server :out :network :out identity]])]
        (reset-next-id!)
        (rand/with-random-seed 0
-         (devs/run root 0 20)
-         #_(-> (devs/run root 0 100)
-             report)))))
-  )
-
-
-(comment
-
-  (defrecord person []
-    INetwork
-    (exec-name [this] :brain)
-    (exec-model [this] (static-network-exec. [[:connect [:network :ear :brain :in identity]]
-                                              [:connect [:brain :out :network :mouth identity]]])))
-
-  (-> empty-pkg
-      (add-model :austin (person.) 0)
-      (add-model :yoko   (person.) 0)
-      (connect [:austin :mouth :network :out identity])
-      (connect [:austin :mouth :yoko :ear identity])
-      (route {[:austin :brain] {:out ['doo 'dee 'doop]}})
-      )
+         (-> (devs/run net 0 1000)
+             report)
+         'done))))
   )
