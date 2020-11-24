@@ -143,6 +143,14 @@
     (doseq [[k vs] mail]
       (trace " %s -> %s" (vec (reverse k)) (vec vs)))))
 
+(defn trace-network-structure-message [name msg]
+  (trace "%s" name)
+  (case (first msg)
+    :add-model  (let [[_ name model] msg] (trace (vec (butlast msg))))
+    :rem-model  (let [[_ name]       msg] (trace msg))
+    :connect    (let [[_ route]      msg] (trace msg))
+    :disconnect (let [[_ route]      msg] (trace msg))))
+
 ;;------------------------------------------------------------------------------
 
 (def ^:private empty-pkg
@@ -151,75 +159,106 @@
    :queue  (pq/priority-queue) ;; tn -> set of names
    })
 
-(defn- add-atomic-model [pkg name model t]
-  (trace "add-atomic-model: %s" name)
-  (let [[s e] (:initial-total-state model)
-        tl    (- t e)
-        tn    (+ tl ((:time-advance model) s))
-        path  (cons name *path*)]
-    (-> pkg
-        (update :state assoc path {:model model :state s :tl tl :tn tn})
-        (update :queue pq/insert tn path))))
-
-(declare add-model)
-
-(defn- add-network-model [pkg name model t]
-  (trace "add-network-model: %s" name)
-  (binding [*path* (cons name *path*)]
-    (as-> pkg pkg
-      (reduce-kv (fn [pkg name model]
-                   ;; Recursive step.
-                   (add-model pkg name model t))
-                 pkg
-                 (:models model))
-      (reduce connect
-              pkg
-              (:routes model)))))
-
-(defn- add-model [pkg name model t]
-  ;;(trace "add-model: %s" name)
-  (cond
-    (atomic-model?  model) (add-atomic-model pkg name model t)
-    (network-model? model) (add-network-model pkg name model t)
-    :else                  (throw (ex-info "Unknown model type." {:name name}))))
-
-;; TODO: Handle networks.
-(defn- rem-model [pkg name]
-  (trace "rem-model: %s" name)
-  (let [path (cons name *path*)
-        tn   (get-in pkg [:state path :tn])]
-    (-> pkg
-        (update :models dissoc path)
-        (update :queue pq/delete tn path))))
-
 (defn- connect
-  [pkg [snd-name snd-port rcv-name rcv-port f]]
+  [pkg parent [snd-name snd-port rcv-name rcv-port f]]
   (trace "connect: %s" [snd-name snd-port rcv-name rcv-port f])
   (let [snd-path (if (= snd-name :network)
-                   *path*
-                   (cons snd-name *path*))
+                   parent
+                   (cons snd-name parent))
         rcv-path (if (= rcv-name :network)
-                   *path*
-                   (cons rcv-name *path*))]
+                   parent
+                   (cons rcv-name parent))]
     (update-in pkg [:routes snd-path snd-port rcv-path rcv-port] (fnil conj #{}) f)))
 
 (defn- disconnect
-  [pkg [snd-name snd-port rcv-name rcv-port f]]
+  [pkg parent [snd-name snd-port rcv-name rcv-port f]]
   (trace "disconnect: %s" [snd-name snd-port rcv-name rcv-port f])
   (let [snd-path (if (= snd-name :network)
-                   *path*
-                   (cons snd-name *path*))
+                   parent
+                   (cons snd-name parent))
         rcv-path (if (= rcv-name :network)
-                   *path*
-                   (cons rcv-name *path*))]
+                   parent
+                   (cons rcv-name parent))]
     ;; TODO: Prune dead branches.
     (update-in pkg [:routes snd-path snd-port rcv-path rcv-port] disj f)))
+
+(declare add-model
+         rem-model)
+
+(defn- add-atomic-model [pkg parent name model t]
+  (trace "add-atomic-model: %s" name)
+  (let [[s e] (:initial-total-state model)
+        tl    (- t e)
+        tn    (+ tl ((:time-advance model) s))]
+    (-> pkg
+        (update :state assoc name {:parent parent
+                                   :model  model
+                                   :state  s
+                                   :tl     tl
+                                   :tn     tn})
+        (update :queue pq/insert tn name))))
+
+(defn- add-network-model [pkg parent name model t]
+  (trace "add-network-model: %s" name)
+  (as-> pkg pkg
+    (update pkg :state assoc name {:parent parent
+                                   :model  model})
+    (reduce-kv (fn [pkg name' model]
+                 ;; Recursive step.
+                 (add-model pkg name name' model t))
+               pkg
+               (:models model))
+    (reduce #(connect %1 name %2)
+            pkg
+            (:routes model))))
+
+(defn- add-model [pkg parent name model t]
+  ;;(trace "add-model: %s" name)
+  (let [name' (cons name parent)]
+   (cond
+     (atomic-model?  model) (add-atomic-model pkg parent name' model t)
+     (network-model? model) (add-network-model pkg parent name' model t)
+     :else                  (throw (ex-info "Unknown model type." {:parent parent
+                                                                   :name   name})))))
+
+(defn- rem-atomic-model [pkg parent name]
+  (trace "rem-atomic-model: %s" name)
+  (let [tn (get-in pkg [:state name :tn])]
+    (-> pkg
+        (update :state dissoc name)
+        (update :queue pq/delete tn name))))
+
+(defn- rem-network-model [pkg parent name]
+  (trace "rem-network-model: %s" name)
+  (let [model (get-in pkg [:state name :model])]
+    (as-> pkg pkg
+      (reduce #(disconnect %1 name %2)
+              pkg
+             (:routes model))
+      (reduce-kv (fn [pkg name' model]
+                   ;; Recursive step.
+                   (rem-model pkg name name'))
+                 pkg
+                 (:models model))
+      (update pkg :state dissoc name))))
+
+(defn- rem-model [pkg parent name]
+  (trace "rem-model: %s %s" parent name)
+  (let [name' (cons name parent)
+        model (get-in pkg [:state name' :model])]
+    (cond
+      (atomic-model?  model) (rem-atomic-model  pkg parent name')
+      (network-model? model) (rem-network-model pkg parent name')
+      :else                  (throw (ex-info "Unknown model type." {:parent parent
+                                                                    :name   name})))))
+
+;;---
 
 (defn- route
   "mail - snd-name->snd-port->vs
 
   Returns rcv-name->rcv-port->vs."
-  [routes terminal? mail]
+  [routes mail]
   ;;(trace "route: %s" mail)
   (loop [out (for [[snd-name snd-port->vs] mail
                    [snd-port vs]           snd-port->vs]
@@ -231,24 +270,29 @@
                 (update-in m [rcv-name rcv-port] into vs))
               {}
               in)
-      (let [in'         (for [[snd-name snd-port vs]  out
-                              [rcv-name rcv-port->fs] (get-in routes [snd-name snd-port])
-                              [rcv-port fs]           rcv-port->fs
-                              f                       fs]
-                          [rcv-name rcv-port (map f vs)])
-            {in' true
-             net false} (group-by (comp terminal? first) in')]
-        (recur net (concat in in'))))))
+      (let [xs (for [[snd-name snd-port vs]  out
+                     [rcv-name rcv-port->fs] (get-in routes [snd-name snd-port])
+                     [rcv-port fs]           rcv-port->fs
+                     f                       fs]
+                 [rcv-name rcv-port (map f vs)])]
+        (recur xs (concat in xs))))))
 
-(defn- apply-network-structure-message [pkg msg t]
+#_
+(route {:a {:x {:b {:y [identity]}
+                :c {:y [identity]}}}
+        :c {:y {:d {:x [identity]}}}
+        :d {:x {:e {:y [identity]}}}}
+       {:a {:x [100]}})
+
+(defn- apply-network-structure-message [pkg parent msg t]
   (case (first msg)
-    :add-model  (let [[_ name model] msg] (trace (vec (butlast msg))) (add-model pkg name model t))
-    :rem-model  (let [[_ name]       msg] (trace msg)                 (rem-model pkg name))
-    :connect    (let [[_ route]      msg] (trace msg)                 (connect pkg route))
-    :disconnect (let [[_ route]      msg] (trace msg)                 (disconnect pkg route))))
+    :add-model  (let [[_ name model] msg] (add-model  pkg parent name model t))
+    :rem-model  (let [[_ name]       msg] (rem-model  pkg parent name))
+    :connect    (let [[_ route]      msg] (connect    pkg parent route))
+    :disconnect (let [[_ route]      msg] (disconnect pkg parent route))))
 
-(defn- apply-network-structure-messages [pkg messages t]
-  (reduce #(apply-network-structure-message %1 %2 t) pkg messages))
+(defn- apply-network-structure-messages [pkg parent messages t]
+  (reduce #(apply-network-structure-message %1 parent %2 t) pkg messages))
 
 (defn- transition [state mail t]
   (let [{:keys [model state tl tn]} state]
@@ -308,13 +352,10 @@
           _              (trace "--- Collect mail ------------------------------")
           outbound-mail  (collect-mail (select-keys state imminent))
           _              (trace-mail "outbound-mail" outbound-mail)
-          routes         (:routes pkg)
-          atomic?        (fn [name] (contains? state name))
-          root?          (fn [name] (= [:root] name))
-          terminal?      (some-fn atomic? root?)
-          inbound-mail   (route routes terminal? outbound-mail)
+          inbound-mail   (route routes outbound-mail)
           _              (trace-mail "inbound-mail" inbound-mail)
-          int-mail       (dissoc inbound-mail [:root])
+          atomic?        (fn [name] (atomic-model? (get-in state [name :model])))
+          int-mail       (into {} (filter (comp atomic? first) inbound-mail))
           _              (trace-mail "int-mail" int-mail)
           ext-mail       (get inbound-mail [:root])
           _              (trace-mail "ext-mail" (when (seq ext-mail) {[:root] ext-mail}))
@@ -323,7 +364,10 @@
           ;; ----- Collect network structure change messages -----
           _              (trace "--- Collect network structure change messages -")
           struct-changes (collect-structure-changes activated)
-          _              (trace "struct-changes: %s" (count struct-changes))
+          _              (trace "struct-changes")
+          _              (doseq [[name msgs] struct-changes
+                                 msg         msgs]
+                           (trace-network-structure-message name msg))
           ;; ----- Update models -----
           _              (trace "--- Update models -----------------------------")
           state-delta    (apply-transitions activated int-mail t)
@@ -338,9 +382,14 @@
           ;; Network structure messages must be processed bottom-up in the
           ;; model hierarchy.
           struct-changes (sort-by (comp count first) struct-changes)
+          _              (trace "struct-changes (sorted)")
+          _              (doseq [[name msgs] struct-changes
+                                 msg         msgs]
+                           (trace-network-structure-message name msg))
           pkg'           (reduce (fn [pkg [name vs]]
-                                   (binding [*path* (rest name)]
-                                     (apply-network-structure-messages pkg vs t)))
+                                   (let [parent (rest name)]
+                                     ;; TODO: Lookup parent instead.
+                                     (apply-network-structure-messages pkg parent vs t)))
                                  pkg'
                                  struct-changes)]
       [pkg' ext-mail])))
@@ -349,12 +398,14 @@
   "Run a simulation from start-time (inclusive) to end-time (exclusive). If
   end-time is not provided, it defaults to infinity, and the simulation will run
   until the simulator returns infinity as its time-of-next-update, which means
-  that it will never have another event, so it is safe to quit."
+  that it will never have another event, so it is safe to quit.
+
+  Returns a seq of [timestamp mail]."
   ([model start-time]
    (run model start-time infinity))
   ([model start-time end-time]
    (binding [*sim-time* start-time]
-     (loop [pkg (add-model empty-pkg :root model start-time)
+     (loop [pkg (add-model empty-pkg nil :root model start-time)
             out []]
        (let [t (pq/peek-key (:queue pkg))]
          (if (and t (< t end-time))

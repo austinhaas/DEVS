@@ -12,6 +12,26 @@
    [pettomato.devs.util :refer [infinity]]
    [pettomato.lib.queue :refer [queue]]))
 
+(defn mail= [m1 m2]
+  (and (= (count m1)
+          (count m2))
+       (loop [kvs (seq m1)]
+         (or (empty? kvs)
+             (let [[k v] (first kvs)]
+               (and (= (frequencies v)
+                       (frequencies (get m2 k)))
+                    (recur (rest kvs))))))))
+
+(defn output=
+  [expected actual]
+  (or (and (empty? expected)
+           (empty? actual))
+      (let [[t mail] (first expected)
+            [t' mail'] (first actual)]
+        (and (= t t')
+             (mail= mail mail')
+             (output= (rest expected) (rest actual))))))
+
 ;;; Test models
 
 (defn generator
@@ -102,7 +122,7 @@
          (update :queue dissoc (ffirst (:queue state)))
          (assoc :delta (ffirst (:queue state)))))
    (fn external-update  [state elapsed-time messages]
-     #_(trace "external-update: %s" messages)
+     (trace "external-update: %s" messages)
      (let [delta (+ (:delta state) elapsed-time)]
        (reduce (fn [state [processing-time value]]
                  (let [t (+ delta processing-time)]
@@ -125,7 +145,7 @@
 
   (is (= [[5  {:del-out ["test msg"]}]
           [15 {:del-out ["test msg 2"]}]]
-         (binding [*trace* false]
+         (binding [*trace* true]
            (let [gen (lazy-seq-generator [[0 {:out ["test msg"]}]
                                           [10 {:out ["test msg 2"]}]])
                  del (delay1 5)
@@ -184,6 +204,72 @@
 
   )
 
+(deftest structure-change-tests
+  ;; TODO: Also remove without disconnecting.
+  (testing "Remove an atomic model before it is imminent."
+    (binding [*trace* false]
+      (is (output= []
+                   (let [gen  (lazy-seq-generator [[5 {:out ["msg 1"]}]
+                                                   [10 {:out ["msg 2"]}]])
+                         del  (delay1 2)
+                         exec (lazy-seq-generator-network-structure
+                               [[6 [[:disconnect [:gen :out :del :in identity]]
+                                    [:disconnect [:del :out :network :out identity]]
+                                    [:rem-model :del]]]])
+                         net  (network-model {:gen  gen
+                                              :del  del
+                                              :exec exec}
+                                             [[:gen :out :del :in identity]
+                                              [:del :out :network :out identity]])]
+                     (devs/run net 0))))))
+
+  (testing "Remove an atomic model at the same time as it is imminent."
+    (binding [*trace* false]
+      (is (output= [[7 {:out ["msg 1"]}]]
+                   (let [gen  (lazy-seq-generator [[5 {:out ["msg 1"]}]
+                                                   [10 {:out ["msg 2"]}]])
+                         del  (delay1 2)
+                         exec (lazy-seq-generator-network-structure
+                               [[7 [[:disconnect [:gen :out :del :in identity]]
+                                    [:disconnect [:del :out :network :out identity]]
+                                    [:rem-model :del]]]])
+                         net  (network-model {:gen  gen
+                                              :del  del
+                                              :exec exec}
+                                             [[:gen :out :del :in identity]
+                                              [:del :out :network :out identity]])]
+                     (devs/run net 0))))))
+
+  (testing "Remove a network model"
+    (binding [*trace* false]
+      (is (output= [[7 {:out ["msg 1" "Good"]}]]
+                   (let [gen  (lazy-seq-generator [[5 {:out ["msg 1"]}]
+                                                   [10 {:out ["msg 2"]}]])
+                         del  (network-model {:del  (delay1 2)
+                                              :gen2 (lazy-seq-generator [[7 {:out ["Good"]}]
+                                                                         [8 {:out ["Bad"]}]])}
+                                             [[:network :in :del :in identity]
+                                              [:del :out :network :out identity]
+                                              [:gen2 :out :network :out identity]])
+                         exec (lazy-seq-generator-network-structure
+                               [[7 [[:disconnect [:gen :out :del :in identity]]
+                                    [:disconnect [:del :out :network :out identity]]
+                                    [:rem-model :del]]]])
+                         net  (network-model {:gen  gen
+                                              :del  del
+                                              :exec exec}
+                                             [[:gen :out :del :in identity]
+                                              [:del :out :network :out identity]])]
+                     (devs/run net 0))))))
+
+  ;; Test that structure changes happen from bottom up.
+  ;; Remove the parent and the child.
+
+
+
+
+  )
+
 ;;------------------------------------------------------------------------------
 ;; Dynamic Structure Example
 ;;------------------------------------------------------------------------------
@@ -199,18 +285,18 @@
 ;;; server
 
 (defn add-worker [state k model]
-  (trace "add-worker")
+  (trace "add-worker: %s" k)
   (update state :structure conj
           [:add-model k model]
-          [:connect [k :out (:id state) [:out k] identity]]
-          [:connect [(:id state) [:out k] k :in identity]]))
+          [:connect [(:id state) [:out k] k :in identity]]
+          [:connect [k :out (:id state) [:in k] identity]]))
 
 (defn rem-worker [state k]
-  (trace "rem-worker")
+  (trace "rem-worker: %s" k)
   (update state :structure conj
           [:rem-model k]
-          [:disconnect [k :out (:id state) [:out k]]]
-          [:disconnect [(:id state) [:out k] k :in]]))
+          [:disconnect [(:id state) [:out k] k :in identity]]
+          [:disconnect [k :out (:id state) [:in k] identity]]))
 
 (defn distribute-work [state]
   (trace "distribute-work")
@@ -238,10 +324,11 @@
     state))
 
 (defn maybe-shrink [state]
+  (trace "maybe-shrink [jobs: %s idle: %s]" (count (:queue state)) (count (:workers state)))
   (if (and (empty? (:queue state))
-           (< 1 (:capacity state)))
+           (< 1 (count (:workers state))))
     (-> state
-        (rem-worker (first (:workers state)))
+        (rem-worker (peek (:workers state)))
         (update :workers pop)
         (update :capacity dec)
         recur)
@@ -307,12 +394,13 @@
 (deftest dynamic-structure-test
 
   (time
-   (binding [*trace*        false
+   (binding [*trace*        true
              *print-length* 1000]
      (let [gen (lazy-seq-generator
-                (for [i (range)]
-                  [(+ 1 (rand/rand-int 5)) {:out [{:id     (str "job-" i)
-                                                   :effort (+ 1 (rand/rand-int 100))}]}]))
+                (take 10
+                      (for [i (range)]
+                        [(+ 1 (rand/rand-int 10)) {:out [{:id     (str "job-" i)
+                                                          :effort (+ 1 (rand/rand-int 100))}]}])))
            srv (server :server)
            net (network-model
                 {:gen    gen
