@@ -8,31 +8,8 @@
    [pettomato.devs.util :refer [infinity]]
    [pettomato.lib.log :as log]))
 
-;; This can be confusing, because there are two types of graphs:
-
-;; 1. The model hierarchy, where every model can be a network composed of
-;; sub-models (which can also be networks).
-
-;; 2. The connection topology.
-
-;; Also, networks aren't completely realized in the implementation model. For
-;; example, networks don't have state and they don't send or receive messages. A
-;; connection may be made between a model and it's containing network, and that
-;; network may connect to another model. That just means that the internal model
-;; will send messages directly to the receiving model; the containing network is
-;; just an abstraction.
-
-;; Performance of message routing depends on the model. The simple, factored
-;; system we have now is compact. We might assume that messages that cross
-;; networks are relatively rare.
-
 ;;------------------------------------------------------------------------------
 ;; Models
-
-;; Consider changing these to records, and adding an interface that is like the
-;; one that takes maps, but also validates and applies default values. It might
-;; be faster than using a hash to lookup the same fields over and over again in
-;; a map.
 
 (defn atomic-model
   "An atomic Parallel DEVS model.
@@ -154,135 +131,131 @@
 ;;------------------------------------------------------------------------------
 
 (def ^:private empty-pkg
-  {:state  {}                  ;; name -> state, where state = {:model :state :tl :tn}
-   :routes {}
+  {:state  {}                  ;; name -> state, where state = {:parent :model :state :tl :tn} || {:parent :model :models :routes}
+   :routes {}                  ;; snd-name -> snd-port -> rcv-name -> rcv-port -> #{f}
    :queue  (pq/priority-queue) ;; tn -> set of names
    })
+
+;; Consider renaming to globalize-name.
+(defn- canonicalize-name [parent name]
+  ;; This does two things:
+
+  ;; 1. Each model name is replaced by the path to the model, so that the
+  ;; hierarchy can be flattened unambiguously.
+
+  ;; 2. Except for the topmost :network reference, all internal network
+  ;; references are replaced by their parent reference, in order to fascilitate
+  ;; cross-network message routing. In other words, the internal reference to
+  ;; the network is replaced with the external reference to the same network.
+
+  (cond
+    (empty? parent)   [name]
+    (= name :network) parent
+    :else             (cons name parent)))
 
 (defn- connect
   [pkg parent [snd-name snd-port rcv-name rcv-port f]]
   (trace "connect: %s" [snd-name snd-port rcv-name rcv-port f])
-  (let [snd-path (if (= snd-name :network)
-                   parent
-                   (cons snd-name parent))
-        rcv-path (if (= rcv-name :network)
-                   parent
-                   (cons rcv-name parent))]
-    (update-in pkg [:routes snd-path snd-port rcv-path rcv-port] (fnil conj #{}) f)))
+  ;; Drop :network so that the path matches the external path; that makes it
+  ;; easier to route messages across network boundaries, since the internal and
+  ;; external names will be the same.
+  (let [snd-path (canonicalize-name parent snd-name)
+        rcv-path (canonicalize-name parent rcv-name)]
+    (-> pkg
+        (update-in [:state parent :routes] conj [snd-name snd-port rcv-name rcv-port f])
+        (update-in [:routes snd-path snd-port rcv-path rcv-port] (fnil conj #{}) f))))
 
 (defn- disconnect
   [pkg parent [snd-name snd-port rcv-name rcv-port f]]
   (trace "disconnect: %s" [snd-name snd-port rcv-name rcv-port f])
-  (let [snd-path (if (= snd-name :network)
-                   parent
-                   (cons snd-name parent))
-        rcv-path (if (= rcv-name :network)
-                   parent
-                   (cons rcv-name parent))]
-    ;; TODO: Prune dead branches.
-    (update-in pkg [:routes snd-path snd-port rcv-path rcv-port] disj f)))
+  (let [snd-path (canonicalize-name parent snd-name)
+        rcv-path (canonicalize-name parent rcv-name)]
+    (->  pkg
+         (update-in [:state parent :routes] disj [snd-name snd-port rcv-name rcv-port f])
+         (update-in [:routes snd-path snd-port rcv-path rcv-port] disj f))))
 
 (declare add-model
          rem-model)
 
 (defn- add-atomic-model [pkg parent name model t]
   (trace "add-atomic-model: %s" name)
-  (let [[s e] (:initial-total-state model)
-        tl    (- t e)
-        tn    (+ tl ((:time-advance model) s))]
-    (-> pkg
-        (update :state assoc name {:parent parent
-                                   :model  model
-                                   :state  s
-                                   :tl     tl
-                                   :tn     tn})
-        (update :queue pq/insert tn name))))
+  (let [path (canonicalize-name parent name)]
+    (let [[s e] (:initial-total-state model)
+          tl    (- t e)
+          tn    (+ tl ((:time-advance model) s))]
+      (-> pkg
+          ;; Add the model to the parent network's structure.
+          (update-in [:state parent :models] assoc name model)
+          ;; Initialize the model state.
+          (update :state assoc path {:parent parent
+                                     :model  model
+                                     :state  s
+                                     :tl     tl
+                                     :tn     tn})
+          (update :queue pq/insert tn path)))))
 
 (defn- add-network-model [pkg parent name model t]
   (trace "add-network-model: %s" name)
-  (as-> pkg pkg
-    (update pkg :state assoc name {:parent parent
-                                   :model  model})
-    (reduce-kv (fn [pkg name' model]
-                 ;; Recursive step.
-                 (add-model pkg name name' model t))
-               pkg
-               (:models model))
-    (reduce #(connect %1 name %2)
-            pkg
-            (:routes model))))
+  (let [path (canonicalize-name parent name)]
+    (as-> pkg pkg
+      (update-in pkg [:state parent :models] assoc name model)
+      (update pkg :state assoc path {:parent parent
+                                     :model  model
+                                     :models {}
+                                     :routes #{}})
+      (reduce-kv (fn [pkg name model]
+                   ;; Recursive step.
+                   (add-model pkg path name model t))
+                 pkg
+                 (:models model))
+      (reduce #(connect %1 path %2)
+              pkg
+              (:routes model)))))
 
 (defn- add-model [pkg parent name model t]
   ;;(trace "add-model: %s" name)
-  (let [name' (cons name parent)]
-   (cond
-     (atomic-model?  model) (add-atomic-model pkg parent name' model t)
-     (network-model? model) (add-network-model pkg parent name' model t)
-     :else                  (throw (ex-info "Unknown model type." {:parent parent
-                                                                   :name   name})))))
+  (cond
+    (atomic-model?  model) (add-atomic-model pkg parent name model t)
+    (network-model? model) (add-network-model pkg parent name model t)
+    :else                  (throw (ex-info "Unknown model type." {:parent parent
+                                                                  :name   name}))))
 
 (defn- rem-atomic-model [pkg parent name]
   (trace "rem-atomic-model: %s" name)
-  (let [tn (get-in pkg [:state name :tn])]
+  (let [path (canonicalize-name parent name)
+        tn   (get-in pkg [:state path :tn])]
     (-> pkg
-        (update :state dissoc name)
-        (update :queue pq/delete tn name))))
+        (update-in [:state parent :models] dissoc name)
+        (update :state dissoc path)
+        (update :queue pq/delete tn path))))
 
 (defn- rem-network-model [pkg parent name]
   (trace "rem-network-model: %s" name)
-  (let [model (get-in pkg [:state name :model])]
+  (let [path  (canonicalize-name parent name)
+        model (get-in pkg [:state path])]
     (as-> pkg pkg
-      (reduce #(disconnect %1 name %2)
+      (update-in pkg [:state parent :models] dissoc name)
+      (reduce #(disconnect %1 path %2)
               pkg
              (:routes model))
-      (reduce-kv (fn [pkg name' model]
+      (reduce-kv (fn [pkg name model]
                    ;; Recursive step.
-                   (rem-model pkg name name'))
+                   (rem-model pkg path name))
                  pkg
                  (:models model))
-      (update pkg :state dissoc name))))
+      (update pkg :state dissoc path))))
 
 (defn- rem-model [pkg parent name]
   (trace "rem-model: %s %s" parent name)
-  (let [name' (cons name parent)
-        model (get-in pkg [:state name' :model])]
+  (let [path  (canonicalize-name parent name)
+        model (get-in pkg [:state path :model])]
     (cond
-      (atomic-model?  model) (rem-atomic-model  pkg parent name')
-      (network-model? model) (rem-network-model pkg parent name')
+      (atomic-model?  model) (rem-atomic-model  pkg parent name)
+      (network-model? model) (rem-network-model pkg parent name)
       :else                  (throw (ex-info "Unknown model type." {:parent parent
                                                                     :name   name})))))
 
 ;;---
-
-(defn- route
-  "mail - snd-name->snd-port->vs
-
-  Returns rcv-name->rcv-port->vs."
-  [routes mail]
-  ;;(trace "route: %s" mail)
-  (loop [out (for [[snd-name snd-port->vs] mail
-                   [snd-port vs]           snd-port->vs]
-               [snd-name snd-port vs])
-         in  []]
-    (if (empty? out)
-      ;; Convert the list of messages into a trie.
-      (reduce (fn [m [rcv-name rcv-port vs]]
-                (update-in m [rcv-name rcv-port] into vs))
-              {}
-              in)
-      (let [xs (for [[snd-name snd-port vs]  out
-                     [rcv-name rcv-port->fs] (get-in routes [snd-name snd-port])
-                     [rcv-port fs]           rcv-port->fs
-                     f                       fs]
-                 [rcv-name rcv-port (map f vs)])]
-        (recur xs (concat in xs))))))
-
-#_
-(route {:a {:x {:b {:y [identity]}
-                :c {:y [identity]}}}
-        :c {:y {:d {:x [identity]}}}
-        :d {:x {:e {:y [identity]}}}}
-       {:a {:x [100]}})
 
 (defn- apply-network-structure-message [pkg parent msg t]
   (case (first msg)
@@ -293,6 +266,33 @@
 
 (defn- apply-network-structure-messages [pkg parent messages t]
   (reduce #(apply-network-structure-message %1 parent %2 t) pkg messages))
+
+(defn- route
+  "mail - snd-name->snd-port->vs
+
+  Returns rcv-name->rcv-port->vs."
+  [models routes mail]
+  ;;(trace "route: %s" mail)
+  (let [terminal? (fn [name] (or (= [:network] name)
+                                 (atomic-model? (get models name))))]
+    (loop [out (for [[snd-name snd-port->vs] mail
+                     [snd-port vs]           snd-port->vs]
+                 [snd-name snd-port vs])
+           in  []]
+      (if (empty? out)
+        ;; Convert the list of messages into a trie.
+        (reduce (fn [m [rcv-name rcv-port vs]]
+                  (update-in m [rcv-name rcv-port] into vs))
+                {}
+                in)
+        (let [xs           (for [[snd-name snd-port vs]  out
+                                 [rcv-name rcv-port->fs] (get-in routes [snd-name snd-port])
+                                 [rcv-port fs]           rcv-port->fs
+                                 f                       fs]
+                             [rcv-name rcv-port (map f vs)])
+              {in'  true
+               out' false} (group-by (comp terminal? first) xs)]
+          (recur out' (concat in in')))))))
 
 (defn- transition [state mail t]
   (let [{:keys [model state tl tn]} state]
@@ -314,6 +314,7 @@
 ;;------------------------------------------------------------------------------
 
 (defn collect-mail [m]
+  ;; TODO: Change to pmap.
   (reduce-kv (fn [m name {:keys [model state]}]
                (binding [*path* name]
                  (let [xs ((:output model) state)]
@@ -324,7 +325,8 @@
              m))
 
 (defn collect-structure-changes [m]
-  ;; TODO: Might be more efficient to not use a map.
+  ;; TODO: Change to pmap.
+  ;; TODO: Might be more efficient to not use a map for the result.
   (reduce-kv (fn [m name {:keys [model state]}]
                (binding [*path* name]
                  (let [xs ((:network-structure model) state)]
@@ -335,6 +337,7 @@
              m))
 
 (defn apply-transitions [m mail-in t]
+  ;; TODO: Change to pmap.
   (reduce-kv (fn [m name state]
                (binding [*path* name]
                  (let [mail (get mail-in name)]
@@ -352,13 +355,14 @@
           _              (trace "--- Collect mail ------------------------------")
           outbound-mail  (collect-mail (select-keys state imminent))
           _              (trace-mail "outbound-mail" outbound-mail)
-          inbound-mail   (route routes outbound-mail)
+          ;; This is the internal network structure.
+          models         (zipmap (keys state) (map :model (vals state)))
+          inbound-mail   (route models routes outbound-mail)
           _              (trace-mail "inbound-mail" inbound-mail)
-          atomic?        (fn [name] (atomic-model? (get-in state [name :model])))
-          int-mail       (into {} (filter (comp atomic? first) inbound-mail))
+          int-mail       (into {} (remove (comp #{[:network]} first) inbound-mail))
           _              (trace-mail "int-mail" int-mail)
-          ext-mail       (get inbound-mail [:root])
-          _              (trace-mail "ext-mail" (when (seq ext-mail) {[:root] ext-mail}))
+          ext-mail       (get inbound-mail [:network])
+          _              (trace-mail "ext-mail" (when (seq ext-mail) {[:network] ext-mail}))
           activated      (select-keys state (into imminent (keys int-mail)))
           _              (trace "activated: %s" (mapv (comp vec reverse) (keys activated)))
           ;; ----- Collect network structure change messages -----
@@ -369,7 +373,7 @@
                                  msg         msgs]
                            (trace-network-structure-message name msg))
           ;; ----- Update models -----
-          _              (trace "--- Update models -----------------------------")
+          _              (trace "--- Update state -----------------------------")
           state-delta    (apply-transitions activated int-mail t)
           state'         (merge state state-delta)
           queue'         (pq/change-priority* queue (for [name (keys activated)]
@@ -387,8 +391,8 @@
                                  msg         msgs]
                            (trace-network-structure-message name msg))
           pkg'           (reduce (fn [pkg [name vs]]
+                                   ;; TODO: Lookup parent instead.
                                    (let [parent (rest name)]
-                                     ;; TODO: Lookup parent instead.
                                      (apply-network-structure-messages pkg parent vs t)))
                                  pkg'
                                  struct-changes)]
@@ -405,7 +409,7 @@
    (run model start-time infinity))
   ([model start-time end-time]
    (binding [*sim-time* start-time]
-     (loop [pkg (add-model empty-pkg nil :root model start-time)
+     (loop [pkg (add-model empty-pkg [] :network model start-time)
             out []]
        (let [t (pq/peek-key (:queue pkg))]
          (if (and t (< t end-time))

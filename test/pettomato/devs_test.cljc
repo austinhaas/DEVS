@@ -12,6 +12,13 @@
    [pettomato.devs.util :refer [infinity]]
    [pettomato.lib.queue :refer [queue]]))
 
+#_
+(route {:a {:x {:b {:y [identity]}
+                :c {:y [identity]}}}
+        :c {:y {:d {:x [identity]}}}
+        :d {:x {:e {:y [identity]}}}}
+       {:a {:x [100]}})
+
 (defn mail= [m1 m2]
   (and (= (count m1)
           (count m2))
@@ -262,6 +269,34 @@
                                               [:del :out :network :out identity]])]
                      (devs/run net 0))))))
 
+  (testing "Remove a network model, after dynamic structure changes have been made."
+    ;; An atom is used to count how many times the added model is updated, to
+    ;; check that it was actually removed. We can't tell from the output alone,
+    ;; because it could be sending messages, but the parent network's routes
+    ;; have been removed, so they won't go anywhere.
+    (binding [*trace* false]
+      (let [counter (atom 0)
+            net     (network-model
+                     {:gen  (lazy-seq-generator [[5  {:out ["msg 1"]}]
+                                                 [10 {:out ["msg 2"]}]])
+                      :del  (network-model {:del  (delay1 2)
+                                            :exec (lazy-seq-generator-network-structure
+                                                   [[1 [[:add-model :gen (lazy-seq-generator
+                                                                          (for [i (range)]
+                                                                            (do (swap! counter inc)
+                                                                                [1 {:out [(str "internal gen msg-" i)]}])))]
+                                                        [:connect [:gen :out :network :out identity]]]]])}
+                                           [[:network :in :del :in identity]
+                                            [:del :out :network :out identity]])
+                      :exec (lazy-seq-generator-network-structure
+                             [[7 [[:disconnect [:gen :out :del :in identity]]
+                                  [:disconnect [:del :out :network :out identity]]
+                                  [:rem-model :del]]]])}
+                                   [[:gen :out :del :in identity]
+                                    [:del :out :network :out identity]])]
+        (devs/run net 0 10)
+        (is (= 7 @counter)))))
+
   ;; Test that structure changes happen from bottom up.
   ;; Remove the parent and the child.
 
@@ -394,7 +429,7 @@
 (deftest dynamic-structure-test
 
   (time
-   (binding [*trace*        true
+   (binding [*trace*        false
              *print-length* 1000]
      (let [gen (lazy-seq-generator
                 (take 10
@@ -413,4 +448,56 @@
          (-> (devs/run net 0 1000)
              report)
          'done))))
+  )
+
+;; Test trie vs hash w/ vector key
+(comment
+
+  (rand/with-random-seed 0
+   (let [ys (for [i (range 50000)]
+              [(rand/rand-int 10) (rand/rand-int 2) (rand/rand-int 10) (rand/rand-int 2) (rand/rand-int 99999)])]
+     (def xs (vec (rand/shuffle (concat ys ys))))))
+
+  (def ys (mapv (partial mapv (comp keyword (partial str "key-")))
+                xs))
+
+  ;; Note that this doesn't prune dead branches.
+  (time
+   (do (reduce (fn [m [a b c d e]]
+                 (if (get-in m [a b c d e])
+                   (update-in m [a b c d] disj e)
+                   (update-in m [a b c d] (fnil conj #{}) e)))
+               {}
+               ys)
+       nil))
+
+  (time
+   (do (reduce (fn [m [a b c d e]]
+                 (update-in m [a b c d e] (fnil inc 0)))
+               {}
+               ys)
+       nil))
+
+
+  (time
+   (do (reduce (fn [s [a b c d e]]
+                 (if (contains? s [a b c d e])
+                   (disj s [a b c d e])
+                   (conj s [a b c d e])))
+               #{}
+               ys)
+       nil))
+
+  (time
+   (do (reduce (fn [s r]
+                 (if (contains? s r)
+                   (disj s r)
+                   (conj s r)))
+               #{}
+               ys)
+       nil))
+
+  ;; Conclusion: Sets of vectors perform better. But, we'll need the trie for
+  ;; lookups. However, we can do it as [name port] -> [name port].
+
   )
