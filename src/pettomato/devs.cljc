@@ -130,273 +130,192 @@
 
 ;;------------------------------------------------------------------------------
 
-(def ^:private empty-pkg
-  {:state  {}                  ;; name -> state, where state = {:parent :model :state :tl :tn} || {:parent :model :models :routes}
-   :routes {}                  ;; snd-name -> snd-port -> rcv-name -> rcv-port -> #{f}
-   :queue  (pq/priority-queue) ;; tn -> set of names
-   })
+(defprotocol Simulator
+  (initialize         [sim t]      "Initialize sim. Returns sim.")
+  (collect-mail       [sim t]      "Returns [sim mail].")
+  (struct-changes     [sim t]      "Returns [sim changes].")
+  (transition         [sim mail t] "mail = port->vs. Returns sim.")  ;; Consider returning tn.
+  (time-of-last-event [sim]        "Time of the last sim update.")
+  (time-of-next-event [sim]        "Scheduled time of next sim internal update."))
 
-;; Consider renaming to globalize-name.
-(defn- canonicalize-name [parent name]
-  ;; This does two things:
-
-  ;; 1. Each model name is replaced by the path to the model, so that the
-  ;; hierarchy can be flattened unambiguously.
-
-  ;; 2. Except for the topmost :network reference, all internal network
-  ;; references are replaced by their parent reference, in order to fascilitate
-  ;; cross-network message routing. In other words, the internal reference to
-  ;; the network is replaced with the external reference to the same network.
-
-  (cond
-    (empty? parent)   [name]
-    (= name :network) parent
-    :else             (cons name parent)))
-
-(defn- connect
-  [pkg parent [snd-name snd-port rcv-name rcv-port f]]
-  (trace "connect: %s" [snd-name snd-port rcv-name rcv-port f])
-  ;; Drop :network so that the path matches the external path; that makes it
-  ;; easier to route messages across network boundaries, since the internal and
-  ;; external names will be the same.
-  (let [snd-path (canonicalize-name parent snd-name)
-        rcv-path (canonicalize-name parent rcv-name)]
-    (-> pkg
-        (update-in [:state parent :routes] conj [snd-name snd-port rcv-name rcv-port f])
-        (update-in [:routes snd-path snd-port rcv-path rcv-port] (fnil conj #{}) f))))
-
-(defn- disconnect
-  [pkg parent [snd-name snd-port rcv-name rcv-port f]]
-  (trace "disconnect: %s" [snd-name snd-port rcv-name rcv-port f])
-  (let [snd-path (canonicalize-name parent snd-name)
-        rcv-path (canonicalize-name parent rcv-name)]
-    (->  pkg
-         (update-in [:state parent :routes] disj [snd-name snd-port rcv-name rcv-port f])
-         (update-in [:routes snd-path snd-port rcv-path rcv-port] disj f))))
-
-(declare add-model
-         rem-model)
-
-(defn- add-atomic-model [pkg parent name model t]
-  (trace "add-atomic-model: %s" name)
-  (let [path (canonicalize-name parent name)]
+(defrecord AtomicSimulator [model
+                            state
+                            tl
+                            tn]
+  Simulator
+  (initialize [this t]
     (let [[s e] (:initial-total-state model)
           tl    (- t e)
           tn    (+ tl ((:time-advance model) s))]
-      (-> pkg
-          ;; Add the model to the parent network's structure.
-          (update-in [:state parent :models] assoc name model)
-          ;; Initialize the model state.
-          (update :state assoc path {:parent parent
-                                     :model  model
-                                     :state  s
-                                     :tl     tl
-                                     :tn     tn})
-          (update :queue pq/insert tn path)))))
-
-(defn- add-network-model [pkg parent name model t]
-  (trace "add-network-model: %s" name)
-  (let [path (canonicalize-name parent name)]
-    (as-> pkg pkg
-      (update-in pkg [:state parent :models] assoc name model)
-      (update pkg :state assoc path {:parent parent
-                                     :model  model
-                                     :models {}
-                                     :routes #{}})
-      (reduce-kv (fn [pkg name model]
-                   ;; Recursive step.
-                   (add-model pkg path name model t))
-                 pkg
-                 (:models model))
-      (reduce #(connect %1 path %2)
-              pkg
-              (:routes model)))))
-
-(defn- add-model [pkg parent name model t]
-  ;;(trace "add-model: %s" name)
-  (cond
-    (atomic-model?  model) (add-atomic-model pkg parent name model t)
-    (network-model? model) (add-network-model pkg parent name model t)
-    :else                  (throw (ex-info "Unknown model type." {:parent parent
-                                                                  :name   name}))))
-
-(defn- rem-atomic-model [pkg parent name]
-  (trace "rem-atomic-model: %s" name)
-  (let [path (canonicalize-name parent name)
-        tn   (get-in pkg [:state path :tn])]
-    (-> pkg
-        (update-in [:state parent :models] dissoc name)
-        (update :state dissoc path)
-        (update :queue pq/delete tn path))))
-
-(defn- rem-network-model [pkg parent name]
-  (trace "rem-network-model: %s" name)
-  (let [path  (canonicalize-name parent name)
-        model (get-in pkg [:state path])]
-    (as-> pkg pkg
-      (update-in pkg [:state parent :models] dissoc name)
-      (reduce #(disconnect %1 path %2)
-              pkg
-             (:routes model))
-      (reduce-kv (fn [pkg name model]
-                   ;; Recursive step.
-                   (rem-model pkg path name))
-                 pkg
-                 (:models model))
-      (update pkg :state dissoc path))))
-
-(defn- rem-model [pkg parent name]
-  (trace "rem-model: %s %s" parent name)
-  (let [path  (canonicalize-name parent name)
-        model (get-in pkg [:state path :model])]
-    (cond
-      (atomic-model?  model) (rem-atomic-model  pkg parent name)
-      (network-model? model) (rem-network-model pkg parent name)
-      :else                  (throw (ex-info "Unknown model type." {:parent parent
-                                                                    :name   name})))))
-
-;;---
-
-(defn- apply-network-structure-message [pkg parent msg t]
-  (case (first msg)
-    :add-model  (let [[_ name model] msg] (add-model  pkg parent name model t))
-    :rem-model  (let [[_ name]       msg] (rem-model  pkg parent name))
-    :connect    (let [[_ route]      msg] (connect    pkg parent route))
-    :disconnect (let [[_ route]      msg] (disconnect pkg parent route))))
-
-(defn- apply-network-structure-messages [pkg parent messages t]
-  (reduce #(apply-network-structure-message %1 parent %2 t) pkg messages))
-
-(defn- route
-  "mail - snd-name->snd-port->vs
-
-  Returns rcv-name->rcv-port->vs."
-  [models routes mail]
-  ;;(trace "route: %s" mail)
-  (let [terminal? (fn [name] (or (= [:network] name)
-                                 (atomic-model? (get models name))))]
-    (loop [out (for [[snd-name snd-port->vs] mail
-                     [snd-port vs]           snd-port->vs]
-                 [snd-name snd-port vs])
-           in  []]
-      (if (empty? out)
-        ;; Convert the list of messages into a trie.
-        (reduce (fn [m [rcv-name rcv-port vs]]
-                  (update-in m [rcv-name rcv-port] into vs))
-                {}
-                in)
-        (let [xs           (for [[snd-name snd-port vs]  out
-                                 [rcv-name rcv-port->fs] (get-in routes [snd-name snd-port])
-                                 [rcv-port fs]           rcv-port->fs
-                                 f                       fs]
-                             [rcv-name rcv-port (map f vs)])
-              {in'  true
-               out' false} (group-by (comp terminal? first) xs)]
-          (recur out' (concat in in')))))))
-
-(defn- transition [state mail t]
-  (let [{:keys [model state tl tn]} state]
+      (AtomicSimulator. model s tl tn)))
+  (collect-mail [this t]
+    (when-not (= t tn)
+      (throw (ex-info (str "synchronization error" " (not (= " t " " tn "))")
+                      {:t t :tn tn :tl tl})))
+    [this ((:output model) state)])
+  (struct-changes [this t]
+    (when-not (= t tn)
+      (throw (ex-info (str "synchronization error" " (not (= " t " " tn "))")
+                      {:t t :tn tn :tl tl})))
+    ((:network-structure model) state))
+  (transition [this mail t]
+    (when-not (<= tl t tn)
+      (throw (ex-info (str "synchronization error" " (not (<= " tl " " t " " tn "))")
+                      {:t t :tn tn :tl tl})))
     (let [state (if (empty? mail)
-                  (do (trace "internal-update")
-                      ((:internal-update model) state))
+                  ((:internal-update model) state)
                   (if (= t tn)
-                    (do (trace "confluent-update")
-                        ((:confluent-update model) state mail))
-                    (do (trace "external-update")
-                        ((:external-update model) state (- t tl) mail))))
+                    ((:confluent-update model) state mail)
+                    ((:external-update model) state (- t tl) mail)))
           tl    t
           tn    (+ tl ((:time-advance model) state))]
-      {:model model
-       :state state
-       :tl    tl
-       :tn    tn})))
+      (AtomicSimulator. model state tl tn)))
+  (time-of-last-event [this] tl)
+  (time-of-next-event [this] tn))
 
-;;------------------------------------------------------------------------------
+(defn atomic-simulator [model]
+  (AtomicSimulator. model nil nil nil))
 
-(defn collect-mail [m]
-  ;; TODO: Change to pmap.
-  (reduce-kv (fn [m name {:keys [model state]}]
-               (binding [*path* name]
-                 (let [xs ((:output model) state)]
-                   (if (seq xs)
-                     (assoc m name xs)
-                     m))))
-             {}
-             m))
+(defn route [routes sp->vs]
+  (reduce (fn [m [rk rp vs]]
+            (update-in m [rk rp] into vs))
+          {}
+          (for [[sp vs]     sp->vs
+                [rk rp->fs] (get routes sp)
+                [rp fs]     rp->fs
+                f           fs]
+            [rk rp (map f vs)])))
 
-(defn collect-structure-changes [m]
-  ;; TODO: Change to pmap.
-  ;; TODO: Might be more efficient to not use a map for the result.
-  (reduce-kv (fn [m name {:keys [model state]}]
-               (binding [*path* name]
-                 (let [xs ((:network-structure model) state)]
-                   (if (seq xs)
-                     (assoc m name xs)
-                     m))))
-             {}
-             m))
+(def merge-mail (partial merge-with (partial merge-with into)))
 
-(defn apply-transitions [m mail-in t]
-  ;; TODO: Change to pmap.
-  (reduce-kv (fn [m name state]
-               (binding [*path* name]
-                 (let [mail (get mail-in name)]
-                   (assert state (str "No state found for " name))
-                   (assoc m name (transition state mail t)))))
-             {}
-             m))
+(declare network-simulator)
 
-(defn step [{:keys [state routes queue] :as pkg} t]
-  (binding [*sim-time* t]
-    (trace "*** step *********************************************")
-    (let [imminent       (pq/peek queue)
-          _              (trace "imminent: %s" (mapv (comp vec reverse) imminent))
-          ;; ----- Collect mail -----
-          _              (trace "--- Collect mail ------------------------------")
-          outbound-mail  (collect-mail (select-keys state imminent))
-          _              (trace-mail "outbound-mail" outbound-mail)
-          ;; This is the internal network structure.
-          models         (zipmap (keys state) (map :model (vals state)))
-          inbound-mail   (route models routes outbound-mail)
-          _              (trace-mail "inbound-mail" inbound-mail)
-          int-mail       (into {} (remove (comp #{[:network]} first) inbound-mail))
-          _              (trace-mail "int-mail" int-mail)
-          ext-mail       (get inbound-mail [:network])
-          _              (trace-mail "ext-mail" (when (seq ext-mail) {[:network] ext-mail}))
-          activated      (select-keys state (into imminent (keys int-mail)))
-          _              (trace "activated: %s" (mapv (comp vec reverse) (keys activated)))
-          ;; ----- Collect network structure change messages -----
-          _              (trace "--- Collect network structure change messages -")
-          struct-changes (collect-structure-changes activated)
-          _              (trace "struct-changes")
-          _              (doseq [[name msgs] struct-changes
-                                 msg         msgs]
-                           (trace-network-structure-message name msg))
-          ;; ----- Update models -----
-          _              (trace "--- Update state -----------------------------")
-          state-delta    (apply-transitions activated int-mail t)
-          state'         (merge state state-delta)
-          queue'         (pq/change-priority* queue (for [name (keys activated)]
-                                                      [(get-in state [name :tn])
-                                                       name
-                                                       (get-in state' [name :tn])]))
-          pkg'           (assoc pkg :state state' :queue queue')
-          ;; ----- Update network structure -----
-          _              (trace "--- Update network structure ------------------")
-          ;; Network structure messages must be processed bottom-up in the
-          ;; model hierarchy.
-          struct-changes (sort-by (comp count first) struct-changes)
-          _              (trace "struct-changes (sorted)")
-          _              (doseq [[name msgs] struct-changes
-                                 msg         msgs]
-                           (trace-network-structure-message name msg))
-          pkg'           (reduce (fn [pkg [name vs]]
-                                   ;; TODO: Lookup parent instead.
-                                   (let [parent (rest name)]
-                                     (apply-network-structure-messages pkg parent vs t)))
-                                 pkg'
-                                 struct-changes)]
-      [pkg' ext-mail])))
+(defrecord NetworkSimulator [model
+                             k->sim
+                             routes
+                             queue
+                             tl
+                             int-mail]
+  Simulator
+  (initialize [this t]
+    (let [k->sim (reduce-kv (fn [m k model']
+                              (let [sim  (cond
+                                           (atomic-model?  model') (atomic-simulator  model')
+                                           (network-model? model') (network-simulator model')
+                                           :else                   (throw (ex-info "Unknown model type." {:k k})))
+                                    sim' (initialize sim t)]
+                                (assoc m k sim')))
+                            {}
+                            (:models model))
+          routes (reduce (fn [m [sk sp rk rp f]]
+                           (update-in m [sk sp rk rp] (fnil conj #{}) f))
+                         {}
+                         (:routes model))
+          queue  (reduce-kv (fn [pq k sim]
+                              (pq/insert pq (time-of-next-event sim) k))
+                            (pq/priority-queue)
+                            k->sim)
+          tl     (apply min (map time-of-last-event (vals k->sim)))]
+      (NetworkSimulator. model k->sim routes queue tl {})))
+  (collect-mail [this t]
+    (let [tn (time-of-next-event this)]
+      (when-not (= t tn)
+        (throw (ex-info (str "synchronization error" " (not (= " t " " tn "))")
+                        {:t t :tn tn :tl tl}))))
+    ;; It is safe to assume that there is at least one imminent sim.
+    ;; `loop` was chosen to simplify updating multiple variables.
+    (let [imminent (pq/peek queue)]
+      (loop [[k & ks] imminent
+             k->sim   k->sim
+             mail     {}]
+        (let [sim          (k->sim k)
+              [sim' mail'] (collect-mail sim t) ;; recursive step
+              k->sim       (assoc k->sim k sim')
+              mail         (merge-mail mail (route (get routes k) mail'))]
+          (if (seq ks)
+            (recur ks k->sim mail)
+            (let [int-mail (dissoc mail :network) ;; k->p->vs
+                  ext-mail (get mail :network)]     ;; p->vs
+              [(NetworkSimulator. model k->sim routes queue tl int-mail)
+               ext-mail]))))))
+  (struct-changes [this t]
+    (let [tn (time-of-next-event this)]
+      (when-not (= t tn)
+        (throw (ex-info (str "synchronization error" " (not (= " t " " tn "))")
+                        {:t t :tn tn :tl tl}))))
+    ;; TODO: Fix this
+    [])
+  (transition [this mail t]
+    (let [tn (time-of-next-event this)]
+      (when-not (<= tl t tn)
+        (throw (ex-info (str "synchronization error" " (not (<= " tl " " t " " tn "))")
+                        {:t t :tn tn :tl tl}))))
+    (let [ext-mail       (route (get routes :network) mail) ;; Assumption: There are no routes from :network to :network.
+          imminent       (if (= t (time-of-next-event this))
+                           (pq/peek queue)
+                           [])
+          k->mail        (merge-mail (zipmap imminent (repeat {}))
+                                     int-mail
+                                     ext-mail)
+          struct-changes (mapcat (comp #(struct-changes % t) k->sim) imminent)]
+      ;; It is safe to assume that there is at least one activated sim.
+      ;; `loop` was chosen to simplify updating multiple variables.
+      (let [sim (loop [[[k mail] & k->mail] (seq k->mail)
+                       k->sim               k->sim
+                       queue                queue]
+                  (let [sim    (k->sim k)
+                        sim'   (transition sim mail t) ;; recursive step
+                        k->sim (assoc k->sim k sim')
+                        tn     (time-of-next-event sim)
+                        tn'    (time-of-next-event sim')
+                        queue  (pq/change-priority queue tn k tn')]
+                    (if (seq k->mail)
+                      (recur k->mail k->sim queue)
+                      #_
+                      (NetworkSimulator. model k->sim routes queue t {})
+
+                      (loop [[msg & msgs] struct-changes
+                             k->sim       k->sim
+                             routes       routes
+                             queue        queue]
+                        (if msg
+                          (case (first msg)
+                            :add-model  (let [[_ k model] msg]
+                                          (let [sim  (cond
+                                                       (atomic-model?  model) (atomic-simulator  model)
+                                                       (network-model? model) (network-simulator model)
+                                                       :else                  (throw (ex-info "Unknown model type." {:k k})))
+                                                sim' (initialize sim t)]
+                                            (recur msgs
+                                                   (assoc k->sim k sim')
+                                                   routes
+                                                   (pq/insert queue (time-of-next-event sim') k))))
+                            :rem-model  (let [[_ k] msg]
+                                          (let [sim (k->sim k)]
+                                            (recur msgs
+                                                   (dissoc k->sim k)
+                                                   ;; TODO: Also remove routes where this is receiving.
+                                                   (dissoc routes k)
+                                                   (pq/delete queue (time-of-next-event sim) k))))
+                            :connect    (let [[_ [sk sp rk rp f]] msg]
+                                          (recur msgs
+                                                 k->sim
+                                                 (update-in routes [sk sp rk rp] (fnil conj #{}) f)
+                                                 queue))
+                            :disconnect (let [[_ [sk sp rk rp f]] msg]
+                                          (recur msgs
+                                                 k->sim
+                                                 (update-in routes [sk sp rk rp] disj f)
+                                                 queue)))
+                          (NetworkSimulator. model k->sim routes queue t {})))
+                      )))]
+        sim
+        )))
+  (time-of-last-event [this] tl)
+  (time-of-next-event [this] (or (pq/peek-key queue) infinity)))
+
+(defn network-simulator [model]
+  (NetworkSimulator. model nil nil nil nil nil))
 
 (defn run
   "Run a simulation from start-time (inclusive) to end-time (exclusive). If
@@ -408,13 +327,19 @@
   ([model start-time]
    (run model start-time infinity))
   ([model start-time end-time]
-   (binding [*sim-time* start-time]
-     (loop [pkg (add-model empty-pkg [] :network model start-time)
-            out []]
-       (let [t (pq/peek-key (:queue pkg))]
-         (if (and t (< t end-time))
-           (let [[pkg' out'] (step pkg t)]
-             (recur pkg' (if (seq out')
-                           (conj out [t out'])
-                           out)))
-           out))))))
+   (loop [sim  (-> (cond
+                     (atomic-model?  model) (atomic-simulator  model)
+                     (network-model? model) (network-simulator model)
+                     :else                  (throw (ex-info "Unknown model type." {})))
+                   (initialize start-time))
+          out  []
+          i    0]
+     (assert (< i 1000))
+     (let [t (time-of-next-event sim)]
+       (if (< t end-time)
+         (let [[sim out'] (binding [*sim-time* t] (collect-mail sim t))
+               sim        (binding [*sim-time* t] (transition sim {} t))]
+           (recur sim (if (seq out')
+                        (conj out [t out'])
+                        out) (inc i)))
+         out)))))
