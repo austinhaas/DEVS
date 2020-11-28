@@ -21,13 +21,6 @@
   "Returns true if pq has no items."
   [pq]
   (clojure.core/empty? pq))
-#_
-(defn insert
-  "Add v to pq, with priority k, unless k is nil or infinity."
-  [pq k v]
-  (if (or (nil? k) (= k infinity))
-    pq
-    (update pq k (fnil conj #{}) v)))
 
 (defn insert
   "Add v to pq, with priority k."
