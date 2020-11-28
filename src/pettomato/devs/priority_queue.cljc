@@ -5,9 +5,8 @@
 
   Items with the same priority belong to a set.
 
-  This implementation is intended for cases where delete and update are needed;
-  and the range of current keys is relatively small, so many values map to the
-  same key."
+  This implementation is intended for cases where delete and update are needed,
+  and there are more values than keys."
   (:refer-clojure :exclude [empty? peek pop]))
 
 (declare insert)
