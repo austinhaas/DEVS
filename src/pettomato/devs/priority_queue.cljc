@@ -29,13 +29,12 @@
 (defn delete
   "Delete item v with priority k from pq."
   [pq k v]
-  (let [s  (get pq k)
-        s' (disj s v)]
+  (let [pq (update pq k disj v)]
     ;; Empty sets are pruned, so the size doesn't grow if the set of possible
     ;; keys is unbound.
-    (if (clojure.core/empty? s')
+    (if (clojure.core/empty? (get pq k))
       (dissoc pq k)
-      (assoc pq k s'))))
+      pq)))
 
 (defn change-priority
   "Change the priority of item v from k1 to k2."
