@@ -27,16 +27,6 @@
                (pq/insert 1 :d)
                (pq/->seq)))))
 
-  (testing "insert*"
-    (is (= [[1 #{:a :d}]
-            [2 #{:b}]
-            [3 #{:c}]]
-           (-> (pq/priority-queue)
-               (pq/insert 2 :b)
-               (pq/insert* 1 [:a :d])
-               (pq/insert 3 :c)
-               (pq/->seq)))))
-
   (testing "delete"
     (is (= [[1 #{:a}]
             [3 #{:c}]]
@@ -58,15 +48,6 @@
                (pq/delete 2 :x)
                (pq/->seq)))))
 
-  (testing "delete*"
-    (is (= [[3 #{:c}]]
-           (-> (pq/priority-queue)
-               (pq/insert 2 :b)
-               (pq/insert 2 :a)
-               (pq/insert 3 :c)
-               (pq/delete* 2 [:a :b :x])
-               (pq/->seq)))))
-
   (testing "change-priority"
     (is (= [[2 #{:b}]
             [3 #{:c}]
@@ -76,19 +57,6 @@
                (pq/insert 1 :a)
                (pq/insert 3 :c)
                (pq/change-priority 1 :a 4)
-               (pq/->seq)))))
-
-  (testing "change-priority*"
-    (is (= [[4 #{:a}]
-            [5 #{:b}]
-            [6 #{:c}]]
-           (-> (pq/priority-queue)
-               (pq/insert 2 :b)
-               (pq/insert 1 :a)
-               (pq/insert 3 :c)
-               (pq/change-priority* [[2 :b 5]
-                                     [1 :a 4]
-                                     [3 :c 6]])
                (pq/->seq)))))
 
   (testing "peek-key"

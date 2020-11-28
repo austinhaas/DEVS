@@ -20,6 +20,20 @@
       (dissoc m k))
     m))
 
+(defn disj-in
+  "Like clojure.core/disj for a set in a nested associative structure.
+  If the keyword argument :prune? is true, then any empty levels will be
+  removed."
+  [m ks v & {:keys [prune?]
+             :or   {prune? false}}]
+  (if (seq ks)
+    (let [[k & ks] ks
+          v        (disj-in (get m k) ks v :prune? prune?)]
+      (if (and prune? (empty? v))
+        (dissoc m k)
+        (assoc m k v)))
+    (disj m v)))
+
 (def ^:dynamic *trace* false)
 
 (defn trace [& args]

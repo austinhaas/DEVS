@@ -5,7 +5,7 @@
   (:require
    [clojure.set :refer [subset?]]
    [pettomato.devs.priority-queue :as pq]
-   [pettomato.devs.util :refer [infinity]]
+   [pettomato.devs.util :refer [disj-in infinity]]
    [pettomato.lib.log :as log]))
 
 ;;------------------------------------------------------------------------------
@@ -253,7 +253,7 @@
 
 (defn disconnect [network-sim [sk sp rk rp f]]
   (-> network-sim
-      (update-in [:routes sk sp rk rp] disj f)))
+      (disj-in [:routes sk sp rk rp] f :prune? true)))
 
 (defn apply-network-structure-changes [network-sim ns-msgs t]
   ;; Network structure messages are grouped and processed in a specific order.
@@ -270,14 +270,13 @@
 
 (declare init-sim)
 
-(defrecord NetworkSimulator [model k->sim routes queue tl int-mail ns-msgs]
+(defrecord NetworkSimulator [model k->sim routes queue int-mail ns-msgs]
   Simulator
   (initialize [sim t]
     ;; Assuming initialize will only be called once.
     (let [sim (reduce-kv #(add-model %1 %2 %3 t) sim (:models model))
-          sim (reduce connect sim (:routes model))
-          tl  (apply min (map time-of-last-event (vals (:k->sim sim))))]
-      (assoc sim :tl tl)))
+          sim (reduce connect sim (:routes model))]
+      sim))
   (collect-mail [sim t]
     (let [tn            (time-of-next-event sim)
           _             (check-sync (= t tn))
@@ -296,6 +295,7 @@
       [sim ext-mail]))
   (transition [sim ext-mail t]
     (let [tn       (time-of-next-event sim)
+          tl       (time-of-last-event sim)
           _        (check-sync (<= tl t tn))
           imminent (if (= t tn) (pq/peek queue) [])
           imm-mail (zipmap imminent (repeat {}))
@@ -306,7 +306,7 @@
           (apply-network-structure-changes ns-msgs t)
           (assoc :int-mail {})
           (assoc :ns-msgs []))))
-  (time-of-last-event [sim] tl)
+  (time-of-last-event [sim] (apply max (map time-of-last-event (vals k->sim))))
   (time-of-next-event [sim] (or (pq/peek-key queue) infinity)))
 
 (defn network-simulator [model]
