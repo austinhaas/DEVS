@@ -52,8 +52,7 @@
    nil
    nil
    (constantly {:out [value]})
-   (constantly period)
-   nil))
+   (constantly period)))
 
 (defn lazy-seq-generator
   "A model that emits values according to a (possibly lazy and infinite) seq
@@ -70,9 +69,8 @@
    (fn time-advance [s]
      (if (seq s)
        (ffirst s)
-       infinity))
-   nil))
-
+       infinity))))
+#_
 (defn lazy-seq-generator-network-structure
   [s]
   (atomic-model
@@ -113,8 +111,7 @@
      (if (empty? (:queue state))
        infinity
        (- (ffirst (:queue state))
-          (:delta state))))
-   nil))
+          (:delta state))))))
 
 ;; Like delay1, but messages are [processing-time value].
 (defn delay2
@@ -143,8 +140,7 @@
      (if (empty? (:queue state))
        infinity
        (- (ffirst (:queue state))
-          (:delta state))))
-   nil))
+          (:delta state))))))
 
 ;;; Tests
 
@@ -170,7 +166,7 @@
                                      :del del}
                                     [[:gen :out :del :in identity]
                                      [:del :out :network :del-out identity]])]
-             (devs/run net 0)))))
+             (devs/run net)))))
 
   )
 
@@ -198,30 +194,32 @@
              [17 {:gen-out ("msg-17")}]
              [18 {:gen-out ("msg-18"), :del-2-out ("msg-16")}]
              [19 {:gen-out ("msg-19"), :del-2-out ("msg-17")}]]
-           (binding [*trace* false]
+           (binding [*trace* false
+                     *print-length* 100]
              (let [gen   (lazy-seq-generator (for [i (range)] [1 {:out [(str "msg-" (inc i))]}]))
                    del-1 (delay1 1)
                    del-2 (delay1 2)
-                   exec  (lazy-seq-generator-network-structure
-                          (cycle [[5 [[:disconnect [:gen :out :del-1 :in identity]]
-                                      [:disconnect [:del-1 :out :network :del-1-out identity]]
-                                      [:rem-model :del-1 del-1]
-                                      [:add-model :del-2 del-2]
-                                      [:connect [:gen :out :del-2 :in identity]]
-                                      [:connect [:del-2 :out :network :del-2-out identity]]]]
-                                  [5 [[:disconnect [:gen :out :del-2 :in identity]]
-                                      [:disconnect [:del-2 :out :network :del-2-out identity]]
-                                      [:rem-model :del-2 del-2]
-                                      [:add-model :del-1 del-1]
-                                      [:connect [:gen :out :del-1 :in identity]]
-                                      [:connect [:del-1 :out :network :del-1-out identity]]]]]))
+                   exec  (lazy-seq-generator
+                          (cycle [[5 {:out [[:disconnect [:gen :out :del-1 :in identity]]
+                                            [:disconnect [:del-1 :out :network :del-1-out identity]]
+                                            [:rem-model :del-1 del-1]
+                                            [:add-model :del-2 del-2]
+                                            [:connect [:gen :out :del-2 :in identity]]
+                                            [:connect [:del-2 :out :network :del-2-out identity]]]}]
+                                  [5 {:out [[:disconnect [:gen :out :del-2 :in identity]]
+                                            [:disconnect [:del-2 :out :network :del-2-out identity]]
+                                            [:rem-model :del-2 del-2]
+                                            [:add-model :del-1 del-1]
+                                            [:connect [:gen :out :del-1 :in identity]]
+                                            [:connect [:del-1 :out :network :del-1-out identity]]]}]]))
                    net   (network-model {:gen   gen
                                          :del-1 del-1
                                          :exec  exec}
                                         [[:gen :out :del-1 :in identity]
                                          [:gen :out :network :gen-out identity]
-                                         [:del-1 :out :network :del-1-out identity]])]
-               (devs/run net 0 20))))))
+                                         [:del-1 :out :network :del-1-out identity]
+                                         [:exec :out :network :structure identity]])]
+               (devs/run net :start 0 :end 20))))))
 
   ;; TODO: Also remove without disconnecting.
   (testing "Remove an atomic model before it is imminent."
@@ -230,16 +228,17 @@
                    (let [gen  (lazy-seq-generator [[5 {:out ["msg 1"]}]
                                                    [10 {:out ["msg 2"]}]])
                          del  (delay1 2)
-                         exec (lazy-seq-generator-network-structure
-                               [[6 [[:disconnect [:gen :out :del :in identity]]
-                                    [:disconnect [:del :out :network :out identity]]
-                                    [:rem-model :del]]]])
+                         exec (lazy-seq-generator
+                               [[6 {:out [[:disconnect [:gen :out :del :in identity]]
+                                          [:disconnect [:del :out :network :out identity]]
+                                          [:rem-model :del]]}]])
                          net  (network-model {:gen  gen
                                               :del  del
                                               :exec exec}
                                              [[:gen :out :del :in identity]
-                                              [:del :out :network :out identity]])]
-                     (devs/run net 0))))))
+                                              [:del :out :network :out identity]
+                                              [:exec :out :network :structure identity]])]
+                     (devs/run net :start 0))))))
 
   (testing "Remove an atomic model at the same time as it is imminent."
     (binding [*trace* false]
@@ -247,16 +246,17 @@
                    (let [gen  (lazy-seq-generator [[5 {:out ["msg 1"]}]
                                                    [10 {:out ["msg 2"]}]])
                          del  (delay1 2)
-                         exec (lazy-seq-generator-network-structure
-                               [[7 [[:disconnect [:gen :out :del :in identity]]
-                                    [:disconnect [:del :out :network :out identity]]
-                                    [:rem-model :del]]]])
+                         exec (lazy-seq-generator
+                               [[7 {:out [[:disconnect [:gen :out :del :in identity]]
+                                          [:disconnect [:del :out :network :out identity]]
+                                          [:rem-model :del]]}]])
                          net  (network-model {:gen  gen
                                               :del  del
                                               :exec exec}
                                              [[:gen :out :del :in identity]
-                                              [:del :out :network :out identity]])]
-                     (devs/run net 0))))))
+                                              [:del :out :network :out identity]
+                                              [:exec :out :network :structure identity]])]
+                     (devs/run net :start 0))))))
 
   (testing "Remove a network model"
     (binding [*trace* false]
@@ -269,16 +269,17 @@
                                              [[:network :in :del :in identity]
                                               [:del :out :network :out identity]
                                               [:gen2 :out :network :out identity]])
-                         exec (lazy-seq-generator-network-structure
-                               [[7 [[:disconnect [:gen :out :del :in identity]]
-                                    [:disconnect [:del :out :network :out identity]]
-                                    [:rem-model :del]]]])
+                         exec (lazy-seq-generator
+                               [[7 {:out [[:disconnect [:gen :out :del :in identity]]
+                                          [:disconnect [:del :out :network :out identity]]
+                                          [:rem-model :del]]}]])
                          net  (network-model {:gen  gen
                                               :del  del
                                               :exec exec}
                                              [[:gen :out :del :in identity]
-                                              [:del :out :network :out identity]])]
-                     (devs/run net 0))))))
+                                              [:del :out :network :out identity]
+                                              [:exec :out :network :structure identity]])]
+                     (devs/run net))))))
 
   (testing "Remove a network model, after dynamic structure changes have been made."
     ;; An atom is used to count how many times the added model is updated, to
@@ -291,21 +292,23 @@
                      {:gen  (lazy-seq-generator [[5  {:out ["msg 1"]}]
                                                  [10 {:out ["msg 2"]}]])
                       :del  (network-model {:del  (delay1 2)
-                                            :exec (lazy-seq-generator-network-structure
-                                                   [[1 [[:add-model :gen (lazy-seq-generator
-                                                                          (for [i (range)]
-                                                                            (do (swap! counter inc)
-                                                                                [1 {:out [(str "internal gen msg-" i)]}])))]
-                                                        [:connect [:gen :out :network :out identity]]]]])}
+                                            :exec (lazy-seq-generator
+                                                   [[1 {:out [[:add-model :gen (lazy-seq-generator
+                                                                                (for [i (range)]
+                                                                                  (do (swap! counter inc)
+                                                                                      [1 {:out [(str "internal gen msg-" i)]}])))]
+                                                              [:connect [:gen :out :network :out identity]]]}]])}
                                            [[:network :in :del :in identity]
-                                            [:del :out :network :out identity]])
-                      :exec (lazy-seq-generator-network-structure
-                             [[7 [[:disconnect [:gen :out :del :in identity]]
-                                  [:disconnect [:del :out :network :out identity]]
-                                  [:rem-model :del]]]])}
+                                            [:del :out :network :out identity]
+                                            [:exec :out :network :structure identity]])
+                      :exec (lazy-seq-generator
+                             [[7 {:out [[:disconnect [:gen :out :del :in identity]]
+                                        [:disconnect [:del :out :network :out identity]]
+                                        [:rem-model :del]]}]])}
                      [[:gen :out :del :in identity]
-                      [:del :out :network :out identity]])]
-        (devs/run net 0 10)
+                      [:del :out :network :out identity]
+                      [:exec :out :network :structure identity]])]
+        (devs/run net :start 0 :end 10)
         (is (= 7 @counter)))))
 
   ;; Test that structure changes happen from bottom up.
@@ -332,14 +335,14 @@
 
 (defn add-worker [state k model]
   (trace "add-worker: %s" k)
-  (update state :structure conj
-          [:add-model k model]
-          [:connect [(:id state) [:out k] k :in identity]]
-          [:connect [k :out (:id state) [:in k] identity]]))
+  (update-in state [:output :structure] conj
+             [:add-model k model]
+             [:connect [(:id state) [:out k] k :in identity]]
+             [:connect [k :out (:id state) [:in k] identity]]))
 
 (defn rem-worker [state k]
   (trace "rem-worker: %s" k)
-  (update state :structure conj
+  (update-in state [:output :structure] conj
           [:rem-model k]
           [:disconnect [(:id state) [:out k] k :in identity]]
           [:disconnect [k :out (:id state) [:in k] identity]]))
@@ -397,12 +400,11 @@
             :workers   queue ;; A FIFO of available workers.
             :capacity  0
             :output    {}
-            :structure []
             :sigma     infinity}
          e 0]
       [s e])
     (fn internal-update     [state]
-      (-> (assoc state :output {} :structure [] :sigma infinity)
+      (-> (assoc state :output {} :sigma infinity)
           distribute-work))
     (fn external-update     [state elapsed messages]
       (reduce-kv (fn [state port vs]
@@ -419,8 +421,7 @@
                  messages))
     nil
     :output
-    :sigma
-    :structure))
+    :sigma))
 
 ;;; Tests
 
@@ -453,10 +454,11 @@
                  :server srv}
                 [[:gen :out :server :in identity]
                  [:gen :out :network :gen-out identity]
-                 [:server :out :network :out identity]])]
+                 [:server :out :network :out identity]
+                 [:server :structure :network :structure identity]])]
        (reset-next-id!)
        (rand/with-random-seed 0
-         (-> (devs/run net 0 1000)
+         (-> (devs/run net :start 0 :end 1000)
              report)
          'done))))
   )
@@ -465,9 +467,9 @@
 (comment
 
   (rand/with-random-seed 0
-   (let [ys (for [i (range 50000)]
-              [(rand/rand-int 10) (rand/rand-int 2) (rand/rand-int 10) (rand/rand-int 2) (rand/rand-int 99999)])]
-     (def xs (vec (rand/shuffle (concat ys ys))))))
+    (let [ys (for [i (range 50000)]
+               [(rand/rand-int 10) (rand/rand-int 2) (rand/rand-int 10) (rand/rand-int 2) (rand/rand-int 99999)])]
+      (def xs (vec (rand/shuffle (concat ys ys))))))
 
   (def ys (mapv (partial mapv (comp keyword (partial str "key-")))
                 xs))
