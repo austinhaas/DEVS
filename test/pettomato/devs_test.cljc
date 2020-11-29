@@ -108,6 +108,134 @@
 ;;------------------------------------------------------------------------------
 ;; Tests
 
+(deftest confluence-tests-1
+
+  (let [initial-total-state [{:total 0
+                              :delta 0
+                              :sigma 1}
+                             0]
+        int-update          (fn [s] (update s :total + (:delta s)))
+        ext-update          (fn [s e x] (update s :delta + (first (:in x))))
+        output              (fn [s] {:out [(:total s)]})
+        time-advance        :sigma]
+
+    (testing "Confluence test #1: internal before external"
+      (is (= [[1 {:out [0]}]
+              [2 {:out [0]}]
+              [3 {:out [1]}]
+              [4 {:out [3]}]]
+             (binding [*trace* false]
+               (let [gen   (generator 1 1)
+                     accum (atomic-model initial-total-state
+                                         int-update
+                                         ext-update
+                                         (fn [s x] (ext-update (int-update s) 0 x))
+                                         output
+                                         time-advance)
+                     net   (network-model {:gen   gen
+                                           :accum accum}
+                                          [[:gen :out :accum :in identity]
+                                           [:accum :out :network :out identity]])]
+                 (-> net
+                     devs/network-simulator
+                     (devs/run :end 5)))))))
+
+    (testing "Confluence test #2: external before internal"
+      (is (= [[1 {:out [0]}]
+              [2 {:out [1]}]
+              [3 {:out [3]}]
+              [4 {:out [6]}]]
+             (binding [*trace* false]
+               (let [gen   (generator 1 1)
+                     accum (atomic-model initial-total-state
+                                         int-update
+                                         ext-update
+                                         (fn [s x] (int-update (ext-update s (:sigma s) x)))
+                                         output
+                                         time-advance)
+                     net   (network-model {:gen   gen
+                                           :accum accum}
+                                          [[:gen :out :accum :in identity]
+                                           [:accum :out :network :out identity]])]
+                 (-> net
+                     devs/network-simulator
+                     (devs/run :end 5)))))))))
+
+(deftest confluence-tests-2
+
+  (let [initial-total-state [{:phase :passive
+                              :sigma infinity}
+                             0]
+        int-update          (fn [s]
+                              (case (:phase s)
+                                :passive s
+                                :active  {:phase :alarm   :sigma 0}
+                                :alarm   {:phase :passive :sigma infinity}))
+        ext-update          (fn [s e x]
+                              {:phase :active :sigma (first (:in x))})
+        output              (fn [s]
+                              (case (:phase s)
+                                :active {}
+                                :alarm  {:out [:bzzz]}))]
+
+    (testing "Confluence test #1: internal before external"
+
+      (is (= [[5 {:alarm [:bzzz]}]]
+             (binding [*trace* false]
+               (let [gen   (lazy-seq-generator [[0 {:out [3]}]
+                                                [3 {:out [2]}]])
+                     alarm (atomic-model initial-total-state
+                                         int-update
+                                         ext-update
+                                         (fn [s x] (ext-update (int-update s) 0 x))
+                                         output
+                                         :sigma)
+                     net   (network-model {:gen   gen
+                                           :alarm alarm}
+                                          [[:gen :out :alarm :in identity]
+                                           [:alarm :out :network :alarm identity]])]
+                 (-> net
+                     devs/network-simulator
+                     (devs/run :end 10)))))))
+
+    (testing "Confluence test #2: external before internal"
+      (is (= [[3 {:alarm [:bzzz]}]]
+             (binding [*trace* false]
+               (let [gen   (lazy-seq-generator [[0 {:out [3]}]
+                                                [3 {:out [2]}]])
+                     alarm (atomic-model initial-total-state
+                                         int-update
+                                         ext-update
+                                         (fn [s x] (int-update (ext-update s (:sigma s) x)))
+                                         output
+                                         :sigma)
+                     net   (network-model {:gen   gen
+                                           :alarm alarm}
+                                          [[:gen :out :alarm :in identity]
+                                           [:alarm :out :network :alarm identity]])]
+                 (-> net
+                     devs/network-simulator
+                     (devs/run :end 10)))))))
+
+    (testing "Confluence test #1: default"
+      (is (= [[5 {:alarm [:bzzz]}]]
+             (binding [*trace* false]
+               (let [gen   (lazy-seq-generator [[0 {:out [3]}]
+                                                [3 {:out [2]}]])
+                     alarm (atomic-model initial-total-state
+                                         int-update
+                                         ext-update
+                                         nil
+                                         output
+                                         :sigma)
+                     net   (network-model {:gen   gen
+                                           :alarm alarm}
+                                          [[:gen :out :alarm :in identity]
+                                           [:alarm :out :network :alarm identity]])]
+                 (-> net
+                     devs/network-simulator
+                     (devs/run :end 10)))))))))
+
 (deftest basic-tests
 
   (testing "Running a very simple atomic simulation."

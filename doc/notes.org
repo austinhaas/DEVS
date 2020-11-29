@@ -266,8 +266,8 @@
        operation.
 ** DONE Add debug support.
 ** Reorganize code
-*** Check in latest.
-*** Fix cljs issue with ad-hoc-tests w/ counter
+*** DONE Check in latest.
+*** DONE Fix cljs issue with ad-hoc-tests w/ counter
 *** Split into namespaces.
 *** Consider changing run
     - rename to root-coordinator?
@@ -278,6 +278,7 @@
 ** Support updating an atomic model.
 ** Add more tests.
 *** confluence tests
+    - alarm
 *** parallel tests
 *** more complex network structure tests
 **** one like this
@@ -348,54 +349,8 @@
                coordinator (coordinator default-sim-fns model)]
            (-> coordinator
                (afap-root-coordinator 0 25))))))
-#_
-(deftest confluence-test
-  (is (eq? (-> (delay-1 10)
-               atomic-simulator
-               (afap-root-simulator 0 100 [[0  [[:in 1]]]
-                                           [10 [[:in 2]]]])
-               second)
-           [[10 [[:out 1]]]
-            [20 [[:out 2]]]]))
 
-  ;; The second input value should be ignored, since the model is in
-  ;; the busy state and external inputs have higher priority in
-  ;; delay-2.
-  (is (eq? (-> (delay-2 10)
-               atomic-simulator
-               (afap-root-simulator 0 100 [[0  [[:in 1]]]
-                                           [10 [[:in 2]]]])
-               second)
-           [[10 [[:out 1]]]]))
 
-  (is (eq? (-> (network-model
-                :exec
-                (executive-model
-                 (-> {}
-                     (register :delay (delay-1 10))
-                     (connect network-id :in :delay :in)
-                     (connect :delay :out network-id :out))
-                 nil nil nil nil (constantly infinity)))
-               network-simulator
-               (afap-root-simulator 0 100 [[0  [[:in 1]]]
-                                           [10 [[:in 2]]]])
-               second)
-           [[10 [[:out 1]]]
-            [20 [[:out 2]]]]))
-
-  (is (eq? (-> (network-model
-                :exec
-                (executive-model
-                 (-> {}
-                     (register :delay (delay-2 10))
-                     (connect network-id :in :delay :in)
-                     (connect :delay :out network-id :out))
-                 nil nil nil nil (constantly infinity)))
-               network-simulator
-               (afap-root-simulator 0 100 [[0  [[:in 1]]]
-                                           [10 [[:in 2]]]])
-               second)
-           [[10 [[:out 1]]]])))
 
 (deftest dynamic-network-test
   #_
