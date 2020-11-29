@@ -12,12 +12,8 @@
    [pettomato.devs.util :refer [infinity]]
    [pettomato.lib.queue :refer [queue]]))
 
-#_
-(route {:a {:x {:b {:y [identity]}
-                :c {:y [identity]}}}
-        :c {:y {:d {:x [identity]}}}
-        :d {:x {:e {:y [identity]}}}}
-       {:a {:x [100]}})
+;;------------------------------------------------------------------------------
+;; Test helpers
 
 (defn mail= [m1 m2]
   (and (= (count m1)
@@ -39,11 +35,23 @@
              (mail= mail mail')
              (output= (rest expected) (rest actual))))))
 
-;;; Test models
+;;------------------------------------------------------------------------------
+;; Simple function tests
+
+(deftest prune-test
+
+  (is (= {:x #{1}}
+         (devs/prune {:x #{1}} [])))
+
+  (is (= {:x #{1}}
+         (devs/prune {:x #{1} :y {:z []}} [:y :z]))))
+
+;;------------------------------------------------------------------------------
+;; Test models
 
 (defn generator
   "A model that periodically emits value on a port labeled :out."
-  [value period]
+  [period value]
   (atomic-model
    (let [s nil
          e 0]
@@ -70,22 +78,6 @@
      (if (seq s)
        (ffirst s)
        infinity))))
-#_
-(defn lazy-seq-generator-network-structure
-  [s]
-  (atomic-model
-   (let [s s
-         e 0]
-     [s e])
-   next
-   nil
-   nil
-   (constantly nil)
-   (fn time-advance [s]
-     (if (seq s)
-       (ffirst s)
-       infinity))
-   (comp second first)))
 
 (defn delay1
   [processing-time]
@@ -113,150 +105,125 @@
        (- (ffirst (:queue state))
           (:delta state))))))
 
-;; Like delay1, but messages are [processing-time value].
-(defn delay2
-  []
-  (atomic-model
-   (let [s {:queue (sorted-map)
-            :delta 0}
-         e 0]
-     [s e])
-   (fn internal-update  [state]
-     (-> state
-         (update :queue dissoc (ffirst (:queue state)))
-         (assoc :delta (ffirst (:queue state)))))
-   (fn external-update  [state elapsed-time messages]
-     (trace "external-update: %s" messages)
-     (let [delta (+ (:delta state) elapsed-time)]
-       (reduce (fn [state [processing-time value]]
-                 (let [t (+ delta processing-time)]
-                   (update-in state [:queue t] conj value)))
-               (assoc state :delta delta)
-               (:in messages))))
-   nil
-   (fn output           [state]
-     {:out (second (first (:queue state)))})
-   (fn time-advance     [state]
-     (if (empty? (:queue state))
-       infinity
-       (- (ffirst (:queue state))
-          (:delta state))))))
+;;------------------------------------------------------------------------------
+;; Tests
 
-;;; Tests
+(deftest basic-tests
 
-(deftest simple-tests
+  (testing "Running a very simple atomic simulation."
+    (is (= [[2 {:out ["x"]}]
+            [4 {:out ["x"]}]
+            [6 {:out ["x"]}]
+            [8 {:out ["x"]}]]
+           (binding [*trace* false]
+             (-> (generator 2 "x")
+                 devs/atomic-simulator
+                 (devs/run :end 10))))))
 
-  #_
-  (-> (devs/atomic-simulator (generator 5 10))
-      (devs/initialize 0)
-      (devs/collect-mail 10)
-      first
-      (devs/transition {} 10))
+  (testing "Specifying a non-zero start time."
+    (is (= [[7 {:out ["x"]}]
+            [9 {:out ["x"]}]]
+           (binding [*trace* false]
+             (-> (generator 2 "x")
+                 devs/atomic-simulator
+                 (devs/run :start 5 :end 10))))))
 
-  #_
-  (devs/run (generator 5 10) 0 22)
+  (testing "A simple network."
+    (is (= [[5  {:out ["x"]}]
+            [15 {:out ["y"]}]]
+           (binding [*trace* false]
+             (let [gen (lazy-seq-generator [[0  {:out ["x"]}]
+                                            [10 {:out ["y"]}]])
+                   del (delay1 5)
+                   net (network-model {:gen gen
+                                       :del del}
+                                      [[:gen :out :del :in identity]
+                                       [:del :out :network :out identity]])]
+               (-> (devs/network-simulator net)
+                   devs/run)))))))
 
-  (is (= [[5  {:del-out ["test msg"]}]
-          [15 {:del-out ["test msg 2"]}]]
-         (binding [*trace* true]
-           (let [gen (lazy-seq-generator [[0 {:out ["test msg"]}]
-                                          [10 {:out ["test msg 2"]}]])
-                 del (delay1 5)
-                 net (network-model {:gen gen
-                                     :del del}
-                                    [[:gen :out :del :in identity]
-                                     [:del :out :network :del-out identity]])]
-             (devs/run net)))))
+(deftest deep-delay-network
 
-  )
+  (testing "A deeply nested delay network"
+    (let [delay-network-constructor
+          (fn [del] (network-model {:del del}
+                                   [[:network :in :del :in identity]
+                                    [:del :out :network :out identity]]))]
+      (binding [*trace* false]
+        (is (= [[7 {:out ["x"]}]
+                [9 {:out ["x"]}]]
+               (let [gen (generator 2 "x")
+                     del (-> (delay1 5)
+                             delay-network-constructor
+                             delay-network-constructor
+                             delay-network-constructor
+                             delay-network-constructor)
+                     net (network-model {:gen gen
+                                         :del del}
+                                        [[:gen :out :del :in identity]
+                                         [:del :out :network :out identity]])]
+                 (-> (devs/network-simulator net)
+                     (devs/run :end 10)))))))))
+
+(defn dynamic-delay-network
+  "Constructs a network that contains gen and adds del at start and removes it at
+  end. gen is connected to del and del is connected to the network."
+  [gen del start end]
+  (network-model {:gen  gen
+                  :exec (lazy-seq-generator
+                         [[start {:out [[:add-model :del del]
+                                        [:connect [:gen :out :del :in identity]]
+                                        [:connect [:del :out :network :out identity]]]}]
+                          [end {:out [[:disconnect [:gen :out :del :in identity]]
+                                      [:disconnect [:del :out :network :out identity]]
+                                      [:rem-model :del]]}]])}
+                 [[:exec :out :network :structure identity]]))
 
 (deftest structure-change-tests
 
-  (testing "???"
-    ;; Note that messages get dropped when they have been delivered to a delay,
-    ;; but the delay is removed in a structure change.
-    (is (= '[[1 {:gen-out ("msg-1")}]
-             [2 {:gen-out ("msg-2"), :del-1-out ("msg-1")}]
-             [3 {:gen-out ("msg-3"), :del-1-out ("msg-2")}]
-             [4 {:gen-out ("msg-4"), :del-1-out ("msg-3")}]
-             [5 {:gen-out ("msg-5"), :del-1-out ("msg-4")}]
-             [6 {:gen-out ("msg-6")}]
-             [7 {:gen-out ("msg-7")}]
-             [8 {:gen-out ("msg-8"), :del-2-out ("msg-6")}]
-             [9 {:gen-out ("msg-9"), :del-2-out ("msg-7")}]
-             [10 {:gen-out ("msg-10"), :del-2-out ("msg-8")}]
-             [11 {:gen-out ("msg-11")}]
-             [12 {:gen-out ("msg-12"), :del-1-out ("msg-11")}]
-             [13 {:gen-out ("msg-13"), :del-1-out ("msg-12")}]
-             [14 {:gen-out ("msg-14"), :del-1-out ("msg-13")}]
-             [15 {:gen-out ("msg-15"), :del-1-out ("msg-14")}]
-             [16 {:gen-out ("msg-16")}]
-             [17 {:gen-out ("msg-17")}]
-             [18 {:gen-out ("msg-18"), :del-2-out ("msg-16")}]
-             [19 {:gen-out ("msg-19"), :del-2-out ("msg-17")}]]
-           (binding [*trace* false
-                     *print-length* 100]
-             (let [gen   (lazy-seq-generator (for [i (range)] [1 {:out [(str "msg-" (inc i))]}]))
-                   del-1 (delay1 1)
-                   del-2 (delay1 2)
-                   exec  (lazy-seq-generator
-                          (cycle [[5 {:out [[:disconnect [:gen :out :del-1 :in identity]]
-                                            [:disconnect [:del-1 :out :network :del-1-out identity]]
-                                            [:rem-model :del-1 del-1]
-                                            [:add-model :del-2 del-2]
-                                            [:connect [:gen :out :del-2 :in identity]]
-                                            [:connect [:del-2 :out :network :del-2-out identity]]]}]
-                                  [5 {:out [[:disconnect [:gen :out :del-2 :in identity]]
-                                            [:disconnect [:del-2 :out :network :del-2-out identity]]
-                                            [:rem-model :del-2 del-2]
-                                            [:add-model :del-1 del-1]
-                                            [:connect [:gen :out :del-1 :in identity]]
-                                            [:connect [:del-1 :out :network :del-1-out identity]]]}]]))
-                   net   (network-model {:gen   gen
-                                         :del-1 del-1
-                                         :exec  exec}
-                                        [[:gen :out :del-1 :in identity]
-                                         [:gen :out :network :gen-out identity]
-                                         [:del-1 :out :network :del-1-out identity]
-                                         [:exec :out :network :structure identity]])]
-               (devs/run net :start 0 :end 20))))))
-
-  ;; TODO: Also remove without disconnecting.
   (testing "Remove an atomic model before it is imminent."
     (binding [*trace* false]
       (is (output= []
-                   (let [gen  (lazy-seq-generator [[5 {:out ["msg 1"]}]
-                                                   [10 {:out ["msg 2"]}]])
-                         del  (delay1 2)
-                         exec (lazy-seq-generator
-                               [[6 {:out [[:disconnect [:gen :out :del :in identity]]
-                                          [:disconnect [:del :out :network :out identity]]
-                                          [:rem-model :del]]}]])
-                         net  (network-model {:gen  gen
-                                              :del  del
-                                              :exec exec}
-                                             [[:gen :out :del :in identity]
-                                              [:del :out :network :out identity]
-                                              [:exec :out :network :structure identity]])]
-                     (devs/run net :start 0))))))
+                   (let [net (dynamic-delay-network (generator 5 "x")
+                                                    (delay1 2)
+                                                    0 6)]
+                     (-> (devs/network-simulator net)
+                         (devs/run :start 0 :end 10)))))))
 
-  (testing "Remove an atomic model at the same time as it is imminent."
+  (testing "Remove an atomic model when it is imminent."
     (binding [*trace* false]
-      (is (output= [[7 {:out ["msg 1"]}]]
-                   (let [gen  (lazy-seq-generator [[5 {:out ["msg 1"]}]
-                                                   [10 {:out ["msg 2"]}]])
-                         del  (delay1 2)
-                         exec (lazy-seq-generator
-                               [[7 {:out [[:disconnect [:gen :out :del :in identity]]
-                                          [:disconnect [:del :out :network :out identity]]
-                                          [:rem-model :del]]}]])
-                         net  (network-model {:gen  gen
-                                              :del  del
-                                              :exec exec}
-                                             [[:gen :out :del :in identity]
-                                              [:del :out :network :out identity]
-                                              [:exec :out :network :structure identity]])]
-                     (devs/run net :start 0))))))
+      (is (output= [[7 {:out ["x"]}]]
+                   (let [net (dynamic-delay-network (generator 5 "x")
+                                                    (delay1 2)
+                                                    0 7)]
+                     (-> (devs/network-simulator net)
+                         (devs/run :start 0 :end 10)))))))
+
+  (testing "Remove an atomic model after it is imminent."
+    (binding [*trace* false]
+      (is (output= [[7 {:out ["x"]}]]
+                   (let [net (dynamic-delay-network (generator 5 "x")
+                                                    (delay1 2)
+                                                    0 8)]
+                     (-> (devs/network-simulator net)
+                         (devs/run :start 0 :end 10)))))))
+
+  (testing "Adding an atomic model after it would have received input."
+    (binding [*trace* false]
+      (is (output= [[12 {:out ["x"]}]
+                    [17 {:out ["x"]}]]
+                   (let [net (dynamic-delay-network (generator 5 "x")
+                                                    (delay1 2)
+                                                    5 15)]
+                     (-> (devs/network-simulator net)
+                         (devs/run :start 0 :end 20)))))))
+
+  ;; Test that structure changes happen from bottom up.
+  ;; Remove the parent and the child.
+
+  )
+
+(deftest ad-hoc-tests
 
   (testing "Remove a network model"
     (binding [*trace* false]
@@ -279,7 +246,8 @@
                                              [[:gen :out :del :in identity]
                                               [:del :out :network :out identity]
                                               [:exec :out :network :structure identity]])]
-                     (devs/run net))))))
+                     (-> (devs/network-simulator net)
+                         devs/run))))))
 
   (testing "Remove a network model, after dynamic structure changes have been made."
     ;; An atom is used to count how many times the added model is updated, to
@@ -308,19 +276,62 @@
                      [[:gen :out :del :in identity]
                       [:del :out :network :out identity]
                       [:exec :out :network :structure identity]])]
-        (devs/run net :start 0 :end 10)
+        (-> (devs/network-simulator net)
+            (devs/run :start 0 :end 10))
         (is (= 7 @counter)))))
 
-  ;; Test that structure changes happen from bottom up.
-  ;; Remove the parent and the child.
-
-
-
-
-  )
+  (testing "network structure change test"
+    ;; Note that messages get dropped when they have been delivered to a delay,
+    ;; but the delay is removed in a structure change.
+    (is (= '[[1 {:gen-out ("msg-1")}]
+             [2 {:gen-out ("msg-2"), :del-1-out ("msg-1")}]
+             [3 {:gen-out ("msg-3"), :del-1-out ("msg-2")}]
+             [4 {:gen-out ("msg-4"), :del-1-out ("msg-3")}]
+             [5 {:gen-out ("msg-5"), :del-1-out ("msg-4")}]
+             [6 {:gen-out ("msg-6")}]
+             [7 {:gen-out ("msg-7")}]
+             [8 {:gen-out ("msg-8"), :del-2-out ("msg-6")}]
+             [9 {:gen-out ("msg-9"), :del-2-out ("msg-7")}]
+             [10 {:gen-out ("msg-10"), :del-2-out ("msg-8")}]
+             [11 {:gen-out ("msg-11")}]
+             [12 {:gen-out ("msg-12"), :del-1-out ("msg-11")}]
+             [13 {:gen-out ("msg-13"), :del-1-out ("msg-12")}]
+             [14 {:gen-out ("msg-14"), :del-1-out ("msg-13")}]
+             [15 {:gen-out ("msg-15"), :del-1-out ("msg-14")}]
+             [16 {:gen-out ("msg-16")}]
+             [17 {:gen-out ("msg-17")}]
+             [18 {:gen-out ("msg-18"), :del-2-out ("msg-16")}]
+             [19 {:gen-out ("msg-19"), :del-2-out ("msg-17")}]]
+           (binding [*trace*        false
+                     *print-length* 100]
+             (let [gen   (lazy-seq-generator (for [i (range)] [1 {:out [(str "msg-" (inc i))]}]))
+                   del-1 (delay1 1)
+                   del-2 (delay1 2)
+                   exec  (lazy-seq-generator
+                          (cycle [[5 {:out [[:disconnect [:gen :out :del-1 :in identity]]
+                                            [:disconnect [:del-1 :out :network :del-1-out identity]]
+                                            [:rem-model :del-1 del-1]
+                                            [:add-model :del-2 del-2]
+                                            [:connect [:gen :out :del-2 :in identity]]
+                                            [:connect [:del-2 :out :network :del-2-out identity]]]}]
+                                  [5 {:out [[:disconnect [:gen :out :del-2 :in identity]]
+                                            [:disconnect [:del-2 :out :network :del-2-out identity]]
+                                            [:rem-model :del-2 del-2]
+                                            [:add-model :del-1 del-1]
+                                            [:connect [:gen :out :del-1 :in identity]]
+                                            [:connect [:del-1 :out :network :del-1-out identity]]]}]]))
+                   net   (network-model {:gen   gen
+                                         :del-1 del-1
+                                         :exec  exec}
+                                        [[:gen :out :del-1 :in identity]
+                                         [:gen :out :network :gen-out identity]
+                                         [:del-1 :out :network :del-1-out identity]
+                                         [:exec :out :network :structure identity]])]
+               (-> (devs/network-simulator net)
+                   (devs/run :start 0 :end 20))))))))
 
 ;;------------------------------------------------------------------------------
-;; Dynamic Structure Example
+;; A complex example
 ;;------------------------------------------------------------------------------
 
 ;;; id
@@ -330,6 +341,37 @@
 (defn next-id [] (swap! next-id-atom inc))
 
 (defn reset-next-id! [] (reset! next-id-atom 0))
+
+;;; worker
+
+(defn delay2
+  "Like delay1, but messages are [processing-time value]."
+  []
+  (atomic-model
+   (let [s {:queue (sorted-map)
+            :delta 0}
+         e 0]
+     [s e])
+   (fn internal-update  [state]
+     (-> state
+         (update :queue dissoc (ffirst (:queue state)))
+         (assoc :delta (ffirst (:queue state)))))
+   (fn external-update  [state elapsed-time messages]
+     (trace "external-update: %s" messages)
+     (let [delta (+ (:delta state) elapsed-time)]
+       (reduce (fn [state [processing-time value]]
+                 (let [t (+ delta processing-time)]
+                   (update-in state [:queue t] conj value)))
+               (assoc state :delta delta)
+               (:in messages))))
+   nil
+   (fn output           [state]
+     {:out (second (first (:queue state)))})
+   (fn time-advance     [state]
+     (if (empty? (:queue state))
+       infinity
+       (- (ffirst (:queue state))
+          (:delta state))))))
 
 ;;; server
 
@@ -432,93 +474,33 @@
                           (remove nil?)
                           (map #(assoc % :delay (- (:start-time %) (:arrival-time %)))))
         start-delays (map :delay log)]
-    ;;(clojure.pprint/pprint log)
-    (println "Total jobs: " (count log))
-    (println "Total workers:" (count (distinct (map :worker log))))
-    (println "Ave delay: " (float (/ (reduce + start-delays) (count start-delays))))
-    (println "Max delay: " (apply max start-delays))))
+    {:total-jobs    (count log)
+     :total-workers (count (distinct (map :worker log)))
+     :ave-delay     (/ (reduce + start-delays) (count start-delays))
+     :max-delay     (apply max start-delays)}))
 
-(deftest dynamic-structure-test
+(deftest complex-example-test
 
-  (time
-   (binding [*trace*        false
-             *print-length* 1000]
-     (let [gen (lazy-seq-generator
-                (take 100
-                      (for [i (range)]
-                        [(+ 1 (rand/rand-int 10)) {:out [{:id     (str "job-" i)
-                                                          :effort (+ 1 (rand/rand-int 100))}]}])))
-           srv (server :server)
-           net (network-model
-                {:gen    gen
-                 :server srv}
-                [[:gen :out :server :in identity]
-                 [:gen :out :network :gen-out identity]
-                 [:server :out :network :out identity]
-                 [:server :structure :network :structure identity]])]
-       (reset-next-id!)
-       (rand/with-random-seed 0
-         (-> (devs/run net :start 0 :end 1000)
-             report)
-         'done))))
-  )
-
-;; Test trie vs hash w/ vector key
-(comment
-
-  (rand/with-random-seed 0
-    (let [ys (for [i (range 50000)]
-               [(rand/rand-int 10) (rand/rand-int 2) (rand/rand-int 10) (rand/rand-int 2) (rand/rand-int 99999)])]
-      (def xs (vec (rand/shuffle (concat ys ys))))))
-
-  (def ys (mapv (partial mapv (comp keyword (partial str "key-")))
-                xs))
-
-  ;; Note that this doesn't prune dead branches.
-  (time
-   (do (reduce (fn [m [a b c d e]]
-                 (if (get-in m [a b c d e])
-                   (update-in m [a b c d] disj e)
-                   (update-in m [a b c d] (fnil conj #{}) e)))
-               {}
-               ys)
-       nil))
-
-  (time
-   (do (reduce (fn [m [a b c d e]]
-                 (update-in m [a b c d e] (fnil inc 0)))
-               {}
-               ys)
-       nil))
-
-
-  (time
-   (do (reduce (fn [s [a b c d e]]
-                 (if (contains? s [a b c d e])
-                   (disj s [a b c d e])
-                   (conj s [a b c d e])))
-               #{}
-               ys)
-       nil))
-
-  (time
-   (do (reduce (fn [s r]
-                 (if (contains? s r)
-                   (disj s r)
-                   (conj s r)))
-               #{}
-               ys)
-       nil))
-
-  ;; Conclusion: Sets of vectors perform better. But, we'll need the trie for
-  ;; lookups. However, we can do it as [name port] -> [name port].
-
-  )
-
-(deftest prune-test
-
-  (is (= {:x #{1}}
-         (devs/prune {:x #{1}} [])))
-
-  (is (= {:x #{1}}
-         (devs/prune {:x #{1} :y {:z []}} [:y :z]))))
+  (is (= {:total-jobs    100
+          :total-workers 10
+          :ave-delay     (/ 2489 100)
+          :max-delay     48}
+         (binding [*trace*        false
+                   *print-length* 1000]
+           (let [gen (lazy-seq-generator
+                      (take 100
+                            (for [i (range)]
+                              [(+ 1 (rand/rand-int 10)) {:out [{:id     (str "job-" i)
+                                                                :effort (+ 1 (rand/rand-int 100))}]}])))
+                 srv (server :server)
+                 net (network-model
+                      {:gen    gen
+                       :server srv}
+                      [[:gen :out :server :in identity]
+                       [:gen :out :network :gen-out identity]
+                       [:server :out :network :out identity]
+                       [:server :structure :network :structure identity]])]
+             (reset-next-id!)
+             (rand/with-random-seed 0
+               (-> (devs/run (devs/network-simulator net) :start 0 :end 1000)
+                   report)))))))

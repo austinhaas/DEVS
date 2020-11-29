@@ -264,11 +264,17 @@
 
      - We could implement the gathering of imminent simulators as a separate
        operation.
-** Add debug support.
+** DONE Add debug support.
 ** Reorganize code
+*** Check in latest.
+*** Fix cljs issue with ad-hoc-tests w/ counter
 *** Split into namespaces.
-*** Rename run to root-coordinator
-    - An event-driven root coordinator that executes a simulation as fast as possible.
+*** Consider changing run
+    - rename to root-coordinator?
+      - afap, event-driven?
+      - I think we want something that can be used to step a simulation.
+**** Implement lazy root-coordinator or remove it
+*** Make route fn optional
 ** Support updating an atomic model.
 ** Add more tests.
    - Use examples.
@@ -530,6 +536,9 @@
                 [:node-2 'out network-name 'out]]]
    (coupled-model models routes)))
 
+** Add optional run-time check that a model has no connections before removing it.
+   - In dev mode, all checks should be enabled.
+   - Add tests.
 ** Add some kind of network validation.
 *** Must contain at least one model.
     - Or else initialize needs to handle that case with tl.
@@ -1146,7 +1155,6 @@
     - Self-labeling.
     - Validate.
     - Apply defaults.
-*** Consider renaming afap to fast or event-driven.
 *** Consider implementing mail as a seq instead of a trie.
     - Optimize for modeling.
 *** Consider if sender message order should be preserved.

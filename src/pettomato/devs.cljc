@@ -11,7 +11,7 @@
 
 (def ^{:dynamic true :private true} *path*
   "Bound to the path to the current model in the network hierarchy."
-  ())
+  [])
 
 (def ^:dynamic *sim-time* nil)
 
@@ -19,7 +19,6 @@
 ;; Trace
 
 (def ^:dynamic *trace* false)
-(def ^{:dynamic true :private true} *indent* 0)
 
 (defn- pad-left
   "n - min string length of result
@@ -31,28 +30,26 @@
     (recur n c (str c s))
     s))
 
+(defn format-time [t]
+  (str "[" (pad-left 8 \  (str t)) "]"))
+
+(defn format-path [path]
+  (let [c (count path)]
+    (if (pos? c)
+      (let [i (* c 2)
+            w (apply str (repeat (- i 2) \ ))
+            a "|-"]
+        (str w a (last path)))
+      "")))
+
 (defn trace [& args]
   (when *trace*
     (apply log/infof
-           (str "[" (pad-left 5 \  (str *sim-time*)) "]"
-                " " (str (vec (reverse *path*)))
-                " " (apply str (repeat *indent* \ ))
+           (str (format-time *sim-time*)
+                " " (format-path *path*)
+                (if (pos? (count *path*)) " " "")
                 (first args))
            (rest args))))
-#_
-(defn trace-mail [label mail]
-  (when *trace*
-    (trace "%s" label)
-    (doseq [[k vs] mail]
-      (trace " %s -> %s" (vec (reverse k)) (vec vs)))))
-#_
-(defn trace-network-structure-message [name msg]
-  (trace "%s" name)
-  (case (first msg)
-    :add-model  (let [[_ name model] msg] (trace (vec (butlast msg))))
-    :rem-model  (let [[_ name]       msg] (trace msg))
-    :connect    (let [[_ route]      msg] (trace msg))
-    :disconnect (let [[_ route]      msg] (trace msg))))
 
 ;;------------------------------------------------------------------------------
 ;; Models
@@ -137,14 +134,17 @@
 (defrecord AtomicSimulator [model state tl tn]
   Simulator
   (initialize [sim t]
+    (trace "--- initialize ---")
     (let [[s e] (:initial-total-state model)
           tl    (- t e)
           tn    (+ tl ((:time-advance model) s))]
       (assoc sim :state s :tl tl :tn tn)))
   (collect-mail [sim t]
+    (trace "--- collect-mail ---")
     (assert (= t tn) "synchronization error")
     [sim ((:output model) state)])
   (transition [sim mail t]
+    (trace "--- transition ---")
     (assert (<= tl t tn) "synchronization error")
     (let [state (if (empty? mail)
                   ((:internal-update model) state)
@@ -200,7 +200,8 @@
   "
   [network-sim k mail t]
   (let [sim  (get-in network-sim [:k->sim k])
-        sim' (transition sim mail t)  ; recursive step
+        sim' (binding [*path* (conj *path* k)]
+               (transition sim mail t))  ; recursive step
         tn   (time-of-next-event sim) ; Previously scheduled time; (<= t tn).
         tn'  (time-of-next-event sim')]
     (-> network-sim
@@ -212,14 +213,20 @@
              network-sim
              mail))
 
+(declare model->sim)
+
 (defn add-model [network-sim k model t]
-  (let [sim (init-sim model t)
+  (trace "add-model: %s" k)
+  (let [sim (model->sim model)
+        sim (binding [*path* (conj *path* k)]
+              (initialize sim t))
         tn  (time-of-next-event sim)]
     (-> network-sim
         (update :k->sim assoc k sim)
         (update :queue pq/insert tn k))))
 
 (defn rem-model [network-sim k]
+  (trace "rem-model: %s" k)
   (let [sim (get-in network-sim [:k->sim k])
         tn  (time-of-next-event sim)]
     (-> network-sim
@@ -227,6 +234,7 @@
         (update :queue pq/delete tn k))))
 
 (defn connect [network-sim [sk sp rk rp f]]
+  (trace "connect: %s" [sk sp rk rp f])
   (-> network-sim
       (update-in [:routes sk sp rk rp] (fnil conj #{}) f)))
 
@@ -242,6 +250,7 @@
     m))
 
 (defn disconnect [network-sim [sk sp rk rp f]]
+  (trace "disconnect: %s" [sk sp rk rp f])
   (-> network-sim
       (update-in [:routes sk sp rk rp] disj f)
       (update :routes prune [sk sp rk rp])))
@@ -263,22 +272,28 @@
       (reduce add-model  network-sim (:add-model  net-msgs))
       (reduce connect    network-sim (:connect    net-msgs)))))
 
-(declare init-sim)
-
 (defrecord NetworkSimulator [model k->sim routes queue int-mail net-msgs]
   Simulator
   (initialize [sim t]
+    (trace "--- initialize ---")
     ;; Assuming initialize will only be called once.
     (reduce connect
             (reduce-kv #(add-model %1 %2 %3 t) sim (:models model))
             (:routes model)))
   (collect-mail [sim t]
+    (trace "--- collect-mail ---")
     (assert (= t (time-of-next-event sim)) "synchronization error")
     (let [imminent      (pq/peek queue)
-          xs            (map #(collect-mail (k->sim %) t) imminent) ; recursive step
+          _             (trace "imminent: %s" imminent)
+          xs            (map (fn [k]
+                               (binding [*path* (conj *path* k)]
+                                 (collect-mail (k->sim k) t))) ; recursive step
+                             imminent)
           k->sim'       (zipmap imminent (map first  xs))
           outbound-mail (zipmap imminent (map second xs))
+          _             (trace "outbound-mail: %s" outbound-mail)
           inbound-mail  (route-mail routes outbound-mail)
+          _             (trace " inbound-mail: %s" inbound-mail)
           [int-mail
            ext-mail
            net-msgs]    (sort-mail inbound-mail)
@@ -288,12 +303,16 @@
                                    :net-msgs net-msgs))]
       [sim ext-mail]))
   (transition [sim ext-mail t]
+    (trace "--- transition ---")
     (assert (<= (time-of-last-event sim) t (time-of-next-event sim)) "synchronization error")
     (let [tn       (time-of-next-event sim)
           imminent (if (= t tn) (pq/peek queue) [])
+          _        (trace "imminent: %s" imminent)
           imm-mail (zipmap imminent (repeat {}))
           ext-mail (route-mail routes {:network ext-mail}) ; Assumption: There are no routes from :network to :network.
-          mail     (merge-mail imm-mail int-mail ext-mail)]
+          _        (trace "ext-mail: %s" ext-mail)
+          mail     (merge-mail imm-mail int-mail ext-mail)
+          _        (trace "mail: %s" mail)]
       (-> sim
           (apply-transitions mail t)
           (apply-network-structure-changes net-msgs t)
@@ -311,17 +330,17 @@
 ;;------------------------------------------------------------------------------
 ;; Runner
 
-(defn init-sim [model t]
-  (let [sim-fn (cond
-                 (atomic-model?  model) atomic-simulator
-                 (network-model? model) network-simulator
-                 :else                  (throw (ex-info "Unknown model type." {})))]
-    (-> (sim-fn model)
-        (initialize t))))
+(defn model->sim [model]
+  (cond
+    (atomic-model?  model) (atomic-simulator  model)
+    (network-model? model) (network-simulator model)
+    :else                  (throw (ex-info "Unknown model type." {}))))
 
 ;; aka root coordinator
 (defn run
-  "Run a simulation based on the supplied model. Returns a seq of [timestamp mail].
+  "Run a simulation \"as fast as possible\".
+
+  Returns a seq of [timestamp mail].
 
   Options:
 
@@ -334,15 +353,18 @@
 
   Note that the simulation will terminate before end time if the simulator's
   next internal update isn't before infinity."
-  [model & {:keys [start end limit]
-            :or   {start 0
-                   end   infinity
-                   limit infinity}}]
-  (loop [sim (init-sim model start)
+  [sim & {:keys [start end limit]
+          :or   {start 0
+                 end   infinity
+                 limit infinity}
+          :as   options}]
+  (trace "run {:start %s :end %s :limit %s}" start end limit)
+  (loop [sim (binding [*sim-time* start] (initialize sim start))
          out (transient [])
          i   0]
-    (assert (< i limit))
+    (assert (< i limit) (str "limit reached: " i))
     (let [t (time-of-next-event sim)]
+      (binding [*sim-time* t] (trace "[ step %s ] --------------------------------------------------" i))
       (if (< t end)
         (let [[sim out'] (binding [*sim-time* t] (collect-mail sim t))
               sim        (binding [*sim-time* t] (transition sim {} t))]
@@ -351,7 +373,8 @@
                    (conj! out [t out'])
                    out)
                  (inc i)))
-        (persistent! out)))))
+        (do (trace "END {:start %s :end %s :limit %s}" start end limit)
+            (persistent! out))))))
 #_
 (defn lazy-afap-root-coordinator [sim start-time end-time]
   (letfn [(step [sim]
