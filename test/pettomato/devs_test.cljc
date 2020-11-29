@@ -249,38 +249,7 @@
                      (-> (devs/network-simulator net)
                          devs/run))))))
 
-  (testing "Remove a network model, after dynamic structure changes have been made."
-    ;; An atom is used to count how many times the added model is updated, to
-    ;; check that it was actually removed. We can't tell from the output alone,
-    ;; because it could be sending messages, but the parent network's routes
-    ;; have been removed, so they won't go anywhere.
-    (binding [*trace* false]
-      (let [counter (atom 0)
-            net     (network-model
-                     {:gen  (lazy-seq-generator [[5  {:out ["msg 1"]}]
-                                                 [10 {:out ["msg 2"]}]])
-                      :del  (network-model {:del  (delay1 2)
-                                            :exec (lazy-seq-generator
-                                                   [[1 {:out [[:add-model :gen (lazy-seq-generator
-                                                                                (for [i (range)]
-                                                                                  (do (swap! counter inc)
-                                                                                      [1 {:out [(str "internal gen msg-" i)]}])))]
-                                                              [:connect [:gen :out :network :out identity]]]}]])}
-                                           [[:network :in :del :in identity]
-                                            [:del :out :network :out identity]
-                                            [:exec :out :network :structure identity]])
-                      :exec (lazy-seq-generator
-                             [[7 {:out [[:disconnect [:gen :out :del :in identity]]
-                                        [:disconnect [:del :out :network :out identity]]
-                                        [:rem-model :del]]}]])}
-                     [[:gen :out :del :in identity]
-                      [:del :out :network :out identity]
-                      [:exec :out :network :structure identity]])]
-        (-> (devs/network-simulator net)
-            (devs/run :start 0 :end 10))
-        (is (= 7 @counter)))))
-
-  (testing "network structure change test"
+  (testing "ad-hoc network structure change test"
     ;; Note that messages get dropped when they have been delivered to a delay,
     ;; but the delay is removed in a structure change.
     (is (= '[[1 {:gen-out ("msg-1")}]
