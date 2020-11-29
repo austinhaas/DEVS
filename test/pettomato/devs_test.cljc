@@ -514,3 +514,11 @@
   ;; lookups. However, we can do it as [name port] -> [name port].
 
   )
+
+(deftest prune-test
+
+  (is (= {:x #{1}}
+         (devs/prune {:x #{1}} [])))
+
+  (is (= {:x #{1}}
+         (devs/prune {:x #{1} :y {:z []}} [:y :z]))))

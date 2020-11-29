@@ -1,14 +1,13 @@
 (ns pettomato.devs
-  "This is my implementation, based loosely on the literature, and true to the
-  logic, but functional and efficient."
   (:refer-clojure :exclude [run])
   (:require
    [clojure.set :refer [subset?]]
    [pettomato.devs.priority-queue :as pq]
-   [pettomato.devs.util :refer [disj-in infinity]]
+   [pettomato.devs.util :refer [infinity]]
    [pettomato.lib.log :as log]))
 
 ;;------------------------------------------------------------------------------
+;; Simulation (dynamic) vars
 
 (def ^{:dynamic true :private true} *path*
   "Bound to the path to the current model in the network hierarchy."
@@ -17,6 +16,7 @@
 (def ^:dynamic *sim-time* nil)
 
 ;;------------------------------------------------------------------------------
+;; Trace
 
 (def ^:dynamic *trace* false)
 (def ^{:dynamic true :private true} *indent* 0)
@@ -53,24 +53,6 @@
     :rem-model  (let [[_ name]       msg] (trace msg))
     :connect    (let [[_ route]      msg] (trace msg))
     :disconnect (let [[_ route]      msg] (trace msg))))
-
-;;------------------------------------------------------------------------------
-
-(defmacro check-sync
-  "A macro that takes an equality expression intended to represent a
-  synchronization constraint, and expands into code that checks the contraint
-  and throws a detailed exception if it is violated.
-
-  Examples:
-    (check-sync (< tl t tn))
-    (check-sync (= t tn))"
-  [expr]
-  (let [[op & args] expr]
-    `(when-not ~expr
-       (let [m# (zipmap '~args (list ~@args))
-             e# (str (list* '~op (list ~@args)))]
-         (throw (ex-info (str "synchronization error: (not " e# ")")
-                         m#))))))
 
 ;;------------------------------------------------------------------------------
 ;; Models
@@ -144,7 +126,7 @@
 
 (defprotocol Simulator
   (initialize         [sim t]      "Initialize sim. Returns sim.")
-  (collect-mail       [sim t]      "Returns [sim mail].") ;; Returns sim, b/c sim might need to store local mail.
+  (collect-mail       [sim t]      "Returns [sim mail].") ; Returns sim, b/c sim might store local mail.
   (transition         [sim mail t] "mail = p->vs. Returns sim.")
   (time-of-last-event [sim]        "Returns the time of the last sim update.")
   (time-of-next-event [sim]        "Returns the scheduled time of next sim internal update."))
@@ -160,10 +142,10 @@
           tn    (+ tl ((:time-advance model) s))]
       (assoc sim :state s :tl tl :tn tn)))
   (collect-mail [sim t]
-    (check-sync (= t tn))
+    (assert (= t tn) "synchronization error")
     [sim ((:output model) state)])
   (transition [sim mail t]
-    (check-sync (<= tl t tn))
+    (assert (<= tl t tn) "synchronization error")
     (let [state (if (empty? mail)
                   ((:internal-update model) state)
                   (if (= t tn)
@@ -184,11 +166,9 @@
 (defn route-mail
   "Takes routes and outbound mail. Returns inbound mail.
 
-  routes - {sk {sp {rk {rp fs}}}}
-
+  routes        - {sk {sp {rk {rp fs}}}}
   outbound mail - {sk {sp vs}}
-
-  inbound mail - {rk {rp vs}}"
+  inbound mail  - {rk {rp vs}}"
   [routes mail]
   (reduce (fn [m [rk rp vs]]
             (update-in m [rk rp] into vs))
@@ -206,13 +186,13 @@
 
 (defn sort-mail
   "Groups inbound mail into three disjoint collections:
-  [int-mail ext-mail ns-msgs]."
+  [int-mail ext-mail net-msgs]."
   [mail]
   (let [int-mail (dissoc mail :network)
         ext-mail (get mail :network)
-        ns-msgs  (get ext-mail :structure)
+        net-msgs (get ext-mail :structure)
         ext-mail (dissoc ext-mail :structure)]
-    [int-mail ext-mail ns-msgs]))
+    [int-mail ext-mail net-msgs]))
 
 (defn apply-transition
   "
@@ -228,8 +208,7 @@
         (update :queue pq/change-priority tn k tn'))))
 
 (defn apply-transitions [network-sim mail t]
-  (reduce-kv (fn [network-sim k p->vs]
-               (apply-transition network-sim k p->vs t))
+  (reduce-kv #(apply-transition %1 %2 %3 t)
              network-sim
              mail))
 
@@ -251,61 +230,75 @@
   (-> network-sim
       (update-in [:routes sk sp rk rp] (fnil conj #{}) f)))
 
+(defn prune
+  "Recursively removes empty leaves."
+  [m ks]
+  (if (seq ks)
+    (let [[k & ks] ks
+          v        (prune (get m k) ks)]
+      (if (seq v)
+        (assoc m k v)
+        (dissoc m k)))
+    m))
+
 (defn disconnect [network-sim [sk sp rk rp f]]
   (-> network-sim
-      (disj-in [:routes sk sp rk rp] f :prune? true)))
+      (update-in [:routes sk sp rk rp] disj f)
+      (update :routes prune [sk sp rk rp])))
 
-(defn apply-network-structure-changes [network-sim ns-msgs t]
+(defn apply-network-structure-changes [network-sim net-msgs t]
   ;; Network structure messages are grouped and processed in a specific order.
-  (let [ns-msgs    (group-by first ns-msgs)
+  ;; Himmelspach, Jan, and Adelinde M. Uhrmacher. "Processing dynamic PDEVS models."
+  ;; The IEEE Computer Society's 12th Annual International Symposium on Modeling, Analysis, and Simulation of Computer and Telecommunications Systems, 2004.
+  ;; Section 3.2
+  ;; http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.302.3385&rep=rep1&type=pdf
+  (let [net-msgs   (group-by first net-msgs)
         add-model  (fn [sim [_ k model]] (add-model  sim k model t))
         rem-model  (fn [sim [_ k]]       (rem-model  sim k))
         connect    (fn [sim [_ route]]   (connect    sim route))
         disconnect (fn [sim [_ route]]   (disconnect sim route))]
     (as-> network-sim network-sim
-      (reduce disconnect network-sim (:disconnect ns-msgs))
-      (reduce rem-model  network-sim (:rem-model  ns-msgs))
-      (reduce add-model  network-sim (:add-model  ns-msgs))
-      (reduce connect    network-sim (:connect    ns-msgs)))))
+      (reduce disconnect network-sim (:disconnect net-msgs))
+      (reduce rem-model  network-sim (:rem-model  net-msgs))
+      (reduce add-model  network-sim (:add-model  net-msgs))
+      (reduce connect    network-sim (:connect    net-msgs)))))
 
 (declare init-sim)
 
-(defrecord NetworkSimulator [model k->sim routes queue int-mail ns-msgs]
+(defrecord NetworkSimulator [model k->sim routes queue int-mail net-msgs]
   Simulator
   (initialize [sim t]
     ;; Assuming initialize will only be called once.
-    (let [sim (reduce-kv #(add-model %1 %2 %3 t) sim (:models model))
-          sim (reduce connect sim (:routes model))]
-      sim))
+    (reduce connect
+            (reduce-kv #(add-model %1 %2 %3 t) sim (:models model))
+            (:routes model)))
   (collect-mail [sim t]
-    (let [tn            (time-of-next-event sim)
-          _             (check-sync (= t tn))
-          imminent      (pq/peek queue)
+    (assert (= t (time-of-next-event sim)) "synchronization error")
+    (let [imminent      (pq/peek queue)
           xs            (map #(collect-mail (k->sim %) t) imminent) ; recursive step
           k->sim'       (zipmap imminent (map first  xs))
           outbound-mail (zipmap imminent (map second xs))
           inbound-mail  (route-mail routes outbound-mail)
           [int-mail
            ext-mail
-           ns-msgs]     (sort-mail inbound-mail)
+           net-msgs]    (sort-mail inbound-mail)
           sim           (-> sim
                             (update :k->sim merge k->sim')
                             (assoc :int-mail int-mail
-                                   :ns-msgs ns-msgs))]
+                                   :net-msgs net-msgs))]
       [sim ext-mail]))
   (transition [sim ext-mail t]
+    (assert (<= (time-of-last-event sim) t (time-of-next-event sim)) "synchronization error")
     (let [tn       (time-of-next-event sim)
-          tl       (time-of-last-event sim)
-          _        (check-sync (<= tl t tn))
           imminent (if (= t tn) (pq/peek queue) [])
           imm-mail (zipmap imminent (repeat {}))
           ext-mail (route-mail routes {:network ext-mail}) ; Assumption: There are no routes from :network to :network.
           mail     (merge-mail imm-mail int-mail ext-mail)]
       (-> sim
           (apply-transitions mail t)
-          (apply-network-structure-changes ns-msgs t)
+          (apply-network-structure-changes net-msgs t)
           (assoc :int-mail {})
-          (assoc :ns-msgs []))))
+          (assoc :net-msgs []))))
   (time-of-last-event [sim] (apply max (map time-of-last-event (vals k->sim))))
   (time-of-next-event [sim] (or (pq/peek-key queue) infinity)))
 
@@ -313,7 +306,7 @@
   (map->NetworkSimulator {:model    model
                           :queue    (pq/priority-queue)
                           :int-mail {}
-                          :ns-msgs  []}))
+                          :net-msgs []}))
 
 ;;------------------------------------------------------------------------------
 ;; Runner
@@ -326,6 +319,7 @@
     (-> (sim-fn model)
         (initialize t))))
 
+;; aka root coordinator
 (defn run
   "Run a simulation based on the supplied model. Returns a seq of [timestamp mail].
 
@@ -358,3 +352,15 @@
                    out)
                  (inc i)))
         (persistent! out)))))
+#_
+(defn lazy-afap-root-coordinator [sim start-time end-time]
+  (letfn [(step [sim]
+            (let [t (time-of-next-event sim)]
+              (if (< end-time t)
+                nil
+                (let [[sim' out'] (receive-*-message sim t)
+                      sim'        (receive-x-message sim' {} t)]
+                  (if (seq out')
+                    (cons [t out'] (lazy-seq (step sim')))
+                    (lazy-seq (step sim')))))))]
+    (lazy-seq (step (receive-i-message sim start-time)))))
