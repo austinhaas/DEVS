@@ -4,13 +4,14 @@
       [clojure.test :refer [deftest is testing]]
       :cljs
       [cljs.test :refer-macros [deftest is testing]])
-   [pettomato.lib.random :as rand]
    [pettomato.devs :as devs :refer [atomic-model network-model
                                     trace
                                     *trace*
                                     *sim-time*]]
+   [pettomato.devs.examples.circuit :as circ]
    [pettomato.devs.util :refer [infinity]]
-   [pettomato.lib.queue :refer [queue]]))
+   [pettomato.lib.queue :refer [queue]]
+   [pettomato.lib.random :as rand]))
 
 ;;------------------------------------------------------------------------------
 ;; Test helpers
@@ -426,6 +427,89 @@
                                          [:exec :out :network :structure identity]])]
                (-> (devs/network-simulator net)
                    (devs/run :start 0 :end 20))))))))
+
+(deftest digital-circuit-tests
+
+  (testing "inverter"
+    (is (= [[6 {:out [false]}]]
+           (-> (network-model {:gen (lazy-seq-generator [[1 {:out [true]}]])
+                               :inv (circ/inverter 5)}
+                              [[:gen :out :inv :in identity]
+                               [:inv :out :network :out identity]])
+               devs/network-simulator
+               devs/run))))
+
+  (testing "and-gate"
+    (is (= [[8 {:out [true]}]]
+           (-> (network-model {:gen (lazy-seq-generator [[1 {:out-1 [true]}]
+                                                         [2 {:out-2 [true]}]])
+                               :and (circ/and-gate 5)}
+                              [[:gen :out-1 :and :in-1 identity]
+                               [:gen :out-2 :and :in-2 identity]
+                               [:and :out :network :out identity]])
+               devs/network-simulator
+               devs/run))))
+
+  (testing "or-gate"
+    (is (= [[8 {:out [true]}]]
+           (-> (network-model {:gen (lazy-seq-generator [[1 {:out-1 [true]}]
+                                                         [2 {:out-2 [true]}]])
+                               :and (circ/or-gate 5)}
+                              [[:gen :out-1 :and :in-1 identity]
+                               [:gen :out-2 :and :in-2 identity]
+                               [:and :out :network :out identity]])
+               devs/network-simulator
+               devs/run))))
+
+  (testing "S will become 1 whenever precisely one of A and B is 1"
+    (is (= [[2 {:c [false]}]
+            [3 {:s [false]}]
+            [4 {:s [true]
+                :c [false]}]
+            [5 {:s [true]}]
+            [6 {:s [true]}]]
+           (binding [*trace* false]
+             (-> (network-model {:gen (lazy-seq-generator [[1 {:out-1 [true]}]
+                                                           [2 {:out-2 [false]}]])
+                                 :ha  (circ/half-adder 1 1 1)}
+                                [[:gen :out-1 :ha :a identity]
+                                 [:gen :out-2 :ha :b identity]
+                                 [:ha :s :network :s identity]
+                                 [:ha :c :network :c identity]])
+                 devs/network-simulator
+                 devs/run)))))
+
+  (testing "C will become 1 whenever A and B are both 1"
+    (is (= [[2 {:c [true]}]
+            [3 {:s [false]}]
+            [4 {:s [false]}]]
+           (binding [*trace* false]
+             (-> (network-model {:gen (lazy-seq-generator [[1 {:out-1 [true]
+                                                               :out-2 [true]}]])
+                                 :ha  (circ/half-adder 1 1 1)}
+                                [[:gen :out-1 :ha      :a identity]
+                                 [:gen :out-2 :ha      :b identity]
+                                 [:ha  :s     :network :s identity]
+                                 [:ha  :c     :network :c identity]])
+                 devs/network-simulator
+                 devs/run)))))
+
+  (testing "SICP, p. 280"
+    (is (= [[3  {:c [false]}]
+            [8  {:s [true]}]
+            [11 {:c [true]}]
+            [16 {:s [false]}]]
+           (binding [*trace* false]
+             (-> (network-model {:gen (lazy-seq-generator [[0 {:out-1 [true]
+                                                               :out-2 [false]}]
+                                                           [8 {:out-2 [true]}]])
+                                 :ha  (circ/half-adder 2 3 5)}
+                                [[:gen :out-1 :ha :a identity]
+                                 [:gen :out-2 :ha :b identity]
+                                 [:ha :s :network :s identity]
+                                 [:ha :c :network :c identity]])
+                 devs/network-simulator
+                 devs/run))))))
 
 ;;------------------------------------------------------------------------------
 ;; A complex example
