@@ -1,58 +1,107 @@
 (ns pettomato.devs.examples.circuit
   (:require
-   [pettomato.devs :refer [atomic-model network-model]]
+   [pettomato.devs :refer [atomic-model network-model trace]]
    [pettomato.devs.util :refer [infinity]]))
+
+;; Problem: How to implement these in a way such that their output is intuitive.
+
+;; (The real problem is just getting some practice.)
+
+;;------------------------------------------------------------------------------
+;; Proposal #1
+
+;; This version purports to be physically accurate. There will be an initial
+;; period of "settling".
+
+;; 1. The only message values are 1 or 0.
+
+;; 2. Models send an initial value on each output port. (This wouldn't work for
+;; a dynamic network.)
+
+;; 3. Models only send a value if it differs from the last value sent on that
+;; port.
+
+;; This version doesn't propagate values unless they change.
+
+;; If an input changes during the delay, and it does NOT affect the output, then
+;; it wont have any affect on the delay clock.
+
+;; If an input changes during the delay, and it does affect the output, then the
+;; delay clock will be reset.
 
 (defn inverter [delay]
   (atomic-model
-   [{:in    false
-     :sigma infinity}
+   [{:out   false
+     :sigma 0}
     0]
    (fn int-update [s]
      (assoc s :sigma infinity))
    (fn ext-update [s e x]
-     (let [s (reduce #(assoc %1 :in (not %2)) s (:in x))]
-       (assoc s :sigma delay)))
+     (let [out (not (last (:in x)))]
+       (if (= out (:out s))
+         (update s :sigma - e)
+         (assoc s :out out :sigma delay))))
    nil
-   (fn [s] {:out [(:in s)]})
+   (fn output [s] {:out [(:out s)]})
    :sigma))
 
 (defn and-gate [delay]
   (atomic-model
    [{:in-1  false
      :in-2  false
-     :sigma infinity}
+     :out   false
+     :sigma 0}
     0]
    (fn int-update [s]
      (assoc s :sigma infinity))
    (fn ext-update [s e x]
-     (let [s (reduce #(assoc %1 :in-1 %2) s (:in-1 x))
-           s (reduce #(assoc %1 :in-2 %2) s (:in-2 x))]
-       ;; If another input is received before this model is imminent, the
-       ;; countdown (sigma) will be reset.
-
-       ;; To work around that, we could add a queue.
-
-       (assoc s :sigma delay)))
+     (let [;; Intake messages.
+           s' (reduce-kv (fn [s port vs]
+                           (case port
+                             :in-1 (assoc s :in-1 (last vs))
+                             :in-2 (assoc s :in-2 (last vs))))
+                         s
+                         x)
+           ;; Compute result.
+           s' (assoc s' :out (and (:in-1 s')
+                                  (:in-2 s')))]
+       ;; Update delay clock.
+       (if (= (:out s) (:out s')) ;; Has the output changed?
+         (update s' :sigma - e)
+         (assoc s' :sigma delay))))
    nil
-   (fn output [s] {:out [(and (:in-1 s) (:in-2 s))]})
+   (fn output [s] {:out [(:out s)]})
    :sigma))
 
 (defn or-gate [delay]
   (atomic-model
    [{:in-1  false
      :in-2  false
-     :sigma infinity}
+     :out   false
+     :sigma 0}
     0]
    (fn int-update [s]
      (assoc s :sigma infinity))
    (fn ext-update [s e x]
-     (let [s (reduce #(assoc %1 :in-1 %2) s (:in-1 x))
-           s (reduce #(assoc %1 :in-2 %2) s (:in-2 x))]
-       (assoc s :sigma delay)))
+     (let [;; Intake messages.
+           s' (reduce-kv (fn [s port vs]
+                           (case port
+                             :in-1 (assoc s :in-1 (last vs))
+                             :in-2 (assoc s :in-2 (last vs))))
+                         s
+                         x)
+           ;; Compute result.
+           s' (assoc s' :out (or (:in-1 s')
+                                 (:in-2 s')))]
+       ;; Update delay clock.
+       (if (= (:out s) (:out s')) ;; Has the output changed?
+         (update s' :sigma - e)
+         (assoc s' :sigma delay))))
    nil
-   (fn output [s] {:out [(or (:in-1 s) (:in-2 s))]})
+   (fn output [s] {:out [(:out s)]})
    :sigma))
+
+;;------------------------------------------------------------------------------
 
 (defn half-adder
   "S will become 1 whenever precisely one of A and B is 1, and C will become 1

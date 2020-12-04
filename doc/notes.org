@@ -268,7 +268,12 @@
 ** Reorganize code
 *** DONE Check in latest.
 *** DONE Fix cljs issue with ad-hoc-tests w/ counter
-*** Split into namespaces.
+*** Rearrange into namespaces.
+    - Separate examples from tests.
+      - Use the examples in the tests, or use simpler examples.
+**** Move the alarm confluence examples to a single example.
+     - a somewhat more real-world confluence example
+*** Consider renaming queue to agenda.
 *** Consider changing run
     - rename to root-coordinator?
       - afap, event-driven?
@@ -276,9 +281,51 @@
 **** Implement lazy root-coordinator or remove it
 *** Make route fn optional
 ** Support updating an atomic model.
+** Consider implementing mail as a seq instead of a trie.
+   - Optimize for modeling.
+
+   - Really not sure which is better. Need to practice.
+
+*** Consider using an abstraction: mail
+    - Add fns for building/extracting.
+      - They seem so trivial, but maybe this would provide the needed
+        clarity. Maybe this is a case where I'm relying to much on Clojure and I
+        really need abstraction.
+
+    flatten: (for [[k vs] x, v vs] [k v])
+*** Proposal: Implement seq, so we know what we are talking about.
+    - Need to see how a seq might change the simulator implementation; it may
+      make it simpler.
+*** Proposal: Seq
+**** Pros
+     - Can maintain sender message order.
+     - Arguably easier to model with.
+     - Easy to group, if necessary (the converse is also true: easy to flatten)
+       - It may be the case that most of the time, we expect few messages on
+         each port, but I'm not sure if that is true; a notable exception may be
+         percept ports that might receive dozens of updates.
+         - Ultimately, we will have to iterate across individual values. How
+           much difference does this really make? How much of the content size
+           does the port take up?
+**** Cons
+     - Less efficient?
+       - Depends on size of keys to data.
+       - To preserve message order, in the simplest case, each message would
+         have to be routed individual.
+*** Proposal: Map
+**** Pros
+     - batch processing in the simulator
+**** Cons
+     - Flat seq might be simpler for receiving. In many cases, you can just
+       iterate and treat each message individually. For maps, at the least, you
+       will also have to do this for each port.
+       - Easy to flatten, though.
 ** Add more tests.
-*** confluence tests
-    - alarm
+*** Consider adding some arithmetic circuits
+    - Would be nice if we could verify complex results using simple arithmetic.
+    - SICP p. 275
+**** full adder
+**** something bigger
 *** parallel tests
 *** more complex network structure tests
 **** one like this
@@ -1144,8 +1191,6 @@
     - Self-labeling.
     - Validate.
     - Apply defaults.
-*** Consider implementing mail as a seq instead of a trie.
-    - Optimize for modeling.
 *** Consider if sender message order should be preserved.
     - Meaning, the order on the receivers end preserved.
     - This was an explicit assumption in one of the papers.
