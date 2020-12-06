@@ -1,10 +1,15 @@
 (ns pettomato.devs
   (:refer-clojure :exclude [run])
   (:require
-   [clojure.set :refer [subset?]]
+   [clojure.set :refer [difference subset?]]
    [pettomato.devs.priority-queue :as pq]
-   [pettomato.devs.util :refer [infinity]]
    [pettomato.lib.log :as log]))
+
+;;------------------------------------------------------------------------------
+;; Constants
+
+(def infinity #?(:clj  Double/POSITIVE_INFINITY
+                 :cljs (.-POSITIVE_INFINITY js/Number)))
 
 ;;------------------------------------------------------------------------------
 ;; Simulation (dynamic) vars
@@ -13,12 +18,16 @@
   "Bound to the path to the current model in the network hierarchy."
   [])
 
-(def ^:dynamic *sim-time* nil)
+(def ^:dynamic *sim-time*
+  "Bound to the current simulation time."
+  nil)
 
 ;;------------------------------------------------------------------------------
 ;; Trace
 
-(def ^:dynamic *trace* false)
+(def ^:dynamic *trace*
+  "If true, print trace statements. Defaults to false."
+  false)
 
 (defn- pad-left
   "n - min string length of result
@@ -30,10 +39,20 @@
     (recur n c (str c s))
     s))
 
-(defn format-time [t]
+(defn- pad-right
+  "n - min string length of result
+   c - char to add to the right
+   s - string to add to"
+  [n c s]
+  (assert (char? c))
+  (if (< (count s) n)
+    (recur n c (str s c))
+    s))
+
+(defn- format-time [t]
   (str "[" (pad-left 8 \  (str t)) "]"))
 
-(defn format-path [path]
+(defn- format-path [path]
   (let [c (count path)]
     (if (pos? c)
       (let [i (* c 2)
@@ -110,6 +129,14 @@
                 (set (keys model)))))
 
 (defn network-model [models routes]
+  (let [keys-in-routes (disj (set (mapcat (fn [[k1 p1 k2 p2 f]]
+                                       [k1 k2])
+                                          routes))
+                             :network)
+        keys-in-models (set (keys models))]
+   (assert (subset? keys-in-routes keys-in-models)
+           (str "These keys in routes were not found in models: "
+                (difference keys-in-routes keys-in-models))))
   {:models models
    :routes routes})
 
@@ -163,7 +190,7 @@
 ;;------------------------------------------------------------------------------
 ;; Network Simulator
 
-(defn route-mail
+(defn- route-mail
   "Takes routes and outbound mail. Returns inbound mail.
 
   routes        - {sk {sp {rk {rp fs}}}}
@@ -180,11 +207,11 @@
                 f           fs]
             [rk rp (map f vs)])))
 
-(def merge-mail
+(def ^:private merge-mail
   "Like clojure.core/merge, but specifically for mail data structures."
   (partial merge-with (partial merge-with into)))
 
-(defn sort-mail
+(defn- sort-mail
   "Groups inbound mail into three disjoint collections:
   [int-mail ext-mail net-msgs]."
   [mail]
@@ -194,7 +221,7 @@
         ext-mail (dissoc ext-mail :structure)]
     [int-mail ext-mail net-msgs]))
 
-(defn apply-transition
+(defn- apply-transition
   "
   mail - p->vs
   "
@@ -208,14 +235,14 @@
         (assoc-in [:k->sim k] sim')
         (update :queue pq/change-priority tn k tn'))))
 
-(defn apply-transitions [network-sim mail t]
+(defn- apply-transitions [network-sim mail t]
   (reduce-kv #(apply-transition %1 %2 %3 t)
              network-sim
              mail))
 
 (declare model->sim)
 
-(defn add-model [network-sim k model t]
+(defn- add-model [network-sim k model t]
   (trace "add-model: %s" k)
   (let [sim (model->sim model)
         sim (binding [*path* (conj *path* k)]
@@ -225,7 +252,7 @@
         (update :k->sim assoc k sim)
         (update :queue pq/insert tn k))))
 
-(defn rem-model [network-sim k]
+(defn- rem-model [network-sim k]
   (trace "rem-model: %s" k)
   (let [sim (get-in network-sim [:k->sim k])
         tn  (time-of-next-event sim)]
@@ -233,12 +260,12 @@
         (update :k->sim dissoc k)
         (update :queue pq/delete tn k))))
 
-(defn connect [network-sim [sk sp rk rp f]]
+(defn- connect [network-sim [sk sp rk rp f]]
   (trace "connect: %s" [sk sp rk rp f])
   (-> network-sim
       (update-in [:routes sk sp rk rp] (fnil conj #{}) f)))
 
-(defn prune
+(defn- prune
   "Recursively removes empty leaves."
   [m ks]
   (if (seq ks)
@@ -249,13 +276,13 @@
         (dissoc m k)))
     m))
 
-(defn disconnect [network-sim [sk sp rk rp f]]
+(defn- disconnect [network-sim [sk sp rk rp f]]
   (trace "disconnect: %s" [sk sp rk rp f])
   (-> network-sim
       (update-in [:routes sk sp rk rp] disj f)
       (update :routes prune [sk sp rk rp])))
 
-(defn apply-network-structure-changes [network-sim net-msgs t]
+(defn- apply-network-structure-changes [network-sim net-msgs t]
   ;; Network structure messages are grouped and processed in a specific order.
   ;; Himmelspach, Jan, and Adelinde M. Uhrmacher. "Processing dynamic PDEVS models."
   ;; The IEEE Computer Society's 12th Annual International Symposium on Modeling, Analysis, and Simulation of Computer and Telecommunications Systems, 2004.
@@ -387,3 +414,34 @@
                     (cons [t out'] (lazy-seq (step sim')))
                     (lazy-seq (step sim')))))))]
     (lazy-seq (step (receive-i-message sim start-time)))))
+
+(defn pp-output [xs & {:keys [key-sort-fn
+                              time-width]
+                       :or {key-sort-fn (fn [a b] (compare (str a) (str b)))
+                            time-width 6}}]
+  (doseq [[t m] xs]
+    (println (pad-left time-width \  (str t)))
+    (println (pad-left time-width \- "-")) ;; At least 1, even if time-width is less.
+    (doseq [[k vs] (sort-by first key-sort-fn m)]
+      (println k " => " (vec vs)))
+    (newline)))
+
+(defn mail= [m1 m2]
+  (and (= (count m1)
+          (count m2))
+       (loop [kvs (seq m1)]
+         (or (empty? kvs)
+             (let [[k v] (first kvs)]
+               (and (= (frequencies v)
+                       (frequencies (get m2 k)))
+                    (recur (rest kvs))))))))
+
+(defn output=
+  [expected actual]
+  (or (and (empty? expected)
+           (empty? actual))
+      (let [[t mail] (first expected)
+            [t' mail'] (first actual)]
+        (and (= t t')
+             (mail= mail mail')
+             (output= (rest expected) (rest actual))))))

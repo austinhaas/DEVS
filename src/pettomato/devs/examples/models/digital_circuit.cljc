@@ -1,19 +1,13 @@
-(ns pettomato.devs.examples.circuit
+(ns pettomato.devs.examples.models.digital-circuit
   (:require
-   [pettomato.devs :refer [atomic-model network-model trace]]
-   [pettomato.devs.util :refer [infinity]]))
+   [pettomato.devs :as devs :refer [infinity atomic-model network-model trace]]
+   [pettomato.devs.examples.models :refer [lazy-seq-generator]]))
 
-;; Problem: How to implement these in a way such that their output is intuitive.
+;; This is supposed to be physically accurate in the sense that it takes time
+;; for signals to propagate. There will be an initial period of "settling".
 
-;; (The real problem is just getting some practice.)
-
-;;------------------------------------------------------------------------------
-;; Proposal #1
-
-;; This version purports to be physically accurate. There will be an initial
-;; period of "settling".
-
-;; 1. The only message values are 1 or 0.
+;; 1. The only message values are true or false, indicating signal or no-signal
+;; respectively.
 
 ;; 2. Models send an initial value on each output port. (This wouldn't work for
 ;; a dynamic network.)
@@ -21,13 +15,14 @@
 ;; 3. Models only send a value if it differs from the last value sent on that
 ;; port.
 
-;; This version doesn't propagate values unless they change.
-
 ;; If an input changes during the delay, and it does NOT affect the output, then
-;; it wont have any affect on the delay clock.
+;; it won't have any affect on the delay clock.
 
 ;; If an input changes during the delay, and it does affect the output, then the
 ;; delay clock will be reset.
+
+;;------------------------------------------------------------------------------
+;; Primitive function boxes
 
 (defn inverter [delay]
   (atomic-model
@@ -102,6 +97,7 @@
    :sigma))
 
 ;;------------------------------------------------------------------------------
+;; Composite function boxes
 
 (defn half-adder
   "S will become 1 whenever precisely one of A and B is 1, and C will become 1
@@ -132,6 +128,76 @@
     [:network :c-in    :ha-2 :b identity]
     [:ha-1 :s :network :s       identity]
     [:ha-1 :c :or      :in-1    identity]
-    [:ha-2 :s :ha-1    :in-2    identity]
+    [:ha-2 :s :ha-1    :b    identity]
     [:ha-2 :c :or      :in-2    identity]
-    [:or   :c :network :c       identity]]))
+    [:or :out :network :c       identity]]))
+
+;;------------------------------------------------------------------------------
+;; Ripple carry adder
+
+(defn ripple-carry-adder
+  "SICP, p. 278
+
+  I'm handling indexes differently from SICP. I'm treating 0 as the index of the
+  least significant bit, while SICP appears to be using 1 as the index of the
+  most significant bit."
+  [n-bits inverter-delay and-gate-delay or-gate-delay]
+  (let [key-fn #(keyword (str "fa-" %))
+        models (into {} (for [i (range n-bits)]
+                          [(key-fn i) (full-adder inverter-delay and-gate-delay or-gate-delay)]))
+        ;; Connect them to the network. We don't connect an external carry
+        ;; input.
+        routes-1 (apply concat
+                        [[(key-fn (dec n-bits)) :c :network :c identity]]
+                        (for [i (range n-bits)]
+                          [[:network [:a i] (key-fn i) :a identity]
+                           [:network [:b i] (key-fn i) :b identity]
+                           [(key-fn i) :s :network [:s i] identity]]))
+        ;; Connect them to each other.
+        routes-2 (map (fn [i j]
+                        [(key-fn i) :c (key-fn j) :c-in identity])
+                      (range n-bits)
+                      (range 1 n-bits))
+        routes   (concat routes-1 routes-2)]
+    (network-model models routes)))
+
+(defn encode
+  "Converts an number into mail."
+  [n-bits n port-label]
+  (into {} (for [i (range n-bits)]
+             (let [v (bit-test n i)]
+               [[port-label i] [v]]))))
+
+(defn decode
+  "Converts mail into a number."
+  [xs]
+  (reduce (fn [n [i b]]
+            (if b
+              (bit-set   n i)
+              (bit-clear n i)))
+          0
+          (for [[t m]  xs
+                [k vs] m
+                :when (and (vector? k) (= :s (first k)))
+                :let  [[k i] k]
+                v      vs]
+            [i v])))
+
+(defn ripple-carry-add
+  "Adds two numbers using a ripple adder."
+  [n-bits a b & {:keys [inverter-delay and-gate-delay or-gate-delay]
+                                :or   {inverter-delay 2
+                                       and-gate-delay 3
+                                       or-gate-delay  5}}]
+  (-> (network-model {:gen (lazy-seq-generator [[1000 (merge (encode n-bits a :a)
+                                                             (encode n-bits b :b))]])
+                      :rca (ripple-carry-adder n-bits 2 3 5)}
+                    (apply concat
+                           [[:rca :c :network :c identity]]
+                           (for [i (range n-bits)]
+                             [[:gen [:a i] :rca [:a i] identity]
+                              [:gen [:b i] :rca [:b i] identity]
+                              [:rca [:s i] :network [:s i] identity]])))
+     devs/network-simulator
+     devs/run
+     decode))

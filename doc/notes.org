@@ -265,67 +265,21 @@
      - We could implement the gathering of imminent simulators as a separate
        operation.
 ** DONE Add debug support.
-** Reorganize code
-*** DONE Check in latest.
-*** DONE Fix cljs issue with ad-hoc-tests w/ counter
-*** Rearrange into namespaces.
-    - Separate examples from tests.
-      - Use the examples in the tests, or use simpler examples.
-**** Move the alarm confluence examples to a single example.
-     - a somewhat more real-world confluence example
-*** Consider renaming queue to agenda.
-*** Consider changing run
-    - rename to root-coordinator?
-      - afap, event-driven?
-      - I think we want something that can be used to step a simulation.
-**** Implement lazy root-coordinator or remove it
-*** Make route fn optional
-** Support updating an atomic model.
-** Consider implementing mail as a seq instead of a trie.
-   - Optimize for modeling.
-
-   - Really not sure which is better. Need to practice.
-
-*** Consider using an abstraction: mail
-    - Add fns for building/extracting.
-      - They seem so trivial, but maybe this would provide the needed
-        clarity. Maybe this is a case where I'm relying to much on Clojure and I
-        really need abstraction.
-
-    flatten: (for [[k vs] x, v vs] [k v])
-*** Proposal: Implement seq, so we know what we are talking about.
-    - Need to see how a seq might change the simulator implementation; it may
-      make it simpler.
-*** Proposal: Seq
-**** Pros
-     - Can maintain sender message order.
-     - Arguably easier to model with.
-     - Easy to group, if necessary (the converse is also true: easy to flatten)
-       - It may be the case that most of the time, we expect few messages on
-         each port, but I'm not sure if that is true; a notable exception may be
-         percept ports that might receive dozens of updates.
-         - Ultimately, we will have to iterate across individual values. How
-           much difference does this really make? How much of the content size
-           does the port take up?
-**** Cons
-     - Less efficient?
-       - Depends on size of keys to data.
-       - To preserve message order, in the simplest case, each message would
-         have to be routed individual.
-*** Proposal: Map
-**** Pros
-     - batch processing in the simulator
-**** Cons
-     - Flat seq might be simpler for receiving. In many cases, you can just
-       iterate and treat each message individually. For maps, at the least, you
-       will also have to do this for each port.
-       - Easy to flatten, though.
+** DONE eldoc displaying nil instead of unknown symbol.
+   - B/c it isn't using read on the output anymore, so nil is treated as a
+     string result.
+** DONE Pretty-print output chronicles.
 ** Add more tests.
-*** Consider adding some arithmetic circuits
-    - Would be nice if we could verify complex results using simple arithmetic.
+*** DONE digital circuits
     - SICP p. 275
-**** full adder
-**** something bigger
+    - Would be nice if we could verify complex results using simple arithmetic.
+**** DONE full adder
+**** DONE ripple adder
+     - from SICP
+     - Do a 64-bit version
+**** DONE encode/decode
+**** DONE Cleanup
+*** Review existing tests.
 *** parallel tests
 *** more complex network structure tests
 **** one like this
@@ -430,7 +384,6 @@
          (-> (generator 5 10)
              atomic-simulator
              (lazy-afap-root-coordinator 0 20)))))
-
 *** example from book
 ;;;-----------------------------------------------------------------------------
 ;;; Example from Theory of Modeling and Simulation, 2nd Ed., pp. 237-240.
@@ -571,14 +524,56 @@
                 [:node-2 'send :node-1 'add]
                 [:node-2 'out network-name 'out]]]
    (coupled-model models routes)))
-
-** Add optional run-time check that a model has no connections before removing it.
-   - In dev mode, all checks should be enabled.
-   - Add tests.
 ** Add some kind of network validation.
+   - I hit an NPE b/c a route was invalid.
 *** Must contain at least one model.
     - Or else initialize needs to handle that case with tl.
 *** Don't allow the same port to be both input and output.
+** Add optional run-time check that a model has no connections before removing it.
+   - In dev mode, all checks should be enabled.
+   - Add tests.
+** Generate a metrics report.
+   - This information may be valuable and easier to work with than the full
+     trace.
+   - # of steps
+** Clear eldoc buffer on ns change.
+** Consider implementing mail as a seq instead of a trie.
+   - Optimize for modeling.
+   - Really not sure which is better. Need to practice.
+*** Consider using an abstraction: mail
+    - Add fns for building/extracting.
+      - They seem so trivial, but maybe this would provide the needed
+        clarity. Maybe this is a case where I'm relying to much on Clojure and I
+        really need abstraction.
+
+    flatten: (for [[k vs] x, v vs] [k v])
+*** Proposal: Implement seq, so we know what we are talking about.
+    - Need to see how a seq might change the simulator implementation; it may
+      make it simpler.
+*** Proposal: Seq
+**** Pros
+     - Can maintain sender message order.
+     - Arguably easier to model with.
+     - Easy to group, if necessary (the converse is also true: easy to flatten)
+       - It may be the case that most of the time, we expect few messages on
+         each port, but I'm not sure if that is true; a notable exception may be
+         percept ports that might receive dozens of updates.
+         - Ultimately, we will have to iterate across individual values. How
+           much difference does this really make? How much of the content size
+           does the port take up?
+**** Cons
+     - Less efficient?
+       - Depends on size of keys to data.
+       - To preserve message order, in the simplest case, each message would
+         have to be routed individual.
+*** Proposal: Map
+**** Pros
+     - batch processing in the simulator
+**** Cons
+     - Flat seq might be simpler for receiving. In many cases, you can just
+       iterate and treat each message individually. For maps, at the least, you
+       will also have to do this for each port.
+       - Easy to flatten, though.
 ** Implement a RT root coordinator.
    - Refer to file:///home/austin/projects/tomato-system/doc/papers/devsjava_2005.pdf
      - p. 89
@@ -867,6 +862,15 @@
             [t msg])))
 
 *** Test replaying an input history.
+** Reorganize code
+*** Consider renaming queue to agenda.
+*** Consider changing run
+    - rename to root-coordinator?
+      - afap, event-driven?
+      - I think we want something that can be used to step a simulation.
+**** Implement lazy root-coordinator or remove it
+*** Make route fn optional
+** Support updating an atomic model.
 ** update docs
 *** on afap
   \"Analytic simulations typically execute 'as-fast-as-possible,' meaning that
