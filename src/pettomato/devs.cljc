@@ -29,6 +29,8 @@
   "If true, print trace statements. Defaults to false."
   false)
 
+(def ^:dynamic *trace-time-width* 6)
+
 (defn- pad-left
   "n - min string length of result
    c - char to add to the left
@@ -50,7 +52,7 @@
     s))
 
 (defn- format-time [t]
-  (str "[" (pad-left 8 \  (str t)) "]"))
+  (str "[" (pad-left *trace-time-width* \  (str t)) "]"))
 
 (defn- format-path [path]
   (let [c (count path)]
@@ -397,7 +399,8 @@
               sim        (binding [*sim-time* t] (transition sim {} t))]
           (recur sim
                  (if (seq out')
-                   (conj! out [t out'])
+                   ;; Convert the seqs to vectors to make it easier cut and paste literals.
+                   (conj! out [t (zipmap (keys out') (map vec (vals out')))])
                    out)
                  (inc i)))
         (do (trace "END {:start %s :end %s :limit %s}" start end limit)
@@ -414,7 +417,7 @@
                     (cons [t out'] (lazy-seq (step sim')))
                     (lazy-seq (step sim')))))))]
     (lazy-seq (step (receive-i-message sim start-time)))))
-
+#_
 (defn pp-output [xs & {:keys [key-sort-fn
                               time-width]
                        :or {key-sort-fn (fn [a b] (compare (str a) (str b)))
@@ -423,8 +426,20 @@
     (println (pad-left time-width \  (str t)))
     (println (pad-left time-width \- "-")) ;; At least 1, even if time-width is less.
     (doseq [[k vs] (sort-by first key-sort-fn m)]
-      (println k " => " (vec vs)))
+      (println k "=>" (vec vs)))
     (newline)))
+
+(defn pp-output [xs & {:keys [key-sort-fn
+                              time-width]
+                       :or {key-sort-fn (fn [a b] (compare (str a) (str b)))
+                            time-width 6}}]
+  (doseq [[t m] xs]
+    (print (str "[" (pad-left time-width \  (str t)) "] "))
+    (let [[[k vs] & kvs] (sort-by first key-sort-fn m)]
+      (println k "=>" (vec vs))
+      (doseq [[k vs] kvs]
+        (println (str (apply str (repeat (+ 3 time-width) \ )) (str k " => " (vec vs)))))
+      (newline))))
 
 (defn mail= [m1 m2]
   (and (= (count m1)

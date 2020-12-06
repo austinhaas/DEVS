@@ -1190,6 +1190,8 @@
     - Use indices as model references instead of paths.
 *** Test creating new records vs. updating properties.
 ** Consider improvements
+*** Consider taking some keywords for con-update
+    - :int and :ext, to specify the most common priorities.
 *** Consider implementing models as records.
     - Users supply maps.
     - Self-labeling.
