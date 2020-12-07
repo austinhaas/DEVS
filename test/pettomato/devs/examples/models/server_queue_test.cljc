@@ -21,7 +21,7 @@
      :ave-delay     (/ (reduce + start-delays) (count start-delays))
      :max-delay     (apply max start-delays)}))
 
-(deftest complex-example-test
+(deftest server-queue-test
 
   (is (= {:total-jobs    100
           :total-workers 10
