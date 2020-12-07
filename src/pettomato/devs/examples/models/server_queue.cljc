@@ -28,23 +28,9 @@
 (defn- rem-worker [state k]
   (trace "rem-worker: %s" k)
   (update-in state [:output :structure] conj
-          [:rem-model k]
-          [:disconnect [(:id state) [:out k] k :in identity]]
-          [:disconnect [k :out (:id state) [:in k] identity]]))
-
-(defn- distribute-work [state]
-  (trace "distribute-work")
-  (if (or (empty? (:queue state))
-          (empty? (:workers state)))
-    state
-    (let [job    (peek (:queue state))
-          worker (peek (:workers state))]
-      (trace "Assigning %s to %s" job worker)
-      (-> state
-          (update :output assoc [:out worker] [[(:effort job) (assoc job :worker worker :start-time *sim-time*)]])
-          (update :queue pop)
-          (update :workers pop)
-          (assoc  :sigma 0)))))
+             [:rem-model k]
+             [:disconnect [(:id state) [:out k] k :in identity]]
+             [:disconnect [k :out (:id state) [:in k] identity]]))
 
 (defn- maybe-grow [state]
   (trace "maybe-grow")
@@ -68,20 +54,39 @@
         recur)
     state))
 
-(defn- intake-jobs [state jobs]
-  (let [jobs' (map #(assoc % :arrival-time *sim-time*) jobs)]
-    (update state :queue into jobs')))
+(defn- distribute-work [state]
+  (trace "distribute-work")
+  (if (or (empty? (:queue state))
+          (empty? (:workers state)))
+    state
+    (let [job    (peek (:queue state))
+          worker (peek (:workers state))]
+      (trace "Assigning %s to %s" job worker)
+      (-> state
+          (update :output assoc [:out worker] [[(:effort job) (assoc job :worker worker :start-time *sim-time*)]])
+          (update :queue pop)
+          (update :workers pop)
+          (assoc  :sigma 0)))))
 
-(defn- finish-jobs [state worker jobs]
-  (let [jobs' (map #(assoc % :departure-time *sim-time*) jobs)]
-    (-> state
-        (update :workers conj worker)
-        (update-in [:output :out] into jobs'))))
+(defn- import-jobs [state jobs]
+  (->> jobs
+       (map #(assoc % :arrival-time *sim-time*))
+       (update state :queue into)))
 
-(defn server [id]
+(defn- export-jobs [state worker jobs]
+  (let [state (-> state
+                  (update :workers conj worker))]
+    (->> jobs
+         (map #(assoc % :departure-time *sim-time*))
+         (update-in state [:output :out] into))))
+
+(defn server
+  "An atomic model that processes jobs by delegating them to a dynamic pool of
+  workers."
+  [id]
   (atomic-model
    (let [s {:id        id
-            :queue     queue
+            :queue     queue ;; A FIFO of jobs.
             :workers   queue ;; A FIFO of available workers.
             :capacity  0
             :output    {}
@@ -96,11 +101,11 @@
                    (cond
                      ;; incoming jobs
                      (= port :in) (-> state
-                                      (intake-jobs vs)
+                                      (import-jobs vs)
                                       maybe-grow)
                      ;; completed jobs
                      :else        (-> state
-                                      (finish-jobs (second port) vs)
+                                      (export-jobs (second port) vs)
                                       maybe-shrink)))
                  (assoc state :sigma 0)
                  messages))
