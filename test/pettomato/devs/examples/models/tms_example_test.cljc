@@ -10,30 +10,36 @@
    [pettomato.lib.random :as rand]))
 
 (deftest tms-example-test
-
-  ;; I think this might not be interesting because of how evenly the jobs are
-  ;; distributed between the workers. We need to learn to do different
-  ;; distributions.
-
-  (binding [*trace*        false
+  (binding [*trace*        true
             *print-length* 1000]
-    (let [gen (lazy-seq-generator
-               (take 100
-                     (for [i (range)]
-                       (let [dt     (+ 1 (rand/rand-int 10))
-                             port   (keyword (str "out-" (inc (rand/rand-int 2))))
-                             id     (str "job-" i)
-                             effort (+ 1 (rand/rand-int 100))
-                             job    {:id id :effort effort}]
-                         [dt {port [job]}]))))
-          srv (tms/network-1 10 10)
-          net (network-model
-               {:gen    gen
-                :server srv}
-               [[:gen :out-1 :server :in1 identity]
-                [:gen :out-2 :server :in2 identity]
-                [:server :out :network :out identity]
-                [:server :structure :network :structure identity]])]
-      (rand/with-random-seed 0
+    (rand/with-random-seed 0
+      (let [gen (lazy-seq-generator
+                 (take 100
+                       (for [i (range)]
+                         (let [dt       (+ 1 (rand/rand-int 5))
+                               ;; A sin function is applied to the random
+                               ;; selection of ports, to cause the server to
+                               ;; continuously move workers.
+                               period   50
+                               x        (Math/sin (* (/ (* Math/PI 2)
+                                                        period)
+                                                     i))
+                               y        (rand/rand 2.0)
+                               port-idx (int (/ (+ (inc x) y) 2))
+                               port     (keyword (str "out-" port-idx))
+                               id       (str "job-" i)
+                               effort   (+ 1 (rand/rand-int 100))
+                               job      {:id id :effort effort}]
+                           [dt {port [job]}]))))
+            srv (tms/network-1 8 2)
+            net (network-model
+                 {:gen    gen
+                  :server srv}
+                 [[:gen :out-1 :server :in1 identity]
+                  [:gen :out-2 :server :in2 identity]
+                  [:server :out :network :out identity]
+                  [:server :structure :network :structure identity]])]
         (-> (devs/run (devs/network-simulator net) :start 0 :end 2000)
             devs/pp-output)))))
+
+(rand/rand)

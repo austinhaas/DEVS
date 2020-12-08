@@ -99,14 +99,14 @@
                   [k1-transit k2-transit] (:in-transit-to s)]
               (cond
                 (and (> k1-idle 0)
-                     (> (- k2-q k2-transit) threshold)) (do (println 'moveyes)(-> s
-                                                             (update-in [:output [:ask 0]] conj true)
-                                                             (update-in [:in-transit-to 1] inc)))
+                     (> (- k2-q k2-transit) threshold)) (-> s
+                                                            (update-in [:output [:ask 0]] conj true)
+                                                            (update-in [:in-transit-to 1] inc))
                 (and (> k2-idle 0)
-                     (> (- k1-q k1-transit) threshold)) (do (println 'moveyes)(-> s
-                                                             (update-in [:output [:ask 1]] conj true)
-                                                             (update-in [:in-transit-to 0] inc)))
-                :else                                   (do (println 'moveno) s))))]
+                     (> (- k1-q k1-transit) threshold)) (-> s
+                                                            (update-in [:output [:ask 1]] conj true)
+                                                            (update-in [:in-transit-to 0] inc))
+                :else                                   s)))]
     (atomic-model
      (let [s {:output      {}
               :sigma       infinity
