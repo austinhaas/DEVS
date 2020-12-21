@@ -2,6 +2,8 @@
   (:refer-clojure :exclude [run])
   (:require
    [clojure.set :refer [difference subset?]]
+   #?(:cljs [goog.string :as gstr])
+   #?(:cljs [goog.string.format])
    [pettomato.devs.priority-queue :as pq]
    [pettomato.lib.log :as log]))
 
@@ -24,10 +26,6 @@
 
 ;;------------------------------------------------------------------------------
 ;; Trace
-
-(def ^:dynamic *trace*
-  "If true, print trace statements. Defaults to false."
-  false)
 
 (def ^:dynamic *trace-time-width* 6)
 
@@ -63,14 +61,26 @@
         (str w a (last path)))
       "")))
 
-(defn trace [& args]
-  (when *trace*
-    (apply log/infof
-           (str (format-time *sim-time*)
-                " " (format-path *path*)
-                (if (pos? (count *path*)) " " "")
-                (first args))
-           (rest args))))
+(defn- format-str [fmt & args]
+  #?(:clj  (apply format fmt args)
+     :cljs (apply gstr/format fmt args)))
+
+(def log-fn
+  (fn [m]
+    (some-> m
+      log/log-level-filter
+      log/add-date
+      log/format-date
+      (assoc :time *sim-time*)
+      (assoc :path *path*)
+      (update :time format-time)
+      (update :path format-path)
+      ((fn [context]
+         (let [{:keys [date time path message]} context
+               space (if (pos? (count path)) " " "")]
+           (format-str "%s %s %s%s%s"
+                       date time path space message))))
+      log/print-fn)))
 
 ;;------------------------------------------------------------------------------
 ;; Models
@@ -163,17 +173,17 @@
 (defrecord AtomicSimulator [model state tl tn]
   Simulator
   (initialize [sim t]
-    (trace "--- initialize ---")
+    (log/trace "--- initialize ---")
     (let [[s e] (:initial-total-state model)
           tl    (- t e)
           tn    (+ tl ((:time-advance model) s))]
       (assoc sim :state s :tl tl :tn tn)))
   (collect-mail [sim t]
-    (trace "--- collect-mail ---")
+    (log/trace "--- collect-mail ---")
     (assert (= t tn) "synchronization error")
     [sim ((:output model) state)])
   (transition [sim mail t]
-    (trace "--- transition ---")
+    (log/trace "--- transition ---")
     (assert (<= tl t tn) "synchronization error")
     (let [state (if (empty? mail)
                   ((:internal-update model) state)
@@ -245,7 +255,7 @@
 (declare model->sim)
 
 (defn- add-model [network-sim k model t]
-  (trace "add-model: %s" k)
+  (log/tracef "add-model: %s" k)
   (let [sim (model->sim model)
         sim (binding [*path* (conj *path* k)]
               (initialize sim t))
@@ -255,7 +265,7 @@
         (update :queue pq/insert tn k))))
 
 (defn- rem-model [network-sim k]
-  (trace "rem-model: %s" k)
+  (log/tracef "rem-model: %s" k)
   (let [sim (get-in network-sim [:k->sim k])
         tn  (time-of-next-event sim)]
     (-> network-sim
@@ -263,7 +273,7 @@
         (update :queue pq/delete tn k))))
 
 (defn- connect [network-sim [sk sp rk rp f]]
-  (trace "connect: %s" [sk sp rk rp f])
+  (log/tracef "connect: %s" [sk sp rk rp f])
   (-> network-sim
       (update-in [:routes sk sp rk rp] (fnil conj #{}) f)))
 
@@ -279,7 +289,7 @@
     m))
 
 (defn- disconnect [network-sim [sk sp rk rp f]]
-  (trace "disconnect: %s" [sk sp rk rp f])
+  (log/tracef "disconnect: %s" [sk sp rk rp f])
   (-> network-sim
       (update-in [:routes sk sp rk rp] disj f)
       (update :routes prune [sk sp rk rp])))
@@ -304,25 +314,25 @@
 (defrecord NetworkSimulator [model k->sim routes queue int-mail net-msgs]
   Simulator
   (initialize [sim t]
-    (trace "--- initialize ---")
+    (log/trace "--- initialize ---")
     ;; Assuming initialize will only be called once.
     (reduce connect
             (reduce-kv #(add-model %1 %2 %3 t) sim (:models model))
             (:routes model)))
   (collect-mail [sim t]
-    (trace "--- collect-mail ---")
+    (log/trace "--- collect-mail ---")
     (assert (= t (time-of-next-event sim)) "synchronization error")
     (let [imminent      (pq/peek queue)
-          _             (trace "imminent: %s" imminent)
+          _             (log/tracef "imminent: %s" imminent)
           xs            (map (fn [k]
                                (binding [*path* (conj *path* k)]
                                  (collect-mail (k->sim k) t))) ; recursive step
                              imminent)
           k->sim'       (zipmap imminent (map first  xs))
           outbound-mail (zipmap imminent (map second xs))
-          _             (trace "outbound-mail: %s" outbound-mail)
+          _             (log/tracef "outbound-mail: %s" outbound-mail)
           inbound-mail  (route-mail routes outbound-mail)
-          _             (trace " inbound-mail: %s" inbound-mail)
+          _             (log/tracef " inbound-mail: %s" inbound-mail)
           [int-mail
            ext-mail
            net-msgs]    (sort-mail inbound-mail)
@@ -332,16 +342,16 @@
                                    :net-msgs net-msgs))]
       [sim ext-mail]))
   (transition [sim ext-mail t]
-    (trace "--- transition ---")
+    (log/trace "--- transition ---")
     (assert (<= (time-of-last-event sim) t (time-of-next-event sim)) "synchronization error")
     (let [tn       (time-of-next-event sim)
           imminent (if (= t tn) (pq/peek queue) [])
-          _        (trace "imminent: %s" imminent)
+          _        (log/tracef "imminent: %s" imminent)
           imm-mail (zipmap imminent (repeat {}))
           ext-mail (route-mail routes {:network ext-mail}) ; Assumption: There are no routes from :network to :network.
-          _        (trace "ext-mail: %s" ext-mail)
+          _        (log/tracef "ext-mail: %s" ext-mail)
           mail     (merge-mail imm-mail int-mail ext-mail)
-          _        (trace "mail: %s" mail)]
+          _        (log/tracef "mail: %s" mail)]
       (-> sim
           (apply-transitions mail t)
           (apply-network-structure-changes net-msgs t)
@@ -387,24 +397,25 @@
                  end   infinity
                  limit infinity}
           :as   options}]
-  (trace "run {:start %s :end %s :limit %s}" start end limit)
-  (loop [sim (binding [*sim-time* start] (initialize sim start))
-         out (transient [])
-         i   0]
-    (assert (< i limit) (str "limit reached: " i))
-    (let [t (time-of-next-event sim)]
-      (binding [*sim-time* t] (trace "[ step %s ] --------------------------------------------------" i))
-      (if (< t end)
-        (let [[sim out'] (binding [*sim-time* t] (collect-mail sim t))
-              sim        (binding [*sim-time* t] (transition sim {} t))]
-          (recur sim
-                 (if (seq out')
-                   ;; Convert the seqs to vectors to make it easier cut and paste literals.
-                   (conj! out [t (zipmap (keys out') (map vec (vals out')))])
-                   out)
-                 (inc i)))
-        (do (trace "END {:start %s :end %s :limit %s}" start end limit)
-            (persistent! out))))))
+  (binding [log/*log-function* log-fn]
+    (log/infof "run {:start %s :end %s :limit %s}" start end limit)
+    (loop [sim (binding [*sim-time* start] (initialize sim start))
+           out (transient [])
+           i   0]
+      (assert (< i limit) (str "limit reached: " i))
+      (let [t (time-of-next-event sim)]
+        (binding [*sim-time* t] (log/tracef "[ step %s ] --------------------------------------------------" i))
+        (if (< t end)
+          (let [[sim out'] (binding [*sim-time* t] (collect-mail sim t))
+                sim        (binding [*sim-time* t] (transition sim {} t))]
+            (recur sim
+                   (if (seq out')
+                     ;; Convert the seqs to vectors to make it easier cut and paste literals.
+                     (conj! out [t (zipmap (keys out') (map vec (vals out')))])
+                     out)
+                   (inc i)))
+          (do (log/infof "END {:start %s :end %s :limit %s}" start end limit)
+              (persistent! out)))))))
 #_
 (defn lazy-afap-root-coordinator [sim start-time end-time]
   (letfn [(step [sim]

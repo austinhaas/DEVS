@@ -4,7 +4,7 @@
       [clojure.test :refer [deftest is testing]]
       :cljs
       [cljs.test :refer-macros [deftest is testing]])
-   [pettomato.devs :as devs :refer [infinity atomic-model network-model trace *trace* output=]]
+   [pettomato.devs :as devs :refer [infinity atomic-model network-model output=]]
    [pettomato.devs.examples.models :refer [lazy-seq-generator]]
    [pettomato.devs.examples.models.digital-circuit :as circ]
    [pettomato.lib.random :as rand]))
@@ -24,15 +24,14 @@
   (testing "and-gate"
     (is (= [[0 {:out [false]}]
             [8 {:out [true]}]]
-           (binding [*trace* false]
-             (-> (network-model {:gen (lazy-seq-generator [[1 {:out-1 [true]}]
-                                                           [2 {:out-2 [true]}]])
-                                 :and (circ/and-gate 5)}
-                                [[:gen :out-1 :and :in-1 identity]
-                                 [:gen :out-2 :and :in-2 identity]
-                                 [:and :out :network :out identity]])
-                 devs/network-simulator
-                 devs/run)))))
+           (-> (network-model {:gen (lazy-seq-generator [[1 {:out-1 [true]}]
+                                                         [2 {:out-2 [true]}]])
+                               :and (circ/and-gate 5)}
+                              [[:gen :out-1 :and :in-1 identity]
+                               [:gen :out-2 :and :in-2 identity]
+                               [:and :out :network :out identity]])
+               devs/network-simulator
+               devs/run))))
 
   (testing "or-gate"
     (is (= [[0 {:out [false]}]
@@ -54,16 +53,15 @@
             [8  {:s [true]}]
             [11 {:c [true]}]
             [16 {:s [false]}]]
-           (binding [*trace* false]
-             (-> (network-model {:gen (lazy-seq-generator [[0 {:out-1 [true]}]
-                                                           [8 {:out-2 [true]}]])
-                                 :ha  (circ/half-adder 2 3 5)}
-                                [[:gen :out-1 :ha :a identity]
-                                 [:gen :out-2 :ha :b identity]
-                                 [:ha :s :network :s identity]
-                                 [:ha :c :network :c identity]])
-                 devs/network-simulator
-                 devs/run)))))
+           (-> (network-model {:gen (lazy-seq-generator [[0 {:out-1 [true]}]
+                                                         [8 {:out-2 [true]}]])
+                               :ha  (circ/half-adder 2 3 5)}
+                              [[:gen :out-1 :ha :a identity]
+                               [:gen :out-2 :ha :b identity]
+                               [:ha :s :network :s identity]
+                               [:ha :c :network :c identity]])
+               devs/network-simulator
+               devs/run))))
 
   (testing "full-adder"
     (is (output= [[0  {:s [false]
@@ -71,16 +69,15 @@
                   [8  {:s [true]}]
                   [24 {:s [false]
                        :c [true]}]]
-                 (binding [*trace* false]
-                   (-> (network-model {:gen (lazy-seq-generator [[0 {:out-1 [true]}]
-                                                                 [8 {:out-2 [true]}]])
-                                       :ha  (circ/full-adder 2 3 5)}
-                                      [[:gen :out-1 :ha :a identity]
-                                       [:gen :out-2 :ha :b identity]
-                                       [:ha :s :network :s identity]
-                                       [:ha :c :network :c identity]])
-                       devs/network-simulator
-                       devs/run))))))
+                 (-> (network-model {:gen (lazy-seq-generator [[0 {:out-1 [true]}]
+                                                               [8 {:out-2 [true]}]])
+                                     :ha  (circ/full-adder 2 3 5)}
+                                    [[:gen :out-1 :ha :a identity]
+                                     [:gen :out-2 :ha :b identity]
+                                     [:ha :s :network :s identity]
+                                     [:ha :c :network :c identity]])
+                     devs/network-simulator
+                     devs/run)))))
 
 (deftest ripple-carry-adder-tests
 

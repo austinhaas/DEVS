@@ -4,7 +4,7 @@
       [clojure.test :refer [deftest is testing]]
       :cljs
       [cljs.test :refer-macros [deftest is testing]])
-   [pettomato.devs :as devs :refer [infinity network-model trace *trace* output=]]
+   [pettomato.devs :as devs :refer [infinity network-model output=]]
    [pettomato.devs.examples.models :refer [lazy-seq-generator]]
    [pettomato.devs.examples.models.server-queue :refer [reset-next-id! server]]
    [pettomato.lib.random :as rand]))
@@ -27,22 +27,20 @@
           :total-workers 10
           :ave-delay     (/ 2489 100)
           :max-delay     48}
-         (binding [*trace*        false
-                   *print-length* 1000]
-           (let [gen (lazy-seq-generator
-                      (take 100
-                            (for [i (range)]
-                              [(+ 1 (rand/rand-int 10)) {:out [{:id     (str "job-" i)
-                                                                :effort (+ 1 (rand/rand-int 100))}]}])))
-                 srv (server :server)
-                 net (network-model
-                      {:gen    gen
-                       :server srv}
-                      [[:gen :out :server :in identity]
-                       [:gen :out :network :gen-out identity]
-                       [:server :out :network :out identity]
-                       [:server :structure :network :structure identity]])]
-             (reset-next-id!)
-             (rand/with-random-seed 0
-               (-> (devs/run (devs/network-simulator net) :start 0 :end 1000)
-                   report)))))))
+         (let [gen (lazy-seq-generator
+                    (take 100
+                          (for [i (range)]
+                            [(+ 1 (rand/rand-int 10)) {:out [{:id     (str "job-" i)
+                                                              :effort (+ 1 (rand/rand-int 100))}]}])))
+               srv (server :server)
+               net (network-model
+                    {:gen    gen
+                     :server srv}
+                    [[:gen :out :server :in identity]
+                     [:gen :out :network :gen-out identity]
+                     [:server :out :network :out identity]
+                     [:server :structure :network :structure identity]])]
+           (reset-next-id!)
+           (rand/with-random-seed 0
+             (-> (devs/run (devs/network-simulator net) :start 0 :end 1000)
+                 report))))))
