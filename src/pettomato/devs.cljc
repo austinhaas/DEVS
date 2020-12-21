@@ -25,9 +25,9 @@
   nil)
 
 ;;------------------------------------------------------------------------------
-;; Trace
+;; Logging
 
-(def ^:dynamic *trace-time-width* 6)
+(def ^:dynamic *log-time-width* 6)
 
 (defn- pad-left
   "n - min string length of result
@@ -50,7 +50,7 @@
     s))
 
 (defn- format-time [t]
-  (str "[" (pad-left *trace-time-width* \  (str t)) "]"))
+  (str "[" (pad-left *log-time-width* \  (str t)) "]"))
 
 (defn- format-path [path]
   (let [c (count path)]
