@@ -406,7 +406,8 @@
                 sim        (binding [*sim-time* t] (transition sim {} t))]
             (recur sim
                    (if (seq out')
-                     ;; Convert the seqs to vectors to make it easier cut and paste literals.
+                     ;; For developer convenience, convert seqs to vectors so
+                     ;; that the output can be read in as valid data literals.
                      (conj! out [t (zipmap (keys out') (map vec (vals out')))])
                      out)
                    (inc i)))
