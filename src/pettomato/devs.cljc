@@ -375,8 +375,7 @@
     (network-model? model) (network-simulator model)
     :else                  (throw (ex-info "Unknown model type." {}))))
 
-;; aka root coordinator
-(defn run
+(defn afap-root-coordinator
   "Run a simulation \"as fast as possible\".
 
   Returns a seq of [timestamp mail].
@@ -388,10 +387,7 @@
   end - Simulation end time (exclusive). Default: infinity.
 
   limit - Maximum number of iterations. Intended to prevent runaway
-  simulations. Default: infinity.
-
-  Note that the simulation will terminate before end time if the simulator's
-  next internal update isn't before infinity."
+  simulations. Default: infinity."
   [sim & {:keys [start end limit]
           :or   {start 0
                  end   infinity
@@ -416,6 +412,9 @@
                    (inc i)))
           (do (log/infof "END {:start %s :end %s :limit %s}" start end limit)
               (persistent! out)))))))
+
+(def run afap-root-coordinator)
+
 #_
 (defn lazy-afap-root-coordinator [sim start-time end-time]
   (letfn [(step [sim]
