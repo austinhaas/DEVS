@@ -1,11 +1,11 @@
 (ns pettomato.devs.examples.models.server-queue
   (:require
    [pettomato.devs.examples.models :refer [delay2]]
+   [pettomato.devs.lib.coll :refer [queue]]
+   [pettomato.devs.lib.log :as log]
    [pettomato.devs.lib.number :refer [infinity]]
    [pettomato.devs.models.atomic-model :refer [atomic-model]]
-   [pettomato.devs.vars :refer [*sim-time*]]
-   [pettomato.lib.log :as log]
-   [pettomato.lib.queue :refer [queue]]))
+   [pettomato.devs.vars :refer [*sim-time*]]))
 
 ;;; id
 

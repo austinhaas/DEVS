@@ -6,10 +6,10 @@
       [cljs.test :refer-macros [deftest is testing]])
    [pettomato.devs.examples.models :refer [lazy-seq-generator]]
    [pettomato.devs.examples.models.server-queue :refer [reset-next-id! server]]
+   [pettomato.devs.lib.random :as rand]
    [pettomato.devs.models.network-model :refer [network-model]]
    [pettomato.devs.root-coordinators.afap-root-coordinator :refer [afap-root-coordinator]]
-   [pettomato.devs.simulators.network-simulator :refer [network-simulator]]
-   [pettomato.lib.random :as rand]))
+   [pettomato.devs.simulators.network-simulator :refer [network-simulator]]))
 
 (defn report [log]
   (let [log          (->> log

@@ -5,11 +5,11 @@
   down otherwise."
   (:require
    [pettomato.devs.examples.models :refer [delay2]]
+   [pettomato.devs.lib.log :as log]
    [pettomato.devs.lib.number :refer [infinity]]
    [pettomato.devs.models.atomic-model :refer [atomic-model]]
    [pettomato.devs.models.network-model :refer [network-model]]
-   [pettomato.devs.vars :refer [*sim-time*]]
-   [pettomato.lib.log :as log]))
+   [pettomato.devs.vars :refer [*sim-time*]]))
 
 (def server delay2)
 

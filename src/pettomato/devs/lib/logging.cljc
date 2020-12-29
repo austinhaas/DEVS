@@ -1,8 +1,8 @@
 (ns pettomato.devs.lib.logging
   (:require
+   [pettomato.devs.lib.log :as log]
    [pettomato.devs.lib.string :refer [pad-left format-str]]
-   [pettomato.devs.vars :refer [*path* *sim-time*]]
-   [pettomato.lib.log :as log]))
+   [pettomato.devs.vars :refer [*path* *sim-time*]]))
 
 (def ^:dynamic *log-time-width* 6)
 

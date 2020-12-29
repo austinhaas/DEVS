@@ -5,14 +5,14 @@
       :cljs
       [cljs.test :refer-macros [deftest is testing]])
    [pettomato.devs.examples.models :refer [generator lazy-seq-generator delay1]]
+   [pettomato.devs.lib.log :as log]
+   [pettomato.devs.lib.random :as rand]
    [pettomato.devs.models.atomic-model :refer [atomic-model]]
    [pettomato.devs.models.network-model :refer [network-model]]
+   [pettomato.devs.root-coordinators.afap-root-coordinator :refer [afap-root-coordinator]]
    [pettomato.devs.sim-output :refer [output=]]
    [pettomato.devs.simulators.atomic-simulator :refer [atomic-simulator]]
-   [pettomato.devs.simulators.network-simulator :refer [network-simulator]]
-   [pettomato.devs.root-coordinators.afap-root-coordinator :refer [afap-root-coordinator]]
-   [pettomato.lib.log :as log]
-   [pettomato.lib.random :as rand]))
+   [pettomato.devs.simulators.network-simulator :refer [network-simulator]]))
 
 (deftest basic-tests
 

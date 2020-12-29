@@ -10,3 +10,12 @@
         (assoc m k v)
         (dissoc m k)))
     m))
+
+(def queue
+  "A FIFO queue."
+  #?(:clj  clojure.lang.PersistentQueue/EMPTY
+     :cljs cljs.core.PersistentQueue.EMPTY))
+
+#?(:clj
+   (defmethod print-method clojure.lang.PersistentQueue [q, w]
+     (.write w (format "#queue%s" (vec q)))))

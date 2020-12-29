@@ -1,7 +1,7 @@
 (ns pettomato.devs.simulators.atomic-simulator
   (:require
-   [pettomato.devs.simulator :refer [Simulator]]
-   [pettomato.lib.log :as log]))
+   [pettomato.devs.lib.log :as log]
+   [pettomato.devs.simulator :refer [Simulator]]))
 
 (defrecord AtomicSimulator [model state tl tn]
   Simulator

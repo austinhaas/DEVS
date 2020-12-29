@@ -7,12 +7,12 @@
    [pettomato.devs.examples.models :refer [lazy-seq-generator]]
    [pettomato.devs.examples.models.digital-circuit :as circ]
    [pettomato.devs.lib.number :refer [infinity]]
+   [pettomato.devs.lib.random :as rand]
    [pettomato.devs.models.atomic-model :refer [atomic-model]]
    [pettomato.devs.models.network-model :refer [network-model]]
    [pettomato.devs.root-coordinators.afap-root-coordinator :refer [afap-root-coordinator]]
    [pettomato.devs.sim-output :refer [output=]]
-   [pettomato.devs.simulators.network-simulator :refer [network-simulator]]
-   [pettomato.lib.random :as rand]))
+   [pettomato.devs.simulators.network-simulator :refer [network-simulator]]))
 
 (deftest primitive-function-box-tests
 

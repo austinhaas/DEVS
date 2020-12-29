@@ -1,11 +1,11 @@
 (ns pettomato.devs.root-coordinators.afap-root-coordinator
   (:require
+   [pettomato.devs.lib.log :as log]
    [pettomato.devs.lib.logging :refer [log-fn]]
    [pettomato.devs.lib.number :refer [infinity]]
    [pettomato.devs.sim-output :refer [format-output-messages]]
    [pettomato.devs.simulator :refer [initialize collect-mail transition time-of-next-event]]
-   [pettomato.devs.vars :refer [*sim-time*]]
-   [pettomato.lib.log :as log]))
+   [pettomato.devs.vars :refer [*sim-time*]]))
 
 (defn afap-root-coordinator
   "Run a simulation \"as fast as possible\".
