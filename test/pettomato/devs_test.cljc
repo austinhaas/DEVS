@@ -5,7 +5,6 @@
       :cljs
       [cljs.test :refer-macros [deftest is testing]])
    [pettomato.devs.examples.models :refer [generator lazy-seq-generator delay1]]
-   [pettomato.devs.lib.random :as rand]
    [pettomato.devs.models.atomic-model :refer [atomic-model]]
    [pettomato.devs.models.network-model :refer [network-model]]
    [pettomato.devs.root-coordinators.afap-root-coordinator :refer [afap-root-coordinator]]
