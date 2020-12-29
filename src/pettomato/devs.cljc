@@ -16,7 +16,7 @@
 ;;------------------------------------------------------------------------------
 ;; Simulation (dynamic) vars
 
-(def ^{:dynamic true :private true} *path*
+(def ^{:dynamic true} *path*
   "Bound to the path to the current model in the network hierarchy."
   [])
 
@@ -180,11 +180,11 @@
       (assoc sim :state s :tl tl :tn tn)))
   (collect-mail [sim t]
     (log/trace "--- collect-mail ---")
-    (assert (= t tn) "synchronization error")
+    (assert (= t tn) (str "synchronization error: (not (= " t " " tn ")"))
     [sim ((:output model) state)])
   (transition [sim mail t]
     (log/trace "--- transition ---")
-    (assert (<= tl t tn) "synchronization error")
+    (assert (<= tl t tn) (str "synchronization error: (not (<= " tl " " t " " tn ")"))
     (let [state (if (empty? mail)
                   ((:internal-update model) state)
                   (if (= t tn)
@@ -202,7 +202,7 @@
 ;;------------------------------------------------------------------------------
 ;; Network Simulator
 
-(defn- route-mail
+(defn route-mail
   "Takes routes and outbound mail. Returns inbound mail.
 
   routes        - {sk {sp {rk {rp fs}}}}
@@ -219,11 +219,11 @@
                 f           fs]
             [rk rp (map f vs)])))
 
-(def ^:private merge-mail
+(def merge-mail
   "Like clojure.core/merge, but specifically for mail data structures."
   (partial merge-with (partial merge-with into)))
 
-(defn- sort-mail
+(defn sort-mail
   "Groups inbound mail into three disjoint collections:
   [int-mail ext-mail net-msgs]."
   [mail]
@@ -247,14 +247,14 @@
         (assoc-in [:k->sim k] sim')
         (update :queue pq/change-priority tn k tn'))))
 
-(defn- apply-transitions [network-sim mail t]
+(defn apply-transitions [network-sim mail t]
   (reduce-kv #(apply-transition %1 %2 %3 t)
              network-sim
              mail))
 
 (declare model->sim)
 
-(defn- add-model [network-sim k model t]
+(defn add-model [network-sim k model t]
   (log/tracef "add-model: %s" k)
   (let [sim (model->sim model)
         sim (binding [*path* (conj *path* k)]
@@ -264,7 +264,7 @@
         (update :k->sim assoc k sim)
         (update :queue pq/insert tn k))))
 
-(defn- rem-model [network-sim k]
+(defn rem-model [network-sim k]
   (log/tracef "rem-model: %s" k)
   (let [sim (get-in network-sim [:k->sim k])
         tn  (time-of-next-event sim)]
@@ -272,7 +272,7 @@
         (update :k->sim dissoc k)
         (update :queue pq/delete tn k))))
 
-(defn- connect [network-sim [sk sp rk rp f]]
+(defn connect [network-sim [sk sp rk rp f]]
   (log/tracef "connect: %s" [sk sp rk rp f])
   (-> network-sim
       (update-in [:routes sk sp rk rp] (fnil conj #{}) f)))
@@ -288,13 +288,13 @@
         (dissoc m k)))
     m))
 
-(defn- disconnect [network-sim [sk sp rk rp f]]
+(defn disconnect [network-sim [sk sp rk rp f]]
   (log/tracef "disconnect: %s" [sk sp rk rp f])
   (-> network-sim
       (update-in [:routes sk sp rk rp] disj f)
       (update :routes prune [sk sp rk rp])))
 
-(defn- apply-network-structure-changes [network-sim net-msgs t]
+(defn apply-network-structure-changes [network-sim net-msgs t]
   ;; Network structure messages are grouped and processed in a specific order.
   ;; Himmelspach, Jan, and Adelinde M. Uhrmacher. "Processing dynamic PDEVS models."
   ;; The IEEE Computer Society's 12th Annual International Symposium on Modeling, Analysis, and Simulation of Computer and Telecommunications Systems, 2004.
@@ -375,6 +375,14 @@
     (network-model? model) (network-simulator model)
     :else                  (throw (ex-info "Unknown model type." {}))))
 
+(defn format-output-messages
+  "For developer convenience, convert seqs to vectors so that the output can be
+  read in as valid data literals."
+  [xs]
+  (mapv (fn [[t mail]]
+          [t (zipmap (keys mail) (map vec (vals mail)))])
+        xs))
+
 (defn afap-root-coordinator
   "Run a simulation \"as fast as possible\".
 
@@ -391,10 +399,9 @@
   [sim & {:keys [start end limit]
           :or   {start 0
                  end   infinity
-                 limit infinity}
-          :as   options}]
+                 limit infinity}}]
   (binding [log/*log-function* log-fn]
-    (log/infof "run {:start %s :end %s :limit %s}" start end limit)
+    (log/infof "START afap-root-coordinator {:start %s :end %s :limit %s}" start end limit)
     (loop [sim (binding [*sim-time* start] (initialize sim start))
            out (transient [])
            i   0]
@@ -403,16 +410,14 @@
         (binding [*sim-time* t] (log/tracef "[ step %s ] --------------------------------------------------" i))
         (if (< t end)
           (let [[sim out'] (binding [*sim-time* t] (collect-mail sim t))
-                sim        (binding [*sim-time* t] (transition sim {} t))]
-            (recur sim
-                   (if (seq out')
-                     ;; For developer convenience, convert seqs to vectors so
-                     ;; that the output can be read in as valid data literals.
-                     (conj! out [t (zipmap (keys out') (map vec (vals out')))])
-                     out)
-                   (inc i)))
-          (do (log/infof "END {:start %s :end %s :limit %s}" start end limit)
-              (persistent! out)))))))
+                sim        (binding [*sim-time* t] (transition sim {} t))
+                out        (if (seq out')
+                             (conj! out [t out'])
+                             out)]
+            (recur sim out (inc i)))
+          (do (log/infof "END afap-root-coordinator {:start %s :end %s :limit %s}" start end limit)
+              (-> (persistent! out)
+                  format-output-messages)))))))
 
 (def run afap-root-coordinator)
 
