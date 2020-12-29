@@ -1,6 +1,7 @@
 (ns pettomato.devs.examples.models
   (:require
-   [pettomato.devs :refer [infinity atomic-model trace]]))
+   [pettomato.devs.models.atomic-model :refer [atomic-model]]
+   [pettomato.devs.lib.number :refer [infinity]]))
 
 (defn generator
   "A model that periodically emits value on a port labeled :out."
@@ -31,6 +32,21 @@
      (if (seq s)
        (ffirst s)
        infinity))))
+
+;; Not sure how to do this. We need to specify how frequently it emits values.
+#_
+(defn sin-generator
+  "A model that  on a port labeled :out."
+  [period]
+  (atomic-model
+   (let [s nil
+         e 0]
+     [s e])
+   identity
+   nil
+   nil
+   (constantly {:out [value]})
+   (constantly period)))
 
 (defn delay1
   "A model that receives messages on port :in and emits the same message on
@@ -74,7 +90,6 @@
          (update :queue dissoc (ffirst (:queue state)))
          (assoc :delta (ffirst (:queue state)))))
    (fn external-update  [state elapsed-time messages]
-     (trace "external-update: %s" messages)
      (let [delta (+ (:delta state) elapsed-time)]
        (reduce (fn [state [processing-time value]]
                  (let [t (+ delta processing-time)]

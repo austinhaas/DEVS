@@ -4,9 +4,12 @@
       [clojure.test :refer [deftest is testing]]
       :cljs
       [cljs.test :refer-macros [deftest is testing]])
-   [pettomato.devs :as devs :refer [infinity network-model trace *trace* output=]]
    [pettomato.devs.examples.models :refer [lazy-seq-generator]]
    [pettomato.devs.examples.models.tms-example :as tms]
+   [pettomato.devs.models.network-model :refer [network-model]]
+   [pettomato.devs.root-coordinators.afap-root-coordinator :refer [afap-root-coordinator]]
+   [pettomato.devs.sim-output :refer [pp-output]]
+   [pettomato.devs.simulators.network-simulator :refer [network-simulator]]
    [pettomato.lib.random :as rand]))
 
 (deftest tms-example-test
@@ -37,5 +40,5 @@
                 [:gen :out-2 :server :in2 identity]
                 [:server :out :network :out identity]
                 [:server :structure :network :structure identity]])]
-      (-> (devs/run (devs/network-simulator net) :start 0 :end 2000)
-          devs/pp-output))))
+      (-> (afap-root-coordinator (network-simulator net) :start 0 :end 2000)
+          pp-output))))

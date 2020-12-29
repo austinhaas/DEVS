@@ -1,9 +1,8 @@
-(ns pettomato.devs.rt-simulation-clock
-  "This ns provides a means to manage a simulation clock that is pegged
-  to wall time. Most functions take the current wall time as an
-  argument, which must always be nondecreasing. Users should use a
-  consistent and reliable source for supplying wall time, such
-  as `(.getTime (java.util.Date.))`.")
+(ns pettomato.devs.lib.clock
+  "This ns provides a means to manage a simulation clock that is based on wall
+  time. Most functions take the current wall time as an argument, which must
+  always be nondecreasing. Users should use a consistent and reliable source for
+  supplying wall time, such as `(.getTime (java.util.Date.))`.")
 
 (defn clock
   "Initializes and returns a clock data structure.
@@ -26,6 +25,7 @@
   if wt is less than the previously supplied wt for clock."
   [clock wt]
   (assert (<= (:wt clock) wt))
+  ;; TODO: if wt hasn't changed, do nothing
   (-> clock
       (assoc :wt wt)
       (update :st + (long (* (- wt (:wt clock)) (:scale clock))))))

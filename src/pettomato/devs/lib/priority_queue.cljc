@@ -1,7 +1,7 @@
-(ns pettomato.devs.priority-queue
+(ns pettomato.devs.lib.priority-queue
   "A priority queue implementation.
 
-  Keys are sorted by compare.
+  Keys are sorted by `compare`.
 
   Items with the same priority belong to a set.
 

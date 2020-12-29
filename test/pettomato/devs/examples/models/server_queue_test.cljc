@@ -4,9 +4,11 @@
       [clojure.test :refer [deftest is testing]]
       :cljs
       [cljs.test :refer-macros [deftest is testing]])
-   [pettomato.devs :as devs :refer [infinity network-model output=]]
    [pettomato.devs.examples.models :refer [lazy-seq-generator]]
    [pettomato.devs.examples.models.server-queue :refer [reset-next-id! server]]
+   [pettomato.devs.models.network-model :refer [network-model]]
+   [pettomato.devs.root-coordinators.afap-root-coordinator :refer [afap-root-coordinator]]
+   [pettomato.devs.simulators.network-simulator :refer [network-simulator]]
    [pettomato.lib.random :as rand]))
 
 (defn report [log]
@@ -42,5 +44,5 @@
                      [:server :structure :network :structure identity]])]
            (reset-next-id!)
            (rand/with-random-seed 0
-             (-> (devs/run (devs/network-simulator net) :start 0 :end 1000)
+             (-> (afap-root-coordinator (network-simulator net) :start 0 :end 1000)
                  report))))))

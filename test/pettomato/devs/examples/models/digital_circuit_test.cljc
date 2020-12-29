@@ -4,9 +4,14 @@
       [clojure.test :refer [deftest is testing]]
       :cljs
       [cljs.test :refer-macros [deftest is testing]])
-   [pettomato.devs :as devs :refer [infinity atomic-model network-model output=]]
    [pettomato.devs.examples.models :refer [lazy-seq-generator]]
    [pettomato.devs.examples.models.digital-circuit :as circ]
+   [pettomato.devs.lib.number :refer [infinity]]
+   [pettomato.devs.models.atomic-model :refer [atomic-model]]
+   [pettomato.devs.models.network-model :refer [network-model]]
+   [pettomato.devs.root-coordinators.afap-root-coordinator :refer [afap-root-coordinator]]
+   [pettomato.devs.sim-output :refer [output=]]
+   [pettomato.devs.simulators.network-simulator :refer [network-simulator]]
    [pettomato.lib.random :as rand]))
 
 (deftest primitive-function-box-tests
@@ -18,8 +23,8 @@
                                :inv (circ/inverter 5)}
                               [[:gen :out :inv :in identity]
                                [:inv :out :network :out identity]])
-               devs/network-simulator
-               devs/run))))
+               network-simulator
+               afap-root-coordinator))))
 
   (testing "and-gate"
     (is (= [[0 {:out [false]}]
@@ -30,8 +35,8 @@
                               [[:gen :out-1 :and :in-1 identity]
                                [:gen :out-2 :and :in-2 identity]
                                [:and :out :network :out identity]])
-               devs/network-simulator
-               devs/run))))
+               network-simulator
+               afap-root-coordinator))))
 
   (testing "or-gate"
     (is (= [[0 {:out [false]}]
@@ -42,8 +47,8 @@
                               [[:gen :out-1 :and :in-1 identity]
                                [:gen :out-2 :and :in-2 identity]
                                [:and :out :network :out identity]])
-               devs/network-simulator
-               devs/run)))))
+               network-simulator
+               afap-root-coordinator)))))
 
 (deftest composite-function-box-tests
 
@@ -60,8 +65,8 @@
                                [:gen :out-2 :ha :b identity]
                                [:ha :s :network :s identity]
                                [:ha :c :network :c identity]])
-               devs/network-simulator
-               devs/run))))
+               network-simulator
+               afap-root-coordinator))))
 
   (testing "full-adder"
     (is (output= [[0  {:s [false]
@@ -76,8 +81,8 @@
                                      [:gen :out-2 :ha :b identity]
                                      [:ha :s :network :s identity]
                                      [:ha :c :network :c identity]])
-                     devs/network-simulator
-                     devs/run)))))
+                     network-simulator
+                     afap-root-coordinator)))))
 
 (deftest ripple-carry-adder-tests
 

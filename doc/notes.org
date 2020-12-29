@@ -1,877 +1,176 @@
-* Old code
-** old test helper code
-(defn normalize [tmsg*]
-  (->> tmsg*
-       (postwalk (fn [x] (if (number? x) (float x) x)))
-       (map (fn [[t m]] [t (set m)]))))
-
-(defn eq? [a b]
-  (= (normalize a) (normalize b)))
-
-(defn pprint-timestamped-msg* [tmsg*]
-  (doseq [[t msg] tmsg*] (println (format "[%.3f] %s" (float t) msg))))
-
 * DEVS
-** DONE Explain current issue
-   - Dynamic updates aren't working.
-   - I think the order of operations is messed up, and the exec is reset before
-     it emits network change messages.
-
-   - The problem is that the network exec is receiving messages, which makes it
-     activated, which causes triggers its network structure output, which was
-     premature.
-     - It shouldn't be receiving messages. Something is wrong with the routes.
-** DONE Refactor
-*** DONE No execs.
-*** DONE Any model can send network structure messages.
-*** DONE Network structure messages are sent like any other message.
-*** DONE Networks are defined with an initial structure.
-*** DONE Network structure messages are handled after other messages.
-*** NO Every dynamic network has a dedicated, atomic, network structure manager.
-    - It only sends and receives network structure messages.
-      - It also has no time-advance fn. It is purely reactive. No need to
-        schedule.
-    - No need to filter and sort messages.
-
-    - If there is no int-update or time-advance, then we can define this as one
-      function, belonging to the network. We just need to deliver its messages.
-
-    - If network change messages result in a new data structure, maybe we can do
-      them inline.
-*** NO Problem
-    - We don't have a good way to send messages about a network structure change
-      after it occurs.
-    - We basically need to run another cycle because delivering those messages
-      is going to be just like any other message; we need to check the
-      time-advance, etc.
-    - But, there isn't an obvious way to do that in the step function.
-
-    - Read the dynDEVS paper, but it might be the Gainer paper that has the call
-      chain I'm remembering.
-
-    https://www.researchgate.net/profile/Adelinde_Uhrmacher/publication/234782100_Dynamic_Structures_in_Modeling_and_Simulation_A_Reflective_Approach/links/5623d01508ae93a5c92cb0f2/Dynamic-Structures-in-Modeling-and-Simulation-A-Reflective-Approach.pdf
-    - The dynamic devs can be interpreted as DEVS plus a function that takes a
-      model and returns its successor based on its current state.
-**** Proposal
-     - Don't rely on the network to send change notifications.
-     - If that is needed, we can add a special model.
-       - In fact, create a network model constructor that takes an intake fn and
-         an exec name and automatically adds the exec.
-
-*** Proposal
-    - A network is nothing more than the sum of its parts.
-    - Networks have an initial model
-    - Every model can send network structure messages to its network.
-    - Atomic models can change their own state.
-      - E.g., change their fns or replace the model with an entirely new model.
-        - This is different than asking the network to delete the model and add
-          a new one, because it preserves state.
-    - Most networks will probably be static, which requires no overhead.
-    - Many networks will probably be fine with each model acting independently.
-    - Arbitrarily complex behavior can be implemented via coordinating
-      components.
-**** Determine how to handle network structure updates.
-***** Proposal: Separate function.
-***** Proposal: Use normal message/connection system.
-(defn step [{:keys [state routes queue] :as pkg} t]
-  (binding [*sim-time* t]
-    (trace "step")
-    (let [imminent     (pq/peek queue)
-          _            (trace "imminent: %s" imminent)
-          ;; ----- Collect mail -----
-          mail-out     (zipmap imminent (->> imminent
-                                             (map (fn [name]
-                                                    (binding [*path* name]
-                                                      (let [{:keys [model state]} (get state name)]
-                                                        ((:output model) state)))))))
-          _            (trace "mail-out: %s" mail-out)
-          routes       (:routes pkg)
-          terminal?    (fn [name port]
-                         (or (contains? (:state pkg) name)
-                             (and (= (first name) :network)
-                                  (= port :structure))
-                             (= name [:root])))
-          mail-in      (route routes terminal? mail-out)
-          _            (trace "mail-in: %s" mail-in)
-          receivers    (intersection (set (keys mail-in))
-                                     (set (keys state)))
-          _            (trace "receivers: %s" receivers)
-          activated    (union imminent receivers)
-          _            (trace "activated: %s" activated)
-          ;; ----- Update models -----
-          updated      (map (fn [name]
-                              (binding [*path* name]
-                                (let [state (get state name)
-                                      mail  (get mail-in name)]
-                                  (assert state (str "No state found for " name))
-                                  (transition state mail t))))
-                            activated)
-          state'       (merge state (zipmap activated updated))
-          queue'       (pq/change-priority* queue (for [name activated]
-                                                    [(get-in state [name :tn])
-                                                     name
-                                                     (get-in state' [name :tn])]))
-          ext-net-mail (get mail-in [:root]) ;; TODO: Don't hardcode this.
-          _            (trace "ext-net-mail: %s" ext-net-mail)
-          pkg'         (assoc pkg
-                              :state state'
-                              :queue queue')
-          ;; ----- Update network structure -----
-          ;; TODO: Handle this more efficiently.
-          int-net-mail (filter (fn [[name port->vs]] (= (first name) :network))
-                               mail-in)
-          ;; TODO: Process these structure messages from the bottom up.
-          _            (trace "int-net-mail: %s" (vec int-net-mail))
-          pkg'         (reduce (fn [pkg [name port->vs]]
-                                 (let [vs (port->vs :structure)]
-                                   (binding [*path* (rest name)]
-                                     (trace "network structure messages: %s" (count vs))
-                                     (apply-network-structure-messages pkg vs t))))
-                               pkg'
-                               int-net-mail)
-
-          ;; TODO: Deliver structure change messages.
-
-
-          ]
-      [pkg' ext-net-mail])))
-
-**** Plan the algorithms
-     - Can we optimize based on the knowledge that a model is connected to the
-       structure change port?
-     - Not sure how to handle model updates.
-*** Update test to wait a cycle before sending job message to new worker.
-    - I'm not sure there is a good way to have networks send messages, but we
-      really should have it. For example, from the POV of a model making a
-      structure change request the result is nondeterministic. So, it is
-      important to be able to find out the results. This is like the AI
-      simulation.
-** DONE Clean up
-   - Focus on making it easier to understand the trace.
-   - Confirm that the test simulation is behaving as expected.
-** DONE Fix issues
-*** DONE rem-model needs to handle all types of models
-**** networks
-     - Problem: network models aren't currently stored.
-       - We depend on that for terminal? in route.
-
-     - We aren't preserving the model hierarchy after structure changes; except
-       in the names.
-
-***** Proposal: Store the network state and keep it updated.
-      - Use it to determine what to disconnect, etc.
-      - Add a parent field to each model's state.
-        - When a model is removed, look up the parent.
-*** DONE Process network structure messages from bottom up.
-** DONE Refactor
-*** DONE Describe problem, hypotheses
-    - Any performance improvement gained by flattening depends greatly on the
-      simulation.
-    - Flattening complicates the implementation.
-      - For example, there are redundant data structures, like the set of routes
-        with networks, for cleanup only, and another trie that is used for
-        message routing.
-*** Proposal: Leave breadcrumbs to activated components.
-    - Like tn, but the set of activated components.
-      - map from component to mail
-*** Proposal: Use multithreading in the hierarchy.
-    - The breadcrumbs could indicate the amount of work in each branch.
-      - This could be cool; we could collect metrics.
-*** Proposal: New API for simulators.
-    - Includes these new breadcrumbs.
-    - So that we can use the same algorithm whether we use more simulators or
-      not.
-      - The old algorithm assumed that all local messages were delivered and
-        handled before returning. That precluded some parallelization.
-*** Proposal: Algorithm
-    - The network structure is one hierarchical graph.
-    - Keep state for each network.
-      - priority-queue
-      - tl, tn
-      - activated
-    - Traverse the structure graph based on imminents.
-    - Record activated.
-      - Store imminents with no mail with each network.
-      - Route mail and store it with each network.
-    - Traverse the structure graph again, based on mail, transition each model.
-    - Bubble up tn.
-
-    - Record network structure changes.
-
-    - I'm guessing that this might be a little slower than if everything was
-      flattened, but maybe not by much.
-      - The extra traversal steps. This is mitigated by the hierarchy,
-        though. The worst case scenario is a bunch of totally independent
-        branches with few leaves.
-      - Separate priority queues. Not sure of the impact of this.
-
-      - I'm also wondering if this is totally mitigated by the affordance to
-        handle each sub-network specially.
-
-*** Consider including routes with models.
-
-** DONE Problem: No way to bubble up network structure changes.
-   - Only atomic models can issue structure change messages, and currently, the
-     network doesn't propagate those.
-*** Proposal: Switch back to using the usual message channel
-    - We can establish network structure boundaries by only handling messages
-      sent to :network.
-** DONE Clean up
-*** Simplify structure change code.
-**** Consider not storing models in sim.
-     - We may want models for init.
-** DONE Determine how to maintain updated network structure.
-   - We may want to preserve the original network structure model to support
-     re-initializing models, but I'm not sure if that feature is useful.
-
-   - Reconsider flattening.
-     - The main reason is to update sims in parallel.
-     - Finding that set may also be simpler.
-       - I'm not certain about this. Is it better to have one large priority
-         queue, or a hierarchy of smaller ones? Is it better to allow each
-         network to have a tailored implementation?
-
-         - We've identified a number of things where the best implementation
-           will depend on the problem instance. Can we abstract all of those?
-           Could we supply the options with the problem definition (i.e.,
-           user-supplied domain knowledge)?
-
-   - All routes are local.
-
-     - If we can map from any model to its parent, then we can get the local
-       routes from the parent.
-
-       - When we get the mail, we know where in the hierarchy we are. There is
-         locality.
-
-
-
-   - There is no reason to maintain the external, hand-written, declarative
-     network structure representation within the simulator.
-     - Which means there is no reason to preserve original network models.
-       - We may want them to re-initialize.
-
-   - Can we combine the routes that are used for message routing with the ones
-     that are indexed by network (for proper removal)?
-     - Maybe we need to reconsider how we flattened via renaming.
-
-   - We want a flat data structure to hold model state, so that we don't have to
-     do a bunch of hashes and update a bunch of supporting structures. (This
-     wouldn't be a problem outside FP.)
-
-     - We don't need to flatten to use a single queue. We could use paths in the
-       queue, and use the paths to traverse the hierarchy.
-
-     - We could implement the gathering of imminent simulators as a separate
-       operation.
-** DONE Add debug support.
-** DONE eldoc displaying nil instead of unknown symbol.
-   - B/c it isn't using read on the output anymore, so nil is treated as a
-     string result.
-** DONE Pretty-print output chronicles.
-** Add more tests.
-*** DONE digital circuits
-    - SICP p. 275
-    - Would be nice if we could verify complex results using simple arithmetic.
-**** DONE full adder
-**** DONE ripple adder
-     - from SICP
-     - Do a 64-bit version
-**** DONE encode/decode
-**** DONE Cleanup
-*** Review existing tests.
-*** parallel tests
-*** more complex network structure tests
-**** one like this
-
-    ;; This isn't a good test, b/c lazy seq chunking could produce different results.
-(testing "Remove a network model, after dynamic structure changes have been made."
-    ;; An atom is used to count how many times the added model is updated, to
-    ;; check that it was actually removed. We can't tell from the output alone,
-    ;; because it could be sending messages, but the parent network's routes
-    ;; have been removed, so they won't go anywhere.
-    (binding [*trace*        true
-              *print-length* 100]
-      (let [counter (atom 0)
-            net     (network-model
-                     {:gen  (lazy-seq-generator [[5  {:out ["msg 1"]}]
-                                                 [10 {:out ["msg 2"]}]])
-                      :del  (network-model {:del  (delay1 2)
-                                            :exec (lazy-seq-generator
-                                                   [[1 {:out [[:add-model :gen (lazy-seq-generator
-                                                                                (for [i (range)]
-                                                                                  (do (swap! counter inc)
-                                                                                      [1 {:out [(str "internal gen msg-" i)]}])))]
-                                                              [:connect [:gen :out :network :out identity]]]}]])}
-                                           [[:network :in :del :in identity]
-                                            [:del :out :network :out identity]
-                                            [:exec :out :network :structure identity]])
-                      :exec (lazy-seq-generator
-                             [[7 {:out [[:disconnect [:gen :out :del :in identity]]
-                                        [:disconnect [:del :out :network :out identity]]
-                                        [:rem-model :del]]}]])}
-                     [[:gen :out :del :in identity]
-                      [:del :out :network :out identity]
-                      [:exec :out :network :structure identity]])]
-        (-> (devs/network-simulator net)
-            (devs/run :start 0 :end 10))
-        (is (= 7 @counter)))))
-
-*** Migrate tests from old namespaces
-(deftest generator-test
-  (is (= [[10 {:out [5]}]
-          [20 {:out [5]}]]
-         (-> (atomic-simulator :gen (generator 5 10))
-             (afap-root-coordinator 0 20)))))
-
-(deftest lazy-seq-generator-test
-  (binding [*trace* true]
-   (is (= [[10 {:out [5]}]
-           [20 {:out [5]}]]
-          (-> (atomic-simulator :gen (lazy-seq-generator [[10 {:out [5]}]
-                                                          [10 {:out [5]}]]))
-              (afap-root-coordinator 0 20))))))
-
-(defn default-sim-fns [model-name model]
-  (cond
-    (executive-model? model) executive-simulator
-    (atomic-model?    model) atomic-simulator
-    (coupled-model?   model) (partial coordinator default-sim-fns)
-    (network-model?   model) (partial network-simulator default-sim-fns)))
-
-(deftest delay-test
-  (is (= [[15 {:out [5]}]
-          [25 {:out [5]}]]
-         (let [models      {:gen   (generator 5 10)
-                            :delay (delay-component 5)}
-               routes      [[:gen :out :delay :in]
-                            [:delay :out network-name :out]]
-               model       (coupled-model models routes)
-               coordinator (coordinator default-sim-fns model)]
-           (-> coordinator
-               (afap-root-coordinator 0 25))))))
-
-
-
-(deftest dynamic-network-test
-  #_
-  (is ((fn [ev*]
-         ;; This is ugly. The idea is that there should only be two
-         ;; events, and they each output 5 jobs, but which jobs is not
-         ;; important.
-         (and (= (count ev*) 2)
-              (= (first (first ev*)) 1001)
-              (= (first (second ev*)) 2001)
-              (= (count (second (first ev*))) 5)
-              (= (count (second (second ev*))) 5)))
-
-       ))
-
-  (let [models      {:gen (lazy-seq-generator [[1 {:out (range 10)}]])
-                     :net network-1}
-        routes      [[:gen :out :net 'in1]
-                     [:net 'out network-name :out]]
-        model       (coupled-model models routes)
-        coordinator (coordinator default-sim-fns model)]
-    (binding [*trace* true]
-      (-> coordinator
-          (afap-root-coordinator 0 100)))))
-*** afap
-(deftest afap-test
-  (is (= (-> (generator 5 10)
-             atomic-simulator
-             (afap-root-coordinator 0 20))
-         (-> (generator 5 10)
-             atomic-simulator
-             (lazy-afap-root-coordinator 0 20)))))
-*** example from book
-;;;-----------------------------------------------------------------------------
-;;; Example from Theory of Modeling and Simulation, 2nd Ed., pp. 237-240.
-
-(def server delay-component)
-
-(defn queue [k server-ks]
-  (letfn [(add-server [s k']
-            (-> s
-                (assoc-in [:network :models k'] (server 1000))
-                (update-in [:network :routes] conj
-                           [k ['out k'] k' 'in]
-                           [k' 'out k ['in k']])))
-          (rem-server [s k']
-            (-> s
-                (dissoc-in [:network :models k'])
-                (update-in [:network :routes] disj
-                        [k ['out k'] k' 'in]
-                        [k' 'out k ['in k']])))
-          (idle [s k']
-            (update s :idle conj k'))
-          (maybe-process-next [s]
-            (if (and (seq (:idle s)) (seq (:queue s)))
-              (-> s
-                  (update :queue rest)
-                  (update :idle rest)
-                  (update-in [:output ['out (first (:idle s))]] conj (first (:queue s))))
-              s))
-          (enqueue [s v]
-            (update s :queue conj v))
-          (send [s v]
-            (update-in s [:output 'out] conj v))
-          (dispatch [s ev]
-            (let [[port v] ev]
-              (case port
-                add    (-> s (add-server v) (idle v) maybe-process-next)
-                remove (-> s (rem-server (first (:idle s))) (update :idle rest)
-                           (update-in [:output 'send] conj (first (:idle s))))
-                in     (-> s (enqueue v) maybe-process-next)
-                (case (first port)
-                  in (-> s (send v) (idle (second port)) maybe-process-next)))))]
-    (executive-model
-     ;; Initial state.
-     (let [queue   []
-           network {:models {}
-                    :routes [[network-name 'in k 'in]
-                             [network-name 'remove k 'remove]
-                             [network-name 'add k 'add]
-                             [k 'size network-name 'size]
-                             [k 'init network-name 'init]
-                             [k 'send network-name 'send]
-                             [k 'out network-name 'out]]}
-           state   {:network network
-                    :idle    server-ks
-                    :queue   queue
-                    :sigma   0
-                    :output  {'init [[(count queue) (count server-ks)]]}}
-           state   (reduce add-server state server-ks)
-           e       0]
-       [state e])
-     (fn int-update [s]
-       (assoc s :sigma infinity :output {}))
-     (fn ext-update [s e x]
-       (let [s' (-> (reduce dispatch s (for [[k vs] x, v vs] [k v]))
-                    ;; Assuming every external event results in an output message.
-                    (assoc :sigma 0))]
-         (update-in s' [:output 'size] conj [(count (:queue s')) (count (:idle s'))])))
-     nil
-     :output
-     :sigma
-     :network)))
-
-(defn node [servers]
-  (network-model :queue (queue :queue servers)))
-
-(defn control [threshold]
-  (letfn [(update-size [s k q-size idle-size]
-            (-> s
-                (assoc-in [:queue-sizes k] q-size)
-                (assoc-in [:idle-sizes  k] idle-size)))
-          (maybe-move [s]
-            ;; If there is an idle server in node-i, and (size of the queue in
-            ;; node-j - number of servers in transit to node-j) > T, then move
-            ;; an idle server from node-i to node-j.
-            (let [[k1-q       k2-q      ] (:queue-sizes   s)
-                  [k1-idle    k2-idle   ] (:idle-sizes    s)
-                  [k1-transit k2-transit] (:in-transit-to s)]
-              (cond
-                (and (> k1-idle 0)
-                     (> (- k2-q k2-transit) threshold)) (-> s
-                                                            (update-in [:output ['ask 0]] conj nil)
-                                                            (update-in [:in-transit-to 1] inc))
-                (and (> k2-idle 0)
-                     (> (- k1-q k1-transit) threshold)) (-> s
-                                                            (update-in [:output ['ask 1]] conj nil)
-                                                            (update-in [:in-transit-to 0] inc))
-                :else                                   s)))]
-    (atomic-model
-     (let [s {:output      {}
-              :sigma       infinity
-              :queue-sizes [0 0]
-              :idle-sizes  [0 0]}
-           e 0]
-       [s e])
-     (fn int-update [s]
-       (assoc s :sigma infinity :output {}))
-     (fn ext-update [s e x]
-       (let [s (assoc s :in-transit-to [0 0])]
-         (-> (reduce (fn [s [port [q-size idle-size]]]
-                       (case port
-                         init1 (update-size s 0 q-size idle-size)
-                         init2 (update-size s 1 q-size idle-size)
-                         size1 (update-size s 0 q-size idle-size)
-                         size2 (update-size s 1 q-size idle-size)))
-                     (assoc s :sigma 0)
-                     (for [[k vs] x, v vs] [k v]))
-             maybe-move)))
-     nil
-     :output
-     :sigma)))
-
-(def network-1
-  (let [models {:control (control 5)
-                :node-1  (node [1 2])
-                :node-2  (node [3 4])}
-        routes [[network-name 'in1 :node-1 'in]
-                [network-name 'in2 :node-2 'in]
-                [:control ['ask 0] :node-1 'remove]
-                [:control ['ask 1] :node-2 'remove]
-                ;; node 1 output
-                [:node-1 'size :control 'size1]
-                [:node-1 'init :control 'init1]
-                [:node-1 'send :node-2 'add]
-                [:node-1 'out network-name 'out]
-                ;; node 2 output
-                [:node-2 'size :control 'size2]
-                [:node-2 'init :control 'init2]
-                [:node-2 'send :node-1 'add]
-                [:node-2 'out network-name 'out]]]
-   (coupled-model models routes)))
-** Add some kind of network validation.
+** Solve the (single machine) synchronicity problem.
+*** DONE Proposal: Trigger an int-update and get the time via *sim-time*.
+     - I don't think this makes sense, in general, because what V3D is doing on
+       those updates is not something that needs to be synchronized with the
+       rest of the simulation (I don't think).
+     - On the other hand, it is an easy way to get the current sim-time; maybe
+       this can be a stepping stone.
+**** RESOLUTION: Do this first.
+*** DONE Proposal: Use a shared concurrency primitive that can be queried for the current time.
+**** RESOLUTION: Do this after doing the one above.
+** Solve the (single machine) real-time and human-in-the-loop problems.
+*** DONE Consider collecting min times and then distributing the global min back.
+    - I think the only difference is that all models are updated with the
+      current time whenever any model is imminent.
+**** Resolution: No.
+*** DONE Determine if we should use an abstraction.
+    - To avoid coupling the model implementations with the simulator
+      implementation.
+**** Resolution: No.
+     - I think it makes sense to decouple it, but just returning a channel
+       sounds easy to understand and resembles the RT-DEVS algorithm.
+*** Proposal: Time-stepped simulation
+**** Notes
+    - No core.async.
+**** Implementation
+***** No priority queue.
+      - Each tick, each simulator is queried for time-of-next-update.
+      - Get the minimum.
+      - If it is < current-time, transition all sims.
+      - Repeat until min time is >= current-time.
+***** Simulators' transition fns are called on every tick.
+      - Logically, it is a no-op, if the sim is not imminent and is not
+        receiving any messages.
+      - The idea is that this is a signal that is meaningful to RT models,
+        because it establishes the lower bound for sim-time.
+      - I assume there will be few top-level RT simulators (< 10), so the cost
+        to invoke this no-op function on each of them and for each of them to do
+        the requisite check for imminence or reception, is cheap.
+***** Simulators can change their time-of-next-update on each query.
+      - It might make sense to consider that a simulator would return infinity
+        until it has some reason to specify otherwise, like a purely reactive
+        sim that returns infinity until it receives an external message.
+***** Simulators are wrapped in atoms.
+*** Test replaying an input history.
+** Implement lazy root-coordinator or remove it
+** Make route fn optional
+** Validate network structure.
    - I hit an NPE b/c a route was invalid.
 *** Must contain at least one model.
     - Or else initialize needs to handle that case with tl.
 *** Don't allow the same port to be both input and output.
-** Add optional run-time check that a model has no connections before removing it.
+** Check that a model has no connections before removing it.
+   - Make it optional
    - In dev mode, all checks should be enabled.
    - Add tests.
-** Generate a metrics report.
-   - This information may be valuable and easier to work with than the full
-     trace.
-   - # of steps
-** Clear eldoc buffer on ns change.
-** Consider implementing mail as a seq instead of a trie.
-   - Optimize for modeling.
-   - Really not sure which is better. Need to practice.
-*** Consider using an abstraction: mail
-    - Add fns for building/extracting.
-      - They seem so trivial, but maybe this would provide the needed
-        clarity. Maybe this is a case where I'm relying to much on Clojure and I
-        really need abstraction.
+** Develop logging / metrics system.
+*** Goals
+**** Customizable
+     - Feed into 3rd party logger.
+**** Extensible
+**** Flexible
+     - Easy to adjust.
+**** Support something like log levels.
+**** Support gathering metrics.
+     - The idea is to capture some core bits of information about the internal,
+       run-time behavior and make it presentable.
+       - # of steps
+       - # of parallel processes
+       - # of messages
+       - by network
+**** Capture logs w/o printing them.
+     - Allow user to query and inspect.
+**** Make it easy to write to a file.
+     - And to load from it. We should be able to compare stats on two historical
+       logs.
+       - How valuable is this if we can re-run the simulation?
+         - Stats could always be useful.
+*** Notes
+    - Separate storing from retrieving.
+      - Initially, we just want storing. Retrieving can be a user-defined
+        implementation.
+    - What are the elements we want to capture?
+      - path (implicit)
+      - sim-time (implicit)
 
-    flatten: (for [[k vs] x, v vs] [k v])
-*** Proposal: Implement seq, so we know what we are talking about.
-    - Need to see how a seq might change the simulator implementation; it may
-      make it simpler.
-*** Proposal: Seq
-**** Pros
-     - Can maintain sender message order.
-     - Arguably easier to model with.
-     - Easy to group, if necessary (the converse is also true: easy to flatten)
-       - It may be the case that most of the time, we expect few messages on
-         each port, but I'm not sure if that is true; a notable exception may be
-         percept ports that might receive dozens of updates.
-         - Ultimately, we will have to iterate across individual values. How
-           much difference does this really make? How much of the content size
-           does the port take up?
-**** Cons
-     - Less efficient?
-       - Depends on size of keys to data.
-       - To preserve message order, in the simplest case, each message would
-         have to be routed individual.
-*** Proposal: Map
-**** Pros
-     - batch processing in the simulator
-**** Cons
-     - Flat seq might be simpler for receiving. In many cases, you can just
-       iterate and treat each message individually. For maps, at the least, you
-       will also have to do this for each port.
-       - Easy to flatten, though.
-** Implement a RT root coordinator.
-   - Refer to file:///home/austin/projects/tomato-system/doc/papers/devsjava_2005.pdf
-     - p. 89
-     - The root coordinator gates child processes.
+      - model type?
 
-   - http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.843.6421&rep=rep1&type=pdf
-     - Section 4.1: How to avoid accumulating delays due to actual execution
-       time.
-       - See last paragraph.
-*** old code
-**** one
-(ns pettomato.devs.rt-root-simulator
-  "Real-time root simulator. Tries to synchronize the simulation time with a
-  real-world clock."
-  (:require
-   #?(:cljs [goog.async.Delay :as gdelay])
-   [pettomato.devs.root-simulator-base :as rsb]
-   [pettomato.devs.rt-simulation-clock :as clock]
-   [pettomato.devs.util :refer [infinity]]
-   [pettomato.lib.date :refer [timestamp]]
-   [pettomato.lib.log :as log]))
-
-;;; Internal
-
-(defn- after
-  "Evaluate f, presumably for side effects, after ms milliseconds.
-
-  If ms is <= 0, it is evaluated immediately."
-  [ms f]
-  (if (<= ms 0)
-    (do (f) nil)
-    #?(:clj (future (Thread/sleep ms)
-                    (f))
-       :cljs (let [d (goog.async.Delay. f ms)]
-               (.start d)
-               d))))
-
-(defn- cancel-after [x]
-  (log/info "cancel-after")
-  (when x
-    #?(:clj (future-cancel x)
-       :cljs (.stop x)))
-  nil)
-
-(defn- ms-until-next-event [pkg]
-  (let [{:keys [root-sim clock]} pkg
-        sim-time                 (clock/get-time clock (timestamp))
-        tn                       (rsb/time-of-next-update root-sim)]
-    #_(log/infof "sim-time: %s" sim-time)
-    #_(log/infof "tn: %s" tn)
-    (- tn sim-time)))
-
-(defn- handle-next-event [pkg id]
-  #_(log/infof "handle-next-event: %s" id)
-  (let [root-sim             (:root-sim pkg)
-        [root-sim' out-msgs] (rsb/step root-sim)]
-    (when (seq out-msgs)
-      ((:output-fn pkg) out-msgs))
-    (-> pkg
-        (assoc :root-sim root-sim')
-        (assoc :pending nil))))
-
-(defn- handle-next-event! [apkg]
-  #_(log/info "handle-next-event!")
-  (swap! apkg (fn [pkg]
-                (let [delta (ms-until-next-event pkg)
-                      id    (gensym)]
-                  #_(log/infof "delta: %s, id: %s" delta id)
-                  (cond
-                    (<= delta 0)
-                    (recur (handle-next-event pkg id))
-
-                    (< delta infinity)
-                    (assoc pkg :pending (after delta #(do (swap! apkg (fn [pkg] (handle-next-event pkg id)))
-                                                          (handle-next-event! apkg))))
-
-                    :else
-                    (do #_(log/info "Nothing to do.")
-                        pkg)))))
-  nil)
-
-(defn rt-root-simulator
-  [sim sim-time output-fn]
-  (atom
-   {:root-sim  (rsb/root-simulator sim sim-time)
-    :clock     (clock/clock (timestamp) sim-time 1.0)
-    :output-fn output-fn
-    :pending   nil}))
-
-;; Use this instead of start and stop.
-(defn set-time-scale-factor [r]
-  )
-
-(defn start! [apkg]
-  (log/info "start!")
-  (swap! apkg (fn [pkg]
-                (if (= (clock/paused? (:clock pkg)))
-                  (update pkg :clock clock/unpause (timestamp))
-                  pkg)))
-  ;; TODO: Don't do this if the clock is paused!
-  (handle-next-event! apkg)
-  nil)
-
-(defn stop! [apkg]
-  (log/info "stop!")
-  (swap! apkg (fn [pkg]
-                (if (= (clock/paused? (:clock pkg)))
-                  (-> pkg
-                      (update :pending cancel-after)
-                      (update :clock clock/pause (timestamp)))
-                  pkg)))
-  nil)
-
-(defn schedule! [apkg t msg]
-  (log/infof "schedule!: %s" t)
-  (swap! apkg (fn [pkg]
-                (let [sim-time t
-                      pkg      (-> pkg
-                                   (update :pending cancel-after)
-                                   (update :root-sim rsb/schedule sim-time msg))]
-                  (when (not (clock/paused? (:clock pkg)))
-                    (handle-next-event! apkg))
-                  pkg)))
-  nil)
-
-;; The problem with this function is that it assumes this simulator's clock is
-;; authoritative.
-#_
-(defn schedule-now! [apkg msg]
-  (log/info "schedule-now!")
-  (swap! apkg (fn [pkg]
-               (-> pkg
-                   (update :pending cancel-after)
-                   (update :root-sim rsb/schedule (clock/get-time (:clock pkg) (timestamp)) msg))))
-  (handle-next-event! apkg))
-
-(comment
-
-  (require '[pettomato.devs.atomic-simulator :refer [atomic-simulator]])
-  (require '[pettomato.devs.models :refer [atomic-model]])
-
-  (defn generator [period]
-    (atomic-model
-     {}
-     identity
-     (fn [s e x]
-       (printf "%s received: %s\n" (timestamp) x)
-       s)
-     nil
-     (fn [_] [[:out (timestamp)]])
-     (constantly period)))
-
-  (def pkg (-> (generator 1000)
-               atomic-simulator
-               (rt-root-simulator 0 println)))
-
-  (schedule! pkg 0 "initial")
-
-  (start! pkg)
-
-  (schedule-now! pkg "test")
-
-  (stop! pkg)
-
-  )
-
-**** step coordinator
-(ns pettomato.devs.step-coordinator
-  "A coordinator that provides a basic API for scheduling messages and stepping
-  through a simulation.
-
-  This could be a base for a variety of root coordinators. For example,
-
-  - An \"as-fast-as-possible\" simulator may run through an entire simulation in a single loop.
-  - A Real-Time simulator might synchronize the updates with a real-time clock.
-  - In the browser, a Real-Time simulator might use setInterval or updateAnimationFrame to drive the updates.
-  - On the JVM, a Real-Time simulator might use threads.
-
-  All cases need a way to schedule future events and all cases use the same
-  logic for determining the next event and processing it."
-  (:require
-   [pettomato.devs.Simulator :refer [init int-update ext-update con-update tl tn]]
-   [pettomato.devs.priority-queue :as pq]
-   [pettomato.devs.util :refer [infinity]]
-   [pettomato.lib.log :as log]))
+      - event type
+        - predefined
+          - model function
+          - imminent
+          - mail
+          - network structure change
+          - log message
+            - log level
+        - user-defined?
 
 
-;;******************************************************************************
-;; I don't think it makes sense for this to be a simulator (with that
-;; API). Simulators don't accept messages in the future.
+    - I think we need to separate:
+      - logging
+      - filtering
+      - reading/querying
 
-;; Consider moving future events inside the simulation. I believe this is how
-;; an experimental frame is meant to be implemented. (p. 78t)
-
-;; In that case, this doesn't really have any reason to exist.
-
-;; We should try to model a simulation that way, with an experimental frame
-;; (which may be implicit; just some additional models), and a root coordinator
-;; that is like the basic one in Ch. 8.
-
-;;******************************************************************************
-
-
-(defn step-coordinator [sim start-time]
-  {:sim   (init sim start-time)
-   :input (pq/init)})
-
-(defn time-of-last-update [pkg]
-  (tl (:sim pkg)))
-
-(defn- time-of-next-internal-update [pkg]
-  (tn (:sim pkg)))
-
-(defn- time-of-next-external-update [pkg]
-  (or (pq/peek-key (:input pkg)) infinity))
-
-(defn time-of-next-update [pkg]
-  (min (time-of-next-internal-update pkg)
-       (time-of-next-external-update pkg)))
-
-(defn- int-update% [pkg t]
-  (let [sim             (:sim pkg)
-        [sim' out-msg*] (int-update sim t)
-        pkg'            (assoc pkg :sim sim')]
-    [pkg' out-msg*]))
-
-(defn- ext-update% [pkg t]
-  (let [sim     (:sim pkg)
-        input   (:input pkg)
-        in-msg* (pq/peek input)
-        sim'    (ext-update sim in-msg* t)
-        pkg'    (-> pkg
-                    (assoc :sim sim')
-                    (update :input pq/pop))]
-    [pkg' nil]))
-
-(defn- con-update% [pkg t]
-  (let [sim             (:sim pkg)
-        input           (:input pkg)
-        in-msg*         (pq/peek input)
-        [sim' out-msg*] (con-update sim in-msg* t)
-        pkg'            (-> pkg
-                            (assoc :sim sim')
-                            (update :input pq/pop))]
-    [pkg' out-msg*]))
-
-(defn step
-  "Advance the simulation past the next event.
-
-  Returns [new-pkg output-messages].
-
-  All output messages occur at (time-of-last-update new-pkg), and are otherwise
-  unordered."
-  [pkg]
-  (let [int-tn (time-of-next-internal-update pkg)
-        ext-tn (time-of-next-external-update pkg)]
-    (cond
-      ;; No pending events.
-      (and (= int-tn infinity)
-           (= ext-tn infinity)) [pkg nil]
-      ;; The sim internal update is next.
-      (< int-tn ext-tn)         (int-update% pkg int-tn)
-      ;; An external message is next.
-      (< ext-tn int-tn)         (ext-update% pkg ext-tn)
-      ;; The sim internal update is at the same time as the next external message.
-      :else                     (con-update% pkg int-tn))))
-
-(defn schedule
-  "Schedule msg at time t."
-  [pkg t msg]
-  (when (< t (tl (:sim pkg)))
-    (throw (ex-info "Cannot schedule event before last update time."
-                    {:t   t
-                     :msg msg
-                     :tl  (tl (:sim pkg))})))
-  (update pkg :input pq/insert t msg))
-
-(defn schedule*
-  "Schedule messages. tmsgs is a seq of [t msgs]."
-  [pkg tmsgs]
-  (reduce (fn [pkg [t msg]]
-            (schedule pkg t msg))
-          pkg
-          (for [[t msgs] tmsgs
-                msg      msgs]
-            [t msg])))
-
-*** Test replaying an input history.
-** Reorganize code
-*** Consider renaming queue to agenda.
-*** Consider changing run
-    - rename to root-coordinator?
-      - afap, event-driven?
-      - I think we want something that can be used to step a simulation.
-**** Implement lazy root-coordinator or remove it
-*** Make route fn optional
+    - but we need semantic meaning
+*** DONE Proposal: Use the typical logging facilities
+    - Allow user to overwrite the implementations.
+*** DONE Proposal: multimethods
+    - I don't think we can dispatch the way I'd like to.
+    - The dispatch fn is static and predetermined.
+    - We'd need to dispatch on multiple fields.
+      - I suspect that would be complicated and still not solve any real
+        problem.
+*** DONE Proposal: interceptors
+    - There is something common between interceptors and dynamic bindings.
+      - context
+    - log
+      - A function that...
+    - *log-interceptors*
+      - A stack of interceptors.
+*** DONE Proposal: Use functional composition
+    - Start simple.
+*** Collect logs w/o printing.
+*** Support gathering metrics.
+** Determine how to validate the TMS example.
+** Add tests for parallelization.
+** Consider renaming queue to agenda.
 ** Support updating an atomic model.
 ** update docs
+*** on mail as seq vs trie
+    - Optimize for modeling.
+    - Really not sure which is better. Need to practice.
+**** Consider using an abstraction: mail
+     - Add fns for building/extracting.
+       - They seem so trivial, but maybe this would provide the needed
+         clarity. Maybe this is a case where I'm relying to much on Clojure and I
+         really need abstraction.
+
+     flatten: (for [[k vs] x, v vs] [k v])
+**** Proposal: Implement seq, so we know what we are talking about.
+     - Need to see how a seq might change the simulator implementation; it may
+       make it simpler.
+**** Consider receiving messages.
+     - At this time, I think it makes sense to proceed with maps, and convert to
+       seqs when desired.
+     - Rationale:
+       - Already implemented.
+       - More compact.
+       - Easy to convert to seqs.
+**** Consider sending messages.
+     - I don't think there is much difference.
+**** DONE Consider messages in the output.
+     - We should always have a formatter for those, so we shouldn't optimize for
+       this case.
+**** Proposal: Seq
+***** Pros
+      - Can maintain sender message order.
+      - Arguably easier to model with.
+***** Cons
+      - Less efficient?
+        - Depends on size of keys to data.
+        - To preserve message order, in the simplest case, each message would
+          have to be routed individual.
+**** Proposal: Map
+***** Pros
+      - batch processing in the simulator
+      - Easy to convert to seq: (for [[port vs] x, v vs] [port v])
+***** Cons
+      - Flat seq might be simpler for receiving. In many cases, you can just
+        iterate and treat each message individually. For maps, at the least, you
+        will also have to do this for each port.
+        - Easy to flatten, though.
+
 *** on afap
   \"Analytic simulations typically execute 'as-fast-as-possible,' meaning that
   the simulation attempts to complete its computations as quickly as it
@@ -1245,3 +544,6 @@
       process them efficiently. It would be nice to be able to write
       code in a straightforward way, but have it optimized
       automatically.
+** Implement a distributed root coordinator.
+   - One problem with using atoms to implement some kind of mailbox is that it
+     is awkward to add a listener to an atom that also empties it.

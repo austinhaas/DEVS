@@ -1,10 +1,10 @@
-(ns pettomato.devs.priority-queue-test
+(ns pettomato.devs.lib.priority-queue-test
   (:require
    #?(:clj
       [clojure.test :refer [deftest is testing]]
       :cljs
       [cljs.test :refer-macros [deftest is testing]])
-   [pettomato.devs.priority-queue :as pq]))
+   [pettomato.devs.lib.priority-queue :as pq]))
 
 (deftest priority-queue-tests
   (is (pq/empty? (pq/priority-queue)))

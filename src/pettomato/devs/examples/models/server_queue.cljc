@@ -1,7 +1,10 @@
 (ns pettomato.devs.examples.models.server-queue
   (:require
-   [pettomato.devs :as devs :refer [infinity atomic-model trace *sim-time*]]
    [pettomato.devs.examples.models :refer [delay2]]
+   [pettomato.devs.lib.number :refer [infinity]]
+   [pettomato.devs.models.atomic-model :refer [atomic-model]]
+   [pettomato.devs.vars :refer [*sim-time*]]
+   [pettomato.lib.log :as log]
    [pettomato.lib.queue :refer [queue]]))
 
 ;;; id
@@ -19,21 +22,21 @@
 ;;; server
 
 (defn- add-worker [state k model]
-  (trace "add-worker: %s" k)
+  (log/tracef "add-worker: %s" k)
   (update-in state [:output :structure] conj
              [:add-model k model]
              [:connect [(:id state) [:out k] k :in identity]]
              [:connect [k :out (:id state) [:in k] identity]]))
 
 (defn- rem-worker [state k]
-  (trace "rem-worker: %s" k)
+  (log/tracef "rem-worker: %s" k)
   (update-in state [:output :structure] conj
              [:rem-model k]
              [:disconnect [(:id state) [:out k] k :in identity]]
              [:disconnect [k :out (:id state) [:in k] identity]]))
 
 (defn- maybe-grow [state]
-  (trace "maybe-grow")
+  (log/trace "maybe-grow")
   (if (< (:capacity state) (count (:queue state)))
     (let [k (symbol (str "w" (next-id)))]
       (-> state
@@ -44,7 +47,7 @@
     state))
 
 (defn- maybe-shrink [state]
-  (trace "maybe-shrink [jobs: %s idle: %s]" (count (:queue state)) (count (:workers state)))
+  (log/tracef "maybe-shrink [jobs: %s idle: %s]" (count (:queue state)) (count (:workers state)))
   (if (and (empty? (:queue state))
            (< 1 (count (:workers state))))
     (-> state
@@ -55,13 +58,13 @@
     state))
 
 (defn- distribute-work [state]
-  (trace "distribute-work")
+  (log/tracef "distribute-work")
   (if (or (empty? (:queue state))
           (empty? (:workers state)))
     state
     (let [job    (peek (:queue state))
           worker (peek (:workers state))]
-      (trace "Assigning %s to %s" job worker)
+      (log/tracef "Assigning %s to %s" job worker)
       (-> state
           (update :output assoc [:out worker] [[(:effort job) (assoc job :worker worker :start-time *sim-time*)]])
           (update :queue pop)

@@ -4,30 +4,34 @@
   This server moves workers to where the work is, but it doesn't scale up or
   down otherwise."
   (:require
-   [pettomato.devs :as devs :refer [infinity atomic-model network-model trace *sim-time*]]
-   [pettomato.devs.examples.models :refer [delay2]]))
+   [pettomato.devs.examples.models :refer [delay2]]
+   [pettomato.devs.lib.number :refer [infinity]]
+   [pettomato.devs.models.atomic-model :refer [atomic-model]]
+   [pettomato.devs.models.network-model :refer [network-model]]
+   [pettomato.devs.vars :refer [*sim-time*]]
+   [pettomato.lib.log :as log]))
 
 (def server delay2)
 
 (defn queue [k n-servers]
   (let [server-ks (for [i (range n-servers)] (keyword (str "worker-" (gensym))))]
     (letfn [(add-server [s k']
-              (trace "add-server: %s" k')
+              (log/tracef "add-server: %s" k')
               (update-in s [:output :structure] (fnil conj [])
                          [:add-model k' (server)]
                          [:connect [k [:out k'] k' :in identity]]
                          [:connect [k' :out k [:in k'] identity]]))
             (rem-server [s k']
-              (trace "rem-server: %s" k')
+              (log/tracef "rem-server: %s" k')
               (update-in s [:output :structure] (fnil conj [])
                          [:rem-model k']
                          [:disconnect [k [:out k'] k' :in identity]]
                          [:disconnect [k' :out k [:in k'] identity]]))
             (idle [s k']
-              (trace "idle: %s" k')
+              (log/tracef "idle: %s" k')
               (update s :idle conj k'))
             (maybe-process-next [s]
-              (trace "maybe-process-next")
+              (log/trace "maybe-process-next")
               (if (and (seq (:idle s)) (seq (:queue s)))
                 (let [w (first (:idle s))
                       v (first (:queue s))]
@@ -37,10 +41,10 @@
                       (update-in [:output [:out w]] conj [(:effort v) (assoc v :worker w)])))
                 s))
             (enqueue [s v]
-              (trace "enqueue: %s" v)
+              (log/tracef "enqueue: %s" v)
               (update s :queue conj (assoc v :arrival-time *sim-time*)))
             (send [s v]
-              (trace "send: %s" v)
+              (log/tracef "send: %s" v)
               (update-in s [:output :out] conj (assoc v :departure-time *sim-time*)))
             (dispatch [s ev]
               (let [[port v] ev]
@@ -62,10 +66,10 @@
              e     0]
          [state e])
        (fn int-update [s]
-         (trace "int-update")
+         (log/trace "int-update")
          (assoc s :sigma infinity :output {}))
        (fn ext-update [s e x]
-         (trace "ext-update: %s" x)
+         (log/tracef "ext-update: %s" x)
          (let [s' (-> (reduce dispatch s (for [[k vs] x, v vs] [k v]))
                       ;; Assuming every external event results in an output message.
                       (assoc :sigma 0))]

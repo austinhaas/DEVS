@@ -1,7 +1,11 @@
 (ns pettomato.devs.examples.models.digital-circuit
   (:require
-   [pettomato.devs :as devs :refer [infinity atomic-model network-model trace]]
-   [pettomato.devs.examples.models :refer [lazy-seq-generator]]))
+   [pettomato.devs.examples.models :refer [lazy-seq-generator]]
+   [pettomato.devs.lib.number :refer [infinity]]
+   [pettomato.devs.models.atomic-model :refer [atomic-model]]
+   [pettomato.devs.models.network-model :refer [network-model]]
+   [pettomato.devs.root-coordinators.afap-root-coordinator :refer [afap-root-coordinator]]
+   [pettomato.devs.simulators.network-simulator :refer [network-simulator]]))
 
 ;; This is supposed to be physically accurate in the sense that it takes time
 ;; for signals to propagate. There will be an initial period of "settling".
@@ -198,6 +202,6 @@
                              [[:gen [:a i] :rca [:a i] identity]
                               [:gen [:b i] :rca [:b i] identity]
                               [:rca [:s i] :network [:s i] identity]])))
-     devs/network-simulator
-     devs/run
+     network-simulator
+     afap-root-coordinator
      decode))

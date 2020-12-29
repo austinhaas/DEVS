@@ -4,20 +4,15 @@
       [clojure.test :refer [deftest is testing]]
       :cljs
       [cljs.test :refer-macros [deftest is testing]])
-   [pettomato.devs :as devs :refer [infinity atomic-model network-model output=]]
    [pettomato.devs.examples.models :refer [generator lazy-seq-generator delay1]]
-   [pettomato.lib.random :as rand]
-   [pettomato.lib.log :as log]))
-
-(deftest prune-test
-
-  (testing "passing empty keys has no effect"
-    (is (= {:x #{1}}
-           (#'devs/prune {:x #{1}} []))))
-
-  (testing "branches with empty leaves are pruned."
-    (is (= {:x #{1}}
-           (#'devs/prune {:x #{1} :y {:z []}} [:y :z])))))
+   [pettomato.devs.models.atomic-model :refer [atomic-model]]
+   [pettomato.devs.models.network-model :refer [network-model]]
+   [pettomato.devs.sim-output :refer [output=]]
+   [pettomato.devs.simulators.atomic-simulator :refer [atomic-simulator]]
+   [pettomato.devs.simulators.network-simulator :refer [network-simulator]]
+   [pettomato.devs.root-coordinators.afap-root-coordinator :refer [afap-root-coordinator]]
+   [pettomato.lib.log :as log]
+   [pettomato.lib.random :as rand]))
 
 (deftest basic-tests
 
@@ -28,15 +23,15 @@
                     [6 {:out ["x"]}]
                     [8 {:out ["x"]}]]
                    (-> (generator 2 "x")
-                       devs/atomic-simulator
-                       (devs/run :end 10))))))
+                       atomic-simulator
+                       (afap-root-coordinator :end 10))))))
 
   (testing "Specifying a non-zero start time."
     (is (output= [[7 {:out ["x"]}]
                   [9 {:out ["x"]}]]
                  (-> (generator 2 "x")
-                     devs/atomic-simulator
-                     (devs/run :start 5 :end 10)))))
+                     atomic-simulator
+                     (afap-root-coordinator :start 5 :end 10)))))
 
   (testing "A simple network."
     (is (output= [[5  {:out ["x"]}]
@@ -48,8 +43,8 @@
                                            :del del}
                                           [[:gen :out :del :in identity]
                                            [:del :out :network :out identity]])]
-                   (-> (devs/network-simulator net)
-                       devs/run))))))
+                   (-> (network-simulator net)
+                       afap-root-coordinator))))))
 
 (defn switch
   "A very contrived model that is used to demonstrate confluence.
@@ -101,8 +96,8 @@
                                           [[:gen :out :sw :in identity]
                                            [:sw :out :network :out identity]])]
                    (-> net
-                       devs/network-simulator
-                       (devs/run :end 5))))))
+                       network-simulator
+                       (afap-root-coordinator :end 5))))))
 
   (testing "Confluence test #2: internal before external"
     (is (output= [[1 {:out [true]}]
@@ -116,8 +111,8 @@
                                           [[:gen :out :sw :in identity]
                                            [:sw :out :network :out identity]])]
                    (-> net
-                       devs/network-simulator
-                       (devs/run :end 5))))))
+                       network-simulator
+                       (afap-root-coordinator :end 5))))))
 
   (testing "Confluence test #3: default priority"
     (is (output= [[1 {:out [true]}]
@@ -131,8 +126,8 @@
                                           [[:gen :out :sw :in identity]
                                            [:sw :out :network :out identity]])]
                    (-> net
-                       devs/network-simulator
-                       (devs/run :end 5)))))))
+                       network-simulator
+                       (afap-root-coordinator :end 5)))))))
 
 (deftest deep-delay-network
 
@@ -153,8 +148,8 @@
                                              :del del}
                                             [[:gen :out :del :in identity]
                                              [:del :out :network :out identity]])]
-                     (-> (devs/network-simulator net)
-                         (devs/run :end 10))))))))
+                     (-> (network-simulator net)
+                         (afap-root-coordinator :end 10))))))))
 
 (defn dynamic-delay-network
   "Constructs a network that contains gen and adds del at start and removes it at
@@ -180,24 +175,24 @@
                  (let [net (dynamic-delay-network (generator 5 "x")
                                                   (delay1 2)
                                                   0 6)]
-                   (-> (devs/network-simulator net)
-                       (devs/run :start 0 :end 10))))))
+                   (-> (network-simulator net)
+                       (afap-root-coordinator :start 0 :end 10))))))
 
   (testing "Remove an atomic model when it is imminent."
     (is (output= [[7 {:out ["x"]}]]
                  (let [net (dynamic-delay-network (generator 5 "x")
                                                   (delay1 2)
                                                   0 7)]
-                   (-> (devs/network-simulator net)
-                       (devs/run :start 0 :end 10))))))
+                   (-> (network-simulator net)
+                       (afap-root-coordinator :start 0 :end 10))))))
 
   (testing "Remove an atomic model after it is imminent."
     (is (output= [[7 {:out ["x"]}]]
                  (let [net (dynamic-delay-network (generator 5 "x")
                                                   (delay1 2)
                                                   0 8)]
-                   (-> (devs/network-simulator net)
-                       (devs/run :start 0 :end 10))))))
+                   (-> (network-simulator net)
+                       (afap-root-coordinator :start 0 :end 10))))))
 
   (testing "Adding an atomic model after it would have received input."
     (is (output= [[12 {:out ["x"]}]
@@ -205,8 +200,8 @@
                  (let [net (dynamic-delay-network (generator 5 "x")
                                                   (delay1 2)
                                                   5 15)]
-                   (-> (devs/network-simulator net)
-                       (devs/run :start 0 :end 20))))))
+                   (-> (network-simulator net)
+                       (afap-root-coordinator :start 0 :end 20))))))
 
   ;; Test that structure changes happen from bottom up.
   ;; Remove the parent and the child.
@@ -235,8 +230,8 @@
                                            [[:gen :out :del :in identity]
                                             [:del :out :network :out identity]
                                             [:exec :out :network :structure identity]])]
-                   (-> (devs/network-simulator net)
-                       devs/run)))))
+                   (-> (network-simulator net)
+                       afap-root-coordinator)))))
 
   (testing "ad-hoc network structure change test"
     ;; Note that messages get dropped when they have been delivered to a delay,
@@ -284,5 +279,5 @@
                                               [:gen :out :network :gen-out identity]
                                               [:del-1 :out :network :del-1-out identity]
                                               [:exec :out :network :structure identity]])]
-                    (-> (devs/network-simulator net)
-                        (devs/run :start 0 :end 20))))))))
+                    (-> (network-simulator net)
+                        (afap-root-coordinator :start 0 :end 20))))))))
