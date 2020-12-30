@@ -1,7 +1,7 @@
 (ns pettomato.devs.lib.event-log
-  "An event log is a seq of [timestamp outbound-mail].
-
-  outbound-mail - A map from ports to values."
+  "An event log is a seq of [timestamp outbound-mail], where timestamps are
+  nondecreasing and outbound-mail is a \"local\" mail data structure (i.e., just
+  port -> vals)."
   (:require
    [pettomato.devs.lib.string :refer [pad-left]]
    [pettomato.devs.lib.mail :refer [local-mail=]]))
@@ -29,10 +29,12 @@
       (println k "=>" (vec vs)))
     (newline)))
 
-(defn pp-event-log [event-log & {:keys [key-sort-fn
-                                        time-width]
-                                 :or   {key-sort-fn (fn [a b] (compare (str a) (str b)))
-                                        time-width  6}}]
+(defn pp-event-log
+  "Pretty-print an event log."
+  [event-log & {:keys [key-sort-fn
+                       time-width]
+                :or   {key-sort-fn (fn [a b] (compare (str a) (str b)))
+                       time-width  6}}]
   (doseq [[t m] event-log]
     (print (str "[" (pad-left time-width \  (str t)) "] "))
     (let [[[k vs] & kvs] (sort-by first key-sort-fn m)]
