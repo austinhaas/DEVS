@@ -1,10 +1,10 @@
 (ns pettomato.devs.lib.event-log
-  "An event log is a seq of [timestamp mail].
+  "An event log is a seq of [timestamp outbound-mail].
 
-  mail - A map from ports to values."
+  outbound-mail - A map from ports to values."
   (:require
    [pettomato.devs.lib.string :refer [pad-left]]
-   [pettomato.devs.lib.mail :refer [mail=]]))
+   [pettomato.devs.lib.mail :refer [local-mail=]]))
 
 (defn event-log=
   "Compare two event-log data structures for equality."
@@ -14,7 +14,7 @@
       (let [[t1 mail1] (first el1)
             [t2 mail2] (first el2)]
         (and (= t1 t2)
-             (mail= mail1 mail2)
+             (local-mail= mail1 mail2)
              (event-log= (rest el1) (rest el2))))))
 
 #_
