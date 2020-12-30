@@ -1,9 +1,9 @@
 (ns pettomato.devs.root-coordinators.afap-root-coordinator
   (:require
+   [pettomato.devs.lib.event-log :refer [format-event-log]]
    [pettomato.devs.lib.log :as log]
    [pettomato.devs.lib.logging :refer [log-fn]]
    [pettomato.devs.lib.number :refer [infinity]]
-   [pettomato.devs.sim-output :refer [format-output-messages]]
    [pettomato.devs.simulator :refer [initialize collect-mail transition time-of-next-event]]
    [pettomato.devs.vars :refer [*sim-time*]]))
 
@@ -41,7 +41,7 @@
             (recur sim out (inc i)))
           (do (log/infof "END afap-root-coordinator {:start %s :end %s :limit %s}" start end limit)
               (-> (persistent! out)
-                  format-output-messages)))))))
+                  format-event-log)))))))
 
 #_
 (defn lazy-afap-root-coordinator [sim start-time end-time]

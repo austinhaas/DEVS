@@ -6,10 +6,10 @@
       [cljs.test :refer-macros [deftest is testing]])
    [pettomato.devs.examples.models :refer [lazy-seq-generator]]
    [pettomato.devs.examples.models.tms-example :as tms]
+   [pettomato.devs.lib.event-log :refer [pp-event-log]]
    [pettomato.devs.lib.random :as rand]
    [pettomato.devs.models.network-model :refer [network-model]]
    [pettomato.devs.root-coordinators.afap-root-coordinator :refer [afap-root-coordinator]]
-   [pettomato.devs.sim-output :refer [pp-output]]
    [pettomato.devs.simulators.network-simulator :refer [network-simulator]]))
 
 (deftest tms-example-test
@@ -41,4 +41,4 @@
                 [:server :out :network :out identity]
                 [:server :structure :network :structure identity]])]
       (-> (afap-root-coordinator (network-simulator net) :start 0 :end 2000)
-          pp-output))))
+          pp-event-log))))

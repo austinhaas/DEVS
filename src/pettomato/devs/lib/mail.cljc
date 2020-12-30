@@ -4,6 +4,8 @@
   A mail data structure is a map from keys to a map from ports to a collection
   of values. key -> port -> values")
 
+;; TODO: distinguish between p->vs and k->p->vs.
+
 (defn mail=
   "Compare two mail data structures for equality."
   [m1 m2]
