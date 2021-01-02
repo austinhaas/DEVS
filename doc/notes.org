@@ -41,7 +41,7 @@
      - On the other hand, it is an easy way to get the current sim-time; maybe
        this can be a stepping stone.
 **** RESOLUTION: Do this first.
-*** DONE Proposal: Use a shared concurrency primitive that can be queried for the current time.
+*** Proposal: Use a shared concurrency primitive that can be queried for the current time.
 **** RESOLUTION: Do this after doing the one above.
 ** Solve the (single machine) real-time and human-in-the-loop problems.
 *** DONE Consider collecting min times and then distributing the global min back.
@@ -98,12 +98,23 @@
 *** DONE Get rt-root-coordinator working.
 **** DONE Test pause/unpause.
 **** DONE Test changing scale factor.
-*** Check in
+*** DONE Check in
 *** Double check everything about the rt-atomic-simulator is in order.
 *** Get rt-network-sim working.
 *** Implement a rAF root-coordinator.
 *** Test replaying an input history.
-** Implement lazy root-coordinator or remove it
+** Implement lazy root-coordinator
+(defn lazy-afap-root-coordinator [sim start-time end-time]
+  (letfn [(step [sim]
+            (let [t (time-of-next-event sim)]
+              (if (< end-time t)
+                nil
+                (let [[sim' out'] (receive-*-message sim t)
+                      sim'        (receive-x-message sim' {} t)]
+                  (if (seq out')
+                    (cons [t out'] (lazy-seq (step sim')))
+                    (lazy-seq (step sim')))))))]
+    (lazy-seq (step (receive-i-message sim start-time)))))
 ** Make route fn optional
 ** Validate network structure.
    - I hit an NPE b/c a route was invalid.

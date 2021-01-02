@@ -42,16 +42,3 @@
           (do (log/infof "END afap-root-coordinator {:start %s :end %s :limit %s}" start end limit)
               (-> (persistent! out)
                   format-event-log)))))))
-
-#_
-(defn lazy-afap-root-coordinator [sim start-time end-time]
-  (letfn [(step [sim]
-            (let [t (time-of-next-event sim)]
-              (if (< end-time t)
-                nil
-                (let [[sim' out'] (receive-*-message sim t)
-                      sim'        (receive-x-message sim' {} t)]
-                  (if (seq out')
-                    (cons [t out'] (lazy-seq (step sim')))
-                    (lazy-seq (step sim')))))))]
-    (lazy-seq (step (receive-i-message sim start-time)))))
