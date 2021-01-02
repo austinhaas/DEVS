@@ -1,3 +1,37 @@
+* Redirect err to local thread.
+** What I expect to happen.
+   - Launch a socket server.
+   - Connect to the server.
+   - Create a thread and within it, bind *out* and *err* to the current
+     client/thread's values.
+   - Throw an exception in that thread.
+   - I expect to see the exception in the current client.
+** What actually happens
+   - Errors appear where the socket server was created.
+** Notes
+   https://github.com/clojure-emacs/cider/issues/1588
+   - Is there a better way to manage a background process?
+
+(println "My first message.")
+(throw (ex-info "My first exception." {}))
+
+(.start
+ (Thread.
+  (fn []
+    (println "My second message.")
+    (throw (ex-info "My second exception" {})))))
+
+(.start
+ (Thread.
+  (let [out *out*
+        err *err*]
+    (fn []
+      (binding [*out* out
+                *err* err]
+        (println "My third message.")
+        (throw (ex-info "My third exception" {})))))))
+
+** Google groups: https://groups.google.com/g/clojure/c/t3Pp8l9Pe4A
 * DEVS
 ** Solve the (single machine) synchronicity problem.
 *** DONE Proposal: Trigger an int-update and get the time via *sim-time*.
@@ -20,7 +54,7 @@
 **** Resolution: No.
      - I think it makes sense to decouple it, but just returning a channel
        sounds easy to understand and resembles the RT-DEVS algorithm.
-*** Proposal: Time-stepped simulation
+*** DONE Proposal: Time-stepped simulation
 **** Notes
     - No core.async.
 **** Implementation
@@ -42,6 +76,32 @@
         until it has some reason to specify otherwise, like a purely reactive
         sim that returns infinity until it receives an external message.
 ***** Simulators are wrapped in atoms.
+**** Problem: Models don't have a no-op transition function.
+***** Proposal: Add one. Make it optional.
+      - Make it clear that it has no logical bearing.
+        - Actually, it does, because it could cause the time-of-next-update to
+          change.
+***** Proposal: Use external update.
+      - Need to check that this is ok.
+
+      - Is this going to work? Need to review the sequence of events.
+**** Problem: no op collect-mail
+
+     - Not sure if this is a real problem.
+
+***** Proposal: All RT simulators must handle an unrequested collect-mail.
+***** Proposal: rt-root-coordinator only collects mail if sim is imminent.
+      - Step up through current time.
+      - Check if sim's last time = current time, otherwise invoke this
+        transition.
+*** DONE Fix drift
+*** DONE Get rt-root-coordinator working.
+**** DONE Test pause/unpause.
+**** DONE Test changing scale factor.
+*** Check in
+*** Double check everything about the rt-atomic-simulator is in order.
+*** Get rt-network-sim working.
+*** Implement a rAF root-coordinator.
 *** Test replaying an input history.
 ** Implement lazy root-coordinator or remove it
 ** Make route fn optional
@@ -127,6 +187,9 @@
 ** Consider renaming queue to agenda.
 ** Support updating an atomic model.
 ** update docs
+*** on included code
+    - It makes sense that this library would include development tools for DEVS,
+      like example models and log formatting.
 *** on mail as seq vs trie
     - Optimize for modeling.
     - Really not sure which is better. Need to practice.

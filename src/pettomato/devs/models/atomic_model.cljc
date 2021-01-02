@@ -40,8 +40,10 @@
   (assert (or (nil? output-fn) (ifn? output-fn)))
   (assert (or (nil? time-advance-fn)  (ifn? time-advance-fn)))
   {:initial-total-state initial-total-state
-   :internal-update     internal-update-fn
-   :external-update     external-update-fn
+   :internal-update     (or internal-update-fn
+                            identity)
+   :external-update     (or external-update-fn
+                            (fn [s e x] s))
    :confluent-update    (or confluent-update-fn
                             (fn [s x] (external-update-fn (internal-update-fn s) 0 x)))
    :output              output-fn

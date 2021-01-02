@@ -41,7 +41,7 @@
       (println k "=>" (vec vs))
       (doseq [[k vs] kvs]
         (println (str (apply str (repeat (+ 3 time-width) \ )) (str k " => " (vec vs)))))
-      (newline))))
+      #_(newline))))
 
 (defn format-event-log
   "For developer convenience, convert seqs to vectors so that the output can be

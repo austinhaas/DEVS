@@ -1,9 +1,11 @@
-(ns pettomato.devs.simulators.atomic-simulator
+(ns pettomato.devs.simulators.rt-atomic-simulator
+  "The real-time atomic simulator differs from the standard atomic simulator
+  by invoking the external-update even if the mail is empty."
   (:require
    [pettomato.devs.lib.log :as log]
-   [pettomato.devs.simulator :refer [Simulator]]))
+   [pettomato.devs.simulator :refer [Simulator time-of-next-event]]))
 
-(defrecord AtomicSimulator [model state tl tn]
+(defrecord RealTimeAtomicSimulator [model state tl tn]
   Simulator
   (initialize [sim t]
     (log/trace "--- initialize ---")
@@ -19,16 +21,16 @@
   (transition [sim mail t]
     (log/trace "--- transition ---")
     (assert (<= tl t tn) (str "synchronization error: (not (<= " tl " " t " " tn ")"))
-    (let [state (if (empty? mail)
-                  ((:internal-update model) state)
-                  (if (= t tn)
-                    ((:confluent-update model) state mail)
-                    ((:external-update model) state (- t tl) mail)))
+    (let [state (cond
+                  (and (= t tn) (empty? mail)) ((:internal-update  model) state)
+                  (and (= t tn) (seq    mail)) ((:confluent-update model) state mail)
+                  (< t tn)                     ((:external-update  model) state (- t tl) mail)
+                  :else                        (throw (ex-info "unexpected state" {})))
           tl    t
           tn    (+ tl ((:time-advance model) state))]
       (assoc sim :state state :tl tl :tn tn)))
   (time-of-last-event [sim] tl)
   (time-of-next-event [sim] tn))
 
-(defn atomic-simulator [model]
-  (map->AtomicSimulator {:model model}))
+(defn rt-atomic-simulator [model]
+  (map->RealTimeAtomicSimulator {:model model}))
