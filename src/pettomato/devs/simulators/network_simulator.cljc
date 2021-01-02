@@ -14,11 +14,11 @@
 (defn- apply-transition
   "Invoke a transition for a single simulator.
 
-  network-sim - The simulator.
+  network-sim - The network simulator.
 
-  k - The name of the simulator.
+  k - The name of the component simulator.
 
-  mail - p->vs
+  mail - The local mail (p->vs) for the component simulator.
 
   t - The current sim time."
   [network-sim k mail t]
@@ -32,8 +32,15 @@
         (update :queue pq/change-priority tn k tn'))))
 
 (defn- apply-transitions
-  "Invoke a transition across all component simulators."
+  "Invoke a transition across all component simulators.
+
+  network-sim - The network simulator.
+
+  mail - Inbound mail for this simulator (k->p->vs).
+
+  t - The current sim time."
   [network-sim mail t]
+  ;; Note that this could be made to run in parallel.
   (reduce-kv #(apply-transition %1 %2 %3 t)
              network-sim
              mail))
@@ -91,20 +98,24 @@
   (initialize [sim t]
     (log/trace "--- initialize ---")
     ;; Assuming initialize will only be called once.
-    (reduce connect
-            (reduce-kv #(add-model %1 %2 %3 t) sim (:models model))
-            (:routes model)))
+    (as-> sim sim
+      ;; Add models.
+      (reduce-kv #(add-model %1 %2 %3 t) sim (:models model))
+      ;; Add routes.
+      (reduce connect sim (:routes model))))
   (collect-mail [sim t]
     (log/trace "--- collect-mail ---")
-    (assert (= t (time-of-next-event sim)) "synchronization error")
+    (assert (= t (time-of-next-event sim))
+            (str "synchronization error: (not (= " t " " (time-of-next-event sim) ")"))
     (let [imminent      (pq/peek queue)
           _             (log/tracef "imminent: %s" imminent)
-          xs            (map (fn [k]
+          ;; Note that this could be made to run in parallel.
+          sim-and-mail  (map (fn [k]
                                (binding [*path* (conj *path* k)]
                                  (collect-mail (k->sim k) t))) ; recursive step
                              imminent)
-          k->sim'       (zipmap imminent (map first  xs))
-          outbound-mail (zipmap imminent (map second xs))
+          k->sim'       (zipmap imminent (map first  sim-and-mail))
+          outbound-mail (zipmap imminent (map second sim-and-mail))
           _             (log/tracef "outbound-mail: %s" outbound-mail)
           inbound-mail  (route-mail routes outbound-mail)
           _             (log/tracef " inbound-mail: %s" inbound-mail)
@@ -118,7 +129,8 @@
       [sim ext-mail]))
   (transition [sim ext-mail t]
     (log/trace "--- transition ---")
-    (assert (<= (time-of-last-event sim) t (time-of-next-event sim)) "synchronization error")
+    (assert (<= (time-of-last-event sim) t (time-of-next-event sim))
+            (str "synchronization error: (not (<= " (time-of-last-event sim) " " t " " (time-of-next-event sim) ")"))
     (let [tn       (time-of-next-event sim)
           imminent (if (= t tn) (pq/peek queue) [])
           _        (log/tracef "imminent: %s" imminent)
