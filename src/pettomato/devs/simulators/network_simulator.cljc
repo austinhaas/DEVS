@@ -11,7 +11,7 @@
    [pettomato.devs.simulators.atomic-simulator :refer [atomic-simulator]]
    [pettomato.devs.vars :refer [*path*]]))
 
-(defn- apply-transition
+(defn apply-transition
   "Invoke a transition for a single simulator.
 
   network-sim - The network simulator.
@@ -45,9 +45,7 @@
              network-sim
              mail))
 
-(declare model->sim)
-
-(defn- add-model [network-sim k model t]
+(defn- add-model [model->sim network-sim k model t]
   (log/tracef "add-model: %s" k)
   (let [sim (model->sim model)
         sim (binding [*path* (conj *path* k)]
@@ -76,14 +74,14 @@
       (update-in [:routes sk sp rk rp] disj f)
       (update :routes prune [sk sp rk rp])))
 
-(defn- apply-network-structure-changes [network-sim net-msgs t]
+(defn- apply-network-structure-changes [model->sim network-sim net-msgs t]
   ;; Network structure messages are grouped and processed in a specific order.
   ;; Himmelspach, Jan, and Adelinde M. Uhrmacher. "Processing dynamic PDEVS models."
   ;; The IEEE Computer Society's 12th Annual International Symposium on Modeling, Analysis, and Simulation of Computer and Telecommunications Systems, 2004.
   ;; Section 3.2
   ;; http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.302.3385&rep=rep1&type=pdf
   (let [net-msgs   (group-by first net-msgs)
-        add-model  (fn [sim [_ k model]] (add-model  sim k model t))
+        add-model  (fn [sim [_ k model]] (add-model  model->sim sim k model t))
         rem-model  (fn [sim [_ k]]       (rem-model  sim k))
         connect    (fn [sim [_ route]]   (connect    sim route))
         disconnect (fn [sim [_ route]]   (disconnect sim route))]
@@ -93,14 +91,14 @@
       (reduce add-model  network-sim (:add-model  net-msgs))
       (reduce connect    network-sim (:connect    net-msgs)))))
 
-(defrecord NetworkSimulator [model k->sim routes queue int-mail net-msgs]
+(defrecord NetworkSimulator [model k->sim routes queue int-mail net-msgs transition-all? model->sim]
   Simulator
   (initialize [sim t]
     (log/trace "--- initialize ---")
     ;; Assuming initialize will only be called once.
     (as-> sim sim
       ;; Add models.
-      (reduce-kv #(add-model %1 %2 %3 t) sim (:models model))
+      (reduce-kv #(add-model model->sim %1 %2 %3 t) sim (:models model))
       ;; Add routes.
       (reduce connect sim (:routes model))))
   (collect-mail [sim t]
@@ -134,33 +132,51 @@
     (let [tn       (time-of-next-event sim)
           imminent (if (= t tn) (pq/peek queue) [])
           _        (log/tracef "imminent: %s" imminent)
-          imm-mail (zipmap imminent (repeat {}))
+          imm-mail (if transition-all?
+                     (zipmap (keys k->sim) (repeat {}))
+                     (zipmap imminent (repeat {})))
           ext-mail (route-mail routes {:network ext-mail}) ; Assumption: There are no routes from :network to :network.
           _        (log/tracef "ext-mail: %s" ext-mail)
           mail     (merge-mail imm-mail int-mail ext-mail)
           _        (log/tracef "mail: %s" mail)]
       (-> sim
           (apply-transitions mail t)
-          (apply-network-structure-changes net-msgs t)
+          ((partial apply-network-structure-changes model->sim) net-msgs t)
           (assoc :int-mail {})
           (assoc :net-msgs []))))
   (time-of-last-event [sim] (apply max (map time-of-last-event (vals k->sim))))
   (time-of-next-event [sim] (or (pq/peek-key queue) infinity)))
 
-(defn network-simulator [model]
-  (map->NetworkSimulator {:model    model
-                          :queue    (pq/priority-queue)
-                          :int-mail {}
-                          :net-msgs []}))
+(declare network-simulator)
 
-(defn model->sim
-  "Returns the model wrapped in the appropriate simulator.
-
-  Note that this is hardcoded to map from models to particular simulators. These
-  simulators are appropriate for the network simulator implemented in this
-  namespace, but users should be aware of this constraint."
+(defn default-model->sim
   [model]
   (cond
     (atomic-model?  model) (atomic-simulator  model)
     (network-model? model) (network-simulator model)
     :else                  (throw (ex-info "Unknown model type." {}))))
+
+(defn network-simulator
+  "model - A network model.
+
+  Options:
+
+  transition-all? - If logically true, each time this network simulator's
+  transition function is invoked, it will invoke the transition function of
+  every component simulator, even if they are not imminent or receiving
+  mail. The component models must handle these potential \"no-op\"
+  transitions. This is used by the RT implementation to implement a form of
+  polling. Defaults to false.
+
+  model->sim - A function that takes a model and returns a new simulator for
+  that model. The default pairs atomic models with atomic-simulator and network
+  models with network-simulator."
+  [model & {:keys [transition-all? model->sim]
+            :or   {transition-all? false
+                   model->sim      default-model->sim}}]
+  (map->NetworkSimulator {:model           model
+                          :queue           (pq/priority-queue)
+                          :int-mail        {}
+                          :net-msgs        []
+                          :transition-all? transition-all?
+                          :model->sim      model->sim}))

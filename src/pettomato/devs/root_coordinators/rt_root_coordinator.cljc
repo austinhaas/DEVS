@@ -63,6 +63,7 @@
 
 ;;; API
 
+
 (defn rt-root-coordinator
   "Run a simulation in real-time.
 
@@ -73,8 +74,9 @@
           :or   {start     0
                  scale     1.0
                  output-fn (fn [event-log]
-                             (when (seq event-log) (log/info "output"))
-                             (pp-event-log event-log))
+                             (let [s (with-out-str (pp-event-log event-log))]
+                               (when (seq s)
+                                 (log/infof "*** output *** \n%s" s))))
                  update-ms 1000}}]
   (atom
    {:clock     (clock/clock (timestamp) start scale)
@@ -104,11 +106,9 @@
                   (assoc :status :stopped))))
   nil)
 
-
+;; rt atomic demo
 (comment
 
-  ;;(require '[pettomato.devs.examples.models :refer [generator]])
-  ;;(require '[pettomato.devs.simulators.atomic-simulator :refer [atomic-simulator]])
   (require '[pettomato.devs.models.atomic-model :refer [atomic-model]])
   (require '[pettomato.devs.simulators.rt-atomic-simulator :refer [rt-atomic-simulator]])
 
@@ -142,5 +142,80 @@
             log/*log-level*    :trace]
     (stop! rc))
 
-  (.getState (:update-thread @rc))
+  )
+
+;; rt network demo
+(comment
+
+  (require '[pettomato.devs.models.atomic-model :refer [atomic-model]])
+  (require '[pettomato.devs.models.network-model :refer [network-model]])
+  (require '[pettomato.devs.simulators.rt-atomic-simulator :refer [rt-atomic-simulator]])
+  (require '[pettomato.devs.simulators.rt-network-simulator :refer [rt-network-simulator]])
+  (require '[pettomato.devs.examples.models :refer [delay1]])
+
+  (defn rt-generator
+    "A model that periodically emits value on a port labeled :out."
+    [period value]
+    (atomic-model
+     (let [s {:sigma period}
+           e 0]
+       [s e])
+     (fn int-update [s]
+       (assoc s :sigma period))
+     (fn ext-update [s e x]
+       (update s :sigma - e))
+     nil
+     (constantly {:out [value]})
+     :sigma))
+
+  (defn rt-delay1
+    "A model that receives messages on port :in and emits the same message on
+  port :out after processing-time. Can queue multiple messages simultaneously."
+    [processing-time]
+    (atomic-model
+     (let [s {:queue (sorted-map)
+              :delta 0}
+           e 0]
+       [s e])
+     (fn internal-update  [state]
+       (-> state
+           (update :queue dissoc (ffirst (:queue state)))
+           (assoc :delta (ffirst (:queue state)))))
+     (fn external-update  [state elapsed-time messages]
+       (if (seq messages)
+         (let [delta (+ (:delta state) elapsed-time)
+               t     (+ delta processing-time)]
+           (-> state
+               (update-in [:queue t] into (:in messages))
+               (assoc :delta delta)))
+         (update state :delta + elapsed-time)))
+     nil
+     (fn output           [state]
+       {:out (second (first (:queue state)))})
+     (fn time-advance     [state]
+       (if (empty? (:queue state))
+         infinity
+         (- (ffirst (:queue state))
+            (:delta state))))))
+
+  (def net (network-model {:gen (rt-generator 1000 'tick)
+                           :del (rt-delay1 500)}
+                          [[:gen :out :del :in identity]
+                           [:del :out :network :out identity]]))
+
+  (binding [log/*log-function* log-fn
+            log/*log-level*    :info]
+    (def rc (-> net
+                rt-network-simulator
+                (rt-root-coordinator :update-ms 100
+                                     :scale 1.0))))
+
+  (binding [log/*log-function* log-fn
+            log/*log-level*    :info]
+    (start! rc))
+
+  (binding [log/*log-function* log-fn
+            log/*log-level*    :info]
+    (stop! rc))
+
 )

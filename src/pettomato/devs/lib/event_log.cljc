@@ -36,12 +36,13 @@
                 :or   {key-sort-fn (fn [a b] (compare (str a) (str b)))
                        time-width  6}}]
   (doseq [[t m] event-log]
-    (print (str "[" (pad-left time-width \  (str t)) "] "))
-    (let [[[k vs] & kvs] (sort-by first key-sort-fn m)]
-      (println k "=>" (vec vs))
-      (doseq [[k vs] kvs]
-        (println (str (apply str (repeat (+ 3 time-width) \ )) (str k " => " (vec vs)))))
-      #_(newline))))
+    (when (seq m)
+      (print (str "[" (pad-left time-width \  (str t)) "] "))
+      (let [[[k vs] & kvs] (sort-by first key-sort-fn m)]
+        (println k "=>" (vec vs))
+        (doseq [[k vs] kvs]
+          (println (str (apply str (repeat (+ 3 time-width) \ )) (str k " => " (vec vs)))))
+        #_(newline)))))
 
 (defn format-event-log
   "For developer convenience, convert seqs to vectors so that the output can be
