@@ -91,7 +91,7 @@
       (reduce add-model  network-sim (:add-model  net-msgs))
       (reduce connect    network-sim (:connect    net-msgs)))))
 
-(defrecord NetworkSimulator [model k->sim routes queue int-mail net-msgs transition-all? model->sim]
+(defrecord NetworkSimulator [model k->sim routes queue int-mail net-msgs model->sim]
   Simulator
   (initialize [sim t]
     (log/trace "--- initialize ---")
@@ -132,9 +132,7 @@
     (let [tn       (time-of-next-event sim)
           imminent (if (= t tn) (pq/peek queue) [])
           _        (log/tracef "imminent: %s" imminent)
-          imm-mail (if transition-all?
-                     (zipmap (keys k->sim) (repeat {}))
-                     (zipmap imminent (repeat {})))
+          imm-mail (zipmap imminent (repeat {}))
           ext-mail (route-mail routes {:network ext-mail}) ; Assumption: There are no routes from :network to :network.
           _        (log/tracef "ext-mail: %s" ext-mail)
           mail     (merge-mail imm-mail int-mail ext-mail)
@@ -161,22 +159,13 @@
 
   Options:
 
-  transition-all? - If logically true, each time this network simulator's
-  transition function is invoked, it will invoke the transition function of
-  every component simulator, even if they are not imminent or receiving
-  mail. The component models must handle these potential \"no-op\"
-  transitions. This is used by the RT implementation to implement a form of
-  polling. Defaults to false.
-
   model->sim - A function that takes a model and returns a new simulator for
   that model. The default pairs atomic models with atomic-simulator and network
   models with network-simulator."
-  [model & {:keys [transition-all? model->sim]
-            :or   {transition-all? false
-                   model->sim      default-model->sim}}]
-  (map->NetworkSimulator {:model           model
-                          :queue           (pq/priority-queue)
-                          :int-mail        {}
-                          :net-msgs        []
-                          :transition-all? transition-all?
-                          :model->sim      model->sim}))
+  [model & {:keys [model->sim]
+            :or   {model->sim default-model->sim}}]
+  (map->NetworkSimulator {:model      model
+                          :queue      (pq/priority-queue)
+                          :int-mail   {}
+                          :net-msgs   []
+                          :model->sim model->sim}))

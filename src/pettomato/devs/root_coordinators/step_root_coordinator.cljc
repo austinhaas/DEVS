@@ -2,7 +2,6 @@
   "A root coordinator that can be run in steps."
   (:require
    [pettomato.devs.lib.log :as log]
-   [pettomato.devs.lib.logging :refer [log-fn]]
    [pettomato.devs.lib.number :refer [infinity]]
    [pettomato.devs.simulator :refer [initialize collect-mail transition time-of-next-event]]
    [pettomato.devs.vars :refer [*sim-time*]]))
@@ -26,7 +25,9 @@
     (let [t (time-of-next-event sim)]
       (cond
         (compare t end) (let [[sim out'] (step-1 sim t)
-                              out        (conj out [t out'])]
+                              out        (if (seq out')
+                                           (conj out [t out'])
+                                           out)]
                           (recur sim out))
         :else           [sim out]))))
 
@@ -52,6 +53,5 @@
 (defn step-root-coordinator
   [sim & {:keys [start]
           :or   {start 0}}]
-  (binding [log/*log-function* log-fn
-            *sim-time*         start]
+  (binding [*sim-time* start]
     (initialize sim start)))

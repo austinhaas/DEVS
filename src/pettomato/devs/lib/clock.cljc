@@ -21,14 +21,18 @@
    :paused true})
 
 (defn- advance%
-  "Advances sim time based on current wall time wt. Throws an exception
-  if wt is less than the previously supplied wt for clock."
+  "Advances sim time based on current wall time wt. Throws an exception if wt is
+  less than the previously supplied wall time for clock. Returns a new advanced
+  clock."
   [clock wt]
-  (assert (<= (:wt clock) wt))
-  ;; TODO: if wt hasn't changed, do nothing
-  (-> clock
-      (assoc :wt wt)
-      (update :st + (long (* (- wt (:wt clock)) (:scale clock))))))
+  (let [wt-delta (- wt (:wt clock))]
+    (assert (<= 0 wt-delta))
+    (cond
+      (neg? wt-delta)  (throw (ex-info "Cannot advance% if wt is less than previous wall-time" {:wt wt :prev (:wt clock)}))
+      (zero? wt-delta) clock
+      :else            (let [st-delta (* wt-delta (:scale clock))
+                             st       (long (+ (:st clock) st-delta))]
+                         (assoc clock :wt wt :st st)))))
 
 (defn set-time [clock wt st]
   (assoc clock :wt wt :st st))
@@ -52,6 +56,8 @@
       (assoc :wt wt)
       (assoc :paused false)))
 
+(defn paused? [clock] (:paused clock))
+
 (defn advance [clock wt]
   (if (:paused clock)
     (assoc clock :wt wt)
@@ -61,15 +67,3 @@
   "Returns the current simulation time."
   [clock wt]
   (:st (advance clock wt)))
-
-(defn paused? [clock] (:paused clock))
-
-#_
-(-> (clock 0 0 0.5)
-    (advance 10)
-    (pause 12)
-    (advance 15)
-    (unpause 16)
-    (set-scale 18 -2.0)
-    (advance 20)
-    )
