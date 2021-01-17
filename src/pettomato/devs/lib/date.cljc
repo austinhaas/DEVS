@@ -14,6 +14,13 @@
   [date]
   (.getTime date))
 
+(def high-performance-timer-available?
+  (boolean
+   (and (find-ns 'window)
+        (find-ns 'window.performance)
+        (find-ns 'window.performance.timing)
+        (find-ns 'window.performance.timing.navigationStart))))
+
 (defn timestamp
   "Returns an integer representing the number of milliseconds since
   _some_ epoch. This is intended to be used when you only care about
@@ -22,8 +29,10 @@
   precision timestamp, if available."
      []
      #?(:clj  (.getTime (java.util.Date.))
-        :cljs (or (.now (.-performance js/window))
-                  (.getTime (js/Date.)))))
+        :cljs (if high-performance-timer-available?
+                (+ (.now (.-performance js/window))
+                   (.-navigationStart (.-timing (.-performance js/window))))
+                (.now js/Date))))
 
 (defn format-date
   ([date] (format-date "HH:mm:ss.SSS" date))
