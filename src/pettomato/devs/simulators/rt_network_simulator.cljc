@@ -159,8 +159,10 @@
           ((partial apply-network-structure-changes model->sim) net-msgs t)
           (assoc :int-mail {})
           (assoc :net-msgs []))))
-  (time-of-last-event [sim] (apply max (map time-of-last-event (vals k->sim))))
-  (time-of-next-event [sim] (apply min (map time-of-next-event (vals k->sim)))))
+  (time-of-last-event [sim]
+    (reduce max (map time-of-last-event (vals k->sim))))
+  (time-of-next-event [sim]
+    (reduce min (map time-of-next-event (vals k->sim)))))
 
 (declare rt-network-simulator)
 
