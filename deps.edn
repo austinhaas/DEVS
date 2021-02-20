@@ -14,15 +14,15 @@
                                           :port          5555
                                           :accept        clojure.core.server/repl
                                           :server-daemon false}}
-           :cljs-repl-server {:exec-fn   clojure.core.server/start-server
-                              :exec-args {:name          "cljs-repl-server"
-                                          :port          5555
-                                          :accept        cljs.server.node/repl
-                                          :args          [{:opts     {:warn-on-undeclared false}
-                                                           :env-opts {}}]
-                                          :server-daemon false}}
+           :cljs-node-repl-server {:exec-fn   clojure.core.server/start-server
+                                   :exec-args {:name          "cljs-node-repl-server"
+                                               :port          5555
+                                               :accept        cljs.server.node/repl
+                                               :args          [{:opts     {:warn-on-undeclared false}
+                                                                :env-opts {}}]
+                                               :server-daemon false}}
            :cljs-browser-repl-server {:exec-fn   clojure.core.server/start-server
-                                      :exec-args {:name          "cljs-repl-server"
+                                      :exec-args {:name          "cljs-browser-repl-server"
                                                   :port          5555
                                                   :accept        cljs.server.browser/repl
                                                   :args          [{:opts     {:warn-on-undeclared false}
