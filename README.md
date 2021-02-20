@@ -4,25 +4,11 @@ A discrete-event system based on the DEVS formalism.
 
 This version implements Dynamic Parallel DEVS with Ports.
 
-## Launching a REPL server (on port 5555)
+This is intended to be used as a library.
 
-### Clojure/JVM
+## Usage
 
-`clj -X:clj-repl-server`
-
-### ClojureScript/Node
-
-`clj -X:cljs-repl-server`
-
-## Running Tests
-
-### Clojure/JVM
-
-`clj -M:test:clj-runner`
-
-### ClojureScript/Node
-
-`clj -M:test:cljs-runner`
+Run `make` to get a list of commands.
 
 ## Reference
 
