@@ -91,16 +91,17 @@
       (reduce add-model  network-sim (:add-model  net-msgs))
       (reduce connect    network-sim (:connect    net-msgs)))))
 
-(defrecord NetworkSimulator [model k->sim routes queue int-mail net-msgs model->sim]
+(defrecord NetworkSimulator [model k->sim routes queue int-mail net-msgs model->sim tl]
   Simulator
   (initialize [sim t]
     (log/trace "--- initialize ---")
     ;; Assuming initialize will only be called once.
-    (as-> sim sim
-      ;; Add models.
-      (reduce-kv #(add-model model->sim %1 %2 %3 t) sim (:models model))
-      ;; Add routes.
-      (reduce connect sim (:routes model))))
+    (let [sim (as-> sim sim
+                ;; Add models.
+                (reduce-kv #(add-model model->sim %1 %2 %3 t) sim (:models model))
+                ;; Add routes.
+                (reduce connect sim (:routes model)))]
+      (assoc sim :tl (reduce max (map time-of-last-event (vals (:k->sim sim)))))))
   (collect-mail [sim t]
     (log/trace "--- collect-mail ---")
     (assert (= t (time-of-next-event sim))
@@ -141,9 +142,11 @@
           (apply-transitions mail t)
           ((partial apply-network-structure-changes model->sim) net-msgs t)
           (assoc :int-mail {})
-          (assoc :net-msgs []))))
-  (time-of-last-event [sim] (apply max (map time-of-last-event (vals k->sim))))
-  (time-of-next-event [sim] (or (pq/peek-key queue) infinity)))
+          (assoc :net-msgs [])
+          (assoc :tl t))))
+  (time-of-last-event [sim] tl)
+  (time-of-next-event [sim]
+    (or (pq/peek-key queue) infinity)))
 
 (declare network-simulator)
 
