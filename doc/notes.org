@@ -37,13 +37,17 @@
 *** DONE Confirm that it is working in the browser.
 *** DONE Cache the boolean expression.
 ** DONE Commit
-** Update README.
+** DONE Update README.
+** Check on current status
+*** DONE fix transducer bad idea
+*** DONE fix rt-devs-test
+*** commit work
+** Polish
+** Publish
 ** Setup example cljs project
-*** Add UI.
-*** What should we demo?
-    - Something useful for hackathon.
+*** DONE Set up a demo with D3.
+*** ---> Plug new system into game.
 ** Consider testing the RT root coordinator by faking the wall-time updates
-** ---> Plug new system into game.
 ** Document any good info in the above tasks, then delete them.
 ** Test a RT dynamic network.
 ** Test a mixed RT and non-RT network.
@@ -136,6 +140,16 @@
 ** Consider renaming queue to agenda.
 ** Implement structure changes for updating a model.
 ** update docs
+*** On mixing RT and non-RT models
+    - Why it is ok to assume toplevel models are RT.
+      - If all models were non-RT, then organization wouldn't matter; they could
+        all be at the toplevel (as far as this question of efficient updates is
+        concerned), and we'd use a non-RT root coordinator.
+      - If all models were RT, then organization also wouldn't matter; they'd
+        all need to get the RT ext update.
+      - If there is a mix of RT and non-RT, then there is an obvious grouping;
+        put all the non-RT models together. And then the only overhead is the
+        one model, or RT wrapper, around the non-RT network.
 *** Create notes from these tasks
 **** Solve the (single machine) synchronicity problem.
 ***** DONE Proposal: Trigger an int-update and get the time via *sim-time*.
@@ -689,16 +703,20 @@
     - Separate out returning the initial elapsed-time and make it default to 0.
 ** Add destructor to models.
 ** Improve debugging
-*** Render network using graphviz.
 *** Graphical animation
+**** Proposal: Use D3
+     - force simulation
+     https://github.com/d3/d3-force/blob/v2.1.1/README.md#forceSimulation
+     - Might be a great application/showcase for the customizable logging
+       system.
+     - Consider using the logging system to capture the state changes.
+       - Unsure if this is a good idea. The internal state of the system is
+         distinct from the simulation messages.
+*** Render network using graphviz.
 *** Stepper
     - Like prolog.
     - Step forward and back in time. Inspect states.
-** demo
-   - Restaurant
-*** Determine how to implement a Poisson distribution for customer arrivals.
 ** Check that we are using the high resolution timer for the browser.
-   - (now) is, but I thought there was a shim for rAF, too.
 ** Consider more improvements
 *** Consider declaring ports in models.
     - To elucidate the interface.
