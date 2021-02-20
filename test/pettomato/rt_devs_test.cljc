@@ -14,7 +14,7 @@
    [pettomato.devs.models.network-model :refer [network-model]]
    [pettomato.devs.root-coordinators.afap-root-coordinator :refer [afap-root-coordinator]]
    [pettomato.devs.root-coordinators.rt-step-root-coordinator
-    :refer [rt-step-root-coordinator step-through-to-wall-time get-sim-time unpause]]
+    :refer [rt-step-root-coordinator step-through-to-sim-time step-through-to-wall-time get-sim-time unpause]]
    [pettomato.devs.simulators.rt-atomic-simulator :refer [rt-atomic-simulator]]
    [pettomato.devs.simulators.rt-network-simulator :refer [rt-network-simulator]]))
 
@@ -140,17 +140,16 @@
    (deftest rt-network-test
      (let [net       (network-model {:gen (rt-generator 1000 'tick)
                                      :del (rt-delay1 200)}
-                                   [[:gen :out :del :in identity]
-                                    [:del :out :network :out identity]])
+                                    [[:gen :out :del :in identity]
+                                     [:del :out :network :out identity]])
            output    (atom [])
            rc        (-> net
-                        rt-network-simulator
-                        (rt-step-root-coordinator (timestamp)
-                                                  :scale     10.0
-                                                  :output-fn (fn [event-log]
-                                                               (when (seq event-log)
-                                                                 (swap! output into event-log))))
-                        (unpause (timestamp)))
+                         rt-network-simulator
+                         (rt-step-root-coordinator (timestamp)
+                                                   :scale     10.0
+                                                   :output-fn (fn [event-log]
+                                                                (when (seq event-log)
+                                                                  (swap! output into event-log)))))
            expected  [[1200 {:out ['tick]}]
                       [2200 {:out ['tick]}]
                       [3200 {:out ['tick]}]
@@ -161,13 +160,14 @@
                       [8200 {:out ['tick]}]
                       [9200 {:out ['tick]}]]
            step-size 100
-           end-time  11000]
-       (loop [rc rc]
+           end-time  10000]
+       (loop [rc (unpause rc (timestamp))]
          (Thread/sleep step-size)
          (let [t (timestamp)]
            (if (<= (get-sim-time rc t) end-time)
              (recur (step-through-to-wall-time rc t))
-             (is (event-log= expected @output))))))))
+             (let [rc (step-through-to-sim-time rc end-time)]
+               (is (event-log= expected @output)))))))))
 
 #?(:cljs
    (comment
@@ -195,13 +195,14 @@
                       [8200 {:out ['tick]}]
                       [9200 {:out ['tick]}]]
            step-size 1000
-           end-time  11000]
+           end-time  10000]
        (letfn [(tick [rc]
                  (let [t (timestamp)]
                    (println "tick: " t)
                    (if (<= (get-sim-time rc t) end-time)
                      (js/setTimeout tick step-size (step-through-to-wall-time rc t))
-                     (do (is (event-log= expected @output))
-                         (println 'done)))))]
+                     (let [rc (step-through-to-sim-time rc end-time)]
+                       (is (event-log= expected @output))
+                       (println 'done)))))]
          (js/setTimeout tick step-size rc)))
      ))
