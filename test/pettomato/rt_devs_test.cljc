@@ -130,9 +130,9 @@
                    (println "tick: " t)
                    (if (<= (get-sim-time rc t) end-time)
                      (js/setTimeout tick step-size (step-through-to-wall-time rc t))
-                     (do (is (event-log= expected @output))
-                         (println 'done)))))]
-         (js/setTimeout tick step-size rc)))
+                     (println "test:" (is (event-log= expected @output))))))]
+         (js/setTimeout tick step-size rc)
+         nil))
 
      ))
 
@@ -202,7 +202,7 @@
                    (if (<= (get-sim-time rc t) end-time)
                      (js/setTimeout tick step-size (step-through-to-wall-time rc t))
                      (let [rc (step-through-to-sim-time rc end-time)]
-                       (is (event-log= expected @output))
-                       (println 'done)))))]
-         (js/setTimeout tick step-size rc)))
+                       (println (is (event-log= expected @output)))))))]
+         (js/setTimeout tick step-size rc)
+         nil))
      ))
