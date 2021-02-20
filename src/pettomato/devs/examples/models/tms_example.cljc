@@ -1,5 +1,5 @@
 (ns pettomato.devs.examples.models.tms-example
-  "Example from Theory of Modeling and Simulation, 2nd Ed., pp. 237-240.
+  "A dynamic structure example from Theory of Modeling and Simulation, 2nd Ed., pp. 237-240.
 
   This server moves workers to where the work is, but it doesn't scale up or
   down otherwise."

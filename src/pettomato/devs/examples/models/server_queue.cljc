@@ -1,4 +1,5 @@
 (ns pettomato.devs.examples.models.server-queue
+  "A dynamic structure example."
   (:require
    [pettomato.devs.examples.models :refer [delay2]]
    [pettomato.devs.lib.coll :refer [queue]]
@@ -85,15 +86,16 @@
 
 (defn server
   "An atomic model that processes jobs by delegating them to a dynamic pool of
-  workers."
+  workers. Assumes that the containing network supports network structure
+  messages."
   [id]
   (atomic-model
-   (let [s {:id        id
-            :queue     queue ;; A FIFO of jobs.
-            :workers   queue ;; A FIFO of available workers.
-            :capacity  0
-            :output    {}
-            :sigma     infinity}
+   (let [s {:id       id
+            :queue    queue ;; A FIFO of jobs.
+            :workers  queue ;; A FIFO of available workers.
+            :capacity 0
+            :output   {}
+            :sigma    infinity}
          e 0]
       [s e])
     (fn internal-update     [state]
