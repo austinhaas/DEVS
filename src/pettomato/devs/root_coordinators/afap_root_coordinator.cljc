@@ -25,7 +25,7 @@
                  end   infinity
                  limit infinity}}]
   (binding [log/*log-function* log-fn]
-    (log/infof "START afap-root-coordinator {:start %s :end %s :limit %s}" start end limit)
+    (log/tracef "START afap-root-coordinator {:start %s :end %s :limit %s}" start end limit)
     (loop [sim (binding [*sim-time* start] (initialize sim start))
            out (transient [])
            i   0]
@@ -39,6 +39,6 @@
                              (conj! out [t out'])
                              out)]
             (recur sim out (inc i)))
-          (do (log/infof "END afap-root-coordinator {:start %s :end %s :limit %s}" start end limit)
+          (do (log/tracef "END afap-root-coordinator {:start %s :end %s :limit %s}" start end limit)
               (-> (persistent! out)
                   format-event-log)))))))
