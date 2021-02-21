@@ -15,7 +15,14 @@
   (testing "Advancing 1 second"
     (is (= 1000 (-> (clock/clock 0 0)
                     (clock/advance 1000)
-                    clock/get-sim-time)))))
+                    clock/get-sim-time))))
+
+  (testing "wall-time must be nondecreasing"
+    (is (thrown? #?(:clj clojure.lang.ExceptionInfo
+                    :cljs ExceptionInfo)
+                 (-> (clock/clock 0 0)
+                     (clock/advance 1000)
+                     (clock/advance 900))))))
 
 (deftest scale-factor-tests
 
