@@ -1,5 +1,5 @@
 (ns pettomato.devs.lib.clock
-  "A simulation clock based on wall time. Most functions take the current wall
+  "A simulation clock based on wall time. Some functions take the current wall
   time as an argument, which must be nondecreasing. Use a consistent and
   reliable source for supplying wall time, such as `(.getTime (java.util.Date.))`.")
 
