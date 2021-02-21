@@ -6,7 +6,9 @@
   Items with the same priority belong to a set.
 
   This implementation is intended for cases where delete and update are needed,
-  and there are more values than keys."
+  and many values map to the same key. An example of the latter condition is a
+  discrete-event simulation where many events map to the same scheduled time,
+  due to the granularity of time in the model."
   (:refer-clojure :exclude [empty? peek pop]))
 
 (declare insert)
