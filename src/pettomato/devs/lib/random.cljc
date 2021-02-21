@@ -90,8 +90,8 @@
     (vec a)))
 
 (defn random-sample
-  "Returns items from coll with random probability of prob (0.0 -
-  1.0).  Returns a transducer when no collection is provided."
+  "Returns items from coll with random probability of prob (0.0 - 1.0).
+  Returns a transducer when no collection is provided."
   ([prob]
    (filter (fn [_] (< (rand) prob))))
   ([prob coll]
