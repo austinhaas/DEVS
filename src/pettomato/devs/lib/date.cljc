@@ -9,11 +9,6 @@
   #?(:clj  (java.util.Date.)
      :cljs (js/Date.)))
 
-(defn ms
-  "Converts a date object into milliseconds."
-  [date]
-  (.getTime date))
-
 (def high-performance-timer-available?
   (boolean
    (and (find-ns 'window)
