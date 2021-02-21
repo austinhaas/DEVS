@@ -14,7 +14,7 @@
    [pettomato.devs.models.network-model :refer [network-model]]
    [pettomato.devs.root-coordinators.afap-root-coordinator :refer [afap-root-coordinator]]
    [pettomato.devs.root-coordinators.rt-step-root-coordinator
-    :refer [rt-step-root-coordinator step-through-to-sim-time step-through-to-wall-time get-sim-time]]
+    :refer [rt-step-root-coordinator step-through-to-wall-time get-sim-time]]
    [pettomato.devs.simulators.rt-atomic-simulator :refer [rt-atomic-simulator]]
    [pettomato.devs.simulators.rt-network-simulator :refer [rt-network-simulator]]))
 

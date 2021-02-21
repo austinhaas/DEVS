@@ -54,15 +54,6 @@
             [sim event-log'] (step-through sim end)]
         [sim (concat event-log event-log')]))))
 
-(defn step-through-to-sim-time
-  [rc sim-time]
-  (let [{:keys [clock sim output-fn]} rc
-        end                           sim-time
-        _                             (log/tracef "Updating sim-time to %s" end)
-        [sim out]                     (step-through-and-transition sim end)]
-    (output-fn out)
-    (assoc rc :clock clock :sim sim)))
-
 (defn step-through-to-wall-time
   [rc wall-time & {:keys [max-sim-time]
                    :or   {max-sim-time infinity}}]
