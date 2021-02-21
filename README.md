@@ -1,6 +1,6 @@
 # DEVS
 
-A discrete-event system based on the DEVS formalism.
+A discrete-event simulation system based on the DEVS formalism.
 
 This version implements Dynamic Parallel DEVS with Ports.
 
