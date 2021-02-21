@@ -32,10 +32,18 @@ test-cljs : ## Run ClojureScript tests
 .PHONY: test
 test : test-clj test-cljs ## Run both Clojure and ClojureScript tests
 
+pom.xml : deps.edn ## Generate pom.xml.
+	clj -Spom
+
+.PHONY: display-dependency-updates
+display-dependency-updates : pom.xml ## Report on stale dependencies
+	mvn versions:display-dependency-updates
+
 .PHONY: clean
 clean : ## Remove temporary files
 	rm -rf .cljs-test-runner-out
 	rm -rf .cpcache
+	rm -f pom.xml
 
 .DEFAULT_GOAL := help
 
