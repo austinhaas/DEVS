@@ -39,11 +39,16 @@ pom.xml : deps.edn ## Generate pom.xml
 display-dependency-updates : pom.xml ## Report on stale dependencies
 	mvn versions:display-dependency-updates
 
+.PHONY: coverage
+coverage : ## Report on unit test coverage (uses cloverage)
+	$(clojure) -M:coverage:test
+
 .PHONY: clean
 clean : ## Remove temporary files
 	rm -rf .cljs-test-runner-out
 	rm -rf .cljs_node_repl
 	rm -rf .cpcache
+	rm -rf target
 	rm -rf out
 	rm -f pom.xml
 

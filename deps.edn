@@ -1,29 +1,36 @@
 {:deps    {org.clojure/clojure       {:mvn/version "1.10.2"}
            org.clojure/clojurescript {:mvn/version "1.10.822"}
            org.clojure/test.check    {:mvn/version "1.1.0"}}
- :aliases {:test             {:extra-paths ["test"]}
-           :clj-runner       {:extra-deps {com.cognitect/test-runner {:git/url "https://github.com/cognitect-labs/test-runner.git"
-                                                                      :sha     "209b64504cb3bd3b99ecfec7937b358a879f55c1"}}
-                              :main-opts  ["-m" "cognitect.test-runner"]}
-           :cljs-runner      {:extra-deps {olical/cljs-test-runner {:mvn/version "3.8.0"}}
-                              :main-opts  ["-m" "cljs-test-runner.main"
-                                           "--out" ".cljs-test-runner-out"]}
-           :clj-repl-server  {:exec-fn   clojure.core.server/start-server
-                              :exec-args {:name          "clj-repl-server"
-                                          :port          5555
-                                          :accept        clojure.core.server/repl
-                                          :server-daemon false}}
-           :cljs-node-repl-server {:exec-fn   clojure.core.server/start-server
-                                   :exec-args {:name          "cljs-node-repl-server"
-                                               :port          5555
-                                               :accept        cljs.server.node/repl
-                                               :args          [{:opts     {:warn-on-undeclared false}
-                                                                :env-opts {}}]
-                                               :server-daemon false}}
+ :aliases {:test                     {:extra-paths ["test"]}
+           :clj-runner               {:extra-deps {com.cognitect/test-runner {:git/url "https://github.com/cognitect-labs/test-runner.git"
+                                                                              :sha     "209b64504cb3bd3b99ecfec7937b358a879f55c1"}}
+                                      :main-opts  ["-m" "cognitect.test-runner"]}
+           :cljs-runner              {:extra-deps {olical/cljs-test-runner {:mvn/version "3.8.0"}}
+                                      :main-opts  ["-m" "cljs-test-runner.main"
+                                                   "--out" ".cljs-test-runner-out"]}
+           :clj-repl-server          {:exec-fn   clojure.core.server/start-server
+                                      :exec-args {:name          "clj-repl-server"
+                                                  :port          5555
+                                                  :accept        clojure.core.server/repl
+                                                  :server-daemon false}}
+           :cljs-node-repl-server    {:exec-fn   clojure.core.server/start-server
+                                      :exec-args {:name          "cljs-node-repl-server"
+                                                  :port          5555
+                                                  :accept        cljs.server.node/repl
+                                                  :args          [{:opts     {:warn-on-undeclared false}
+                                                                   :env-opts {}}]
+                                                  :server-daemon false}}
            :cljs-browser-repl-server {:exec-fn   clojure.core.server/start-server
                                       :exec-args {:name          "cljs-browser-repl-server"
                                                   :port          5555
                                                   :accept        cljs.server.browser/repl
                                                   :args          [{:opts     {:warn-on-undeclared false}
                                                                    :env-opts {}}]
-                                                  :server-daemon false}}}}
+                                                  :server-daemon false}}
+           :coverage                 {:extra-deps  {cloverage/cloverage {:mvn/version "RELEASE"}}
+                                      :main-opts   ["-m" "cloverage.coverage"
+                                                    "--src-ns-path" "src"
+                                                    "--test-ns-path" "test"]
+                                      :exec-fn     cloverage.coverage/run-project
+                                      :exec-args   {:src-ns-path  ["src"]
+                                                    :test-ns-path ["test"]}} }}
