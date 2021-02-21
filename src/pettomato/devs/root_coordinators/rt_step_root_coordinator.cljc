@@ -3,6 +3,7 @@
    [pettomato.devs.lib.clock :as clock]
    [pettomato.devs.lib.event-log :refer [pp-event-log]]
    [pettomato.devs.lib.log :as log]
+   [pettomato.devs.lib.number :refer [infinity]]
    [pettomato.devs.root-coordinators.step-root-coordinator :refer [step-through step-root-coordinator]]
    [pettomato.devs.simulator :refer [transition time-of-last-event]]
    [pettomato.devs.vars :refer [*sim-time*]]))
@@ -28,7 +29,7 @@
                                        (let [s (with-out-str (pp-event-log event-log))]
                                          (when (seq s)
                                            (log/infof "*** output *** \n%s" s))))}}]
-  {:clock     (clock/clock wall-time start scale)
+  {:clock     (clock/clock wall-time start :scale-factor scale)
    :sim       (step-root-coordinator sim :start start)
    :output-fn output-fn
    :status    :stopped})
@@ -63,34 +64,23 @@
     (assoc rc :clock clock :sim sim)))
 
 (defn step-through-to-wall-time
-  [rc wall-time]
+  [rc wall-time & {:keys [max-sim-time]
+                   :or   {max-sim-time infinity}}]
   (let [{:keys [clock sim output-fn]} rc
         clock                         (clock/advance clock wall-time)
-        end                           (clock/get-time clock wall-time)
-        _                             (log/tracef "Updating sim-time to %s" end)
-        [sim out]                     (step-through-and-transition sim end)]
+        sim-time                      (min (clock/get-sim-time clock) max-sim-time)
+        _                             (log/tracef "Updating sim-time to %s" sim-time)
+        [sim out]                     (step-through-and-transition sim sim-time)]
     (output-fn out)
     (assoc rc :clock clock :sim sim)))
 
-(defn get-clock-scale
+(defn get-clock-scale-factor
   [rc]
-  (clock/get-scale (:clock rc)))
+  (clock/get-scale-factor (:clock rc)))
 
-(defn set-clock-scale
+(defn set-clock-scale-factor
   [rc wt scale]
-  (update rc :clock clock/set-scale wt scale))
+  (update rc :clock clock/set-scale-factor wt scale))
 
-(defn pause
-  [rc wt]
-  (update rc :clock clock/pause wt))
-
-(defn unpause
-  [rc wt]
-  (update rc :clock clock/unpause wt))
-
-(defn paused?
-  [rc]
-  (clock/paused? (:clock rc)))
-
-(defn get-sim-time [rc wt]
-  (clock/get-time (:clock rc) wt))
+(defn get-sim-time [rc]
+  (clock/get-sim-time (:clock rc)))
