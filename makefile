@@ -22,7 +22,7 @@ cljs-browser-repl : ## Start a REPL server for ClojureScript (browser)
 	@$(clojure) -X:cljs-browser-repl-server :port $(REPL_SERVER_PORT)
 
 .PHONY: test-clj
-test-clj : ## Run Clojure tests.
+test-clj : ## Run Clojure tests
 	$(clojure) -M:clj-runner:test
 
 .PHONY: test-cljs
@@ -32,7 +32,7 @@ test-cljs : ## Run ClojureScript tests
 .PHONY: test
 test : test-clj test-cljs ## Run both Clojure and ClojureScript tests
 
-pom.xml : deps.edn ## Generate pom.xml.
+pom.xml : deps.edn ## Generate pom.xml
 	clj -Spom
 
 .PHONY: display-dependency-updates
