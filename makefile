@@ -42,7 +42,9 @@ display-dependency-updates : pom.xml ## Report on stale dependencies
 .PHONY: clean
 clean : ## Remove temporary files
 	rm -rf .cljs-test-runner-out
+	rm -rf .cljs_node_repl
 	rm -rf .cpcache
+	rm -rf out
 	rm -f pom.xml
 
 .DEFAULT_GOAL := help
