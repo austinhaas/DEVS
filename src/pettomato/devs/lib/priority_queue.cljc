@@ -32,8 +32,10 @@
   "Delete item v with priority k from pq."
   [pq k v]
   (let [pq (update pq k disj v)]
-    ;; Empty sets are pruned, so the size doesn't grow if the set of possible
-    ;; keys is unbound.
+    ;; Empty sets are pruned, to keep the total size of the map to a
+    ;; minimum. This is especially important for cases where new keys are
+    ;; constantly being introduced and old keys are never used again, such as
+    ;; with keys that represent advancing points in time.
     (if (clojure.core/empty? (get pq k))
       (dissoc pq k)
       pq)))
