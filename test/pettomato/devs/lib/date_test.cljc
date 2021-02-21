@@ -4,8 +4,15 @@
       [clojure.test :refer [deftest is testing]]
       :cljs
       [cljs.test :refer-macros [deftest is testing]])
-   [pettomato.devs.lib.date :refer [now format-date]]))
+   [pettomato.devs.lib.date :as date]))
 
 (deftest date-test
-  (testing "Just make sure they can be called without error."
-    (is (string? (format-date (now))))))
+
+  (testing "now is evaluated without error"
+    (is (date/now)))
+
+  (testing "timestamp is evaluated without error"
+    (is (date/timestamp)))
+
+  (testing "format-date is evaluated without error"
+    (is (string? (date/format-date (date/now))))))

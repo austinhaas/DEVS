@@ -9,12 +9,13 @@
   #?(:clj  (java.util.Date.)
      :cljs (js/Date.)))
 
-(def high-performance-timer-available?
-  (boolean
-   (and (find-ns 'window)
-        (find-ns 'window.performance)
-        (find-ns 'window.performance.timing)
-        (find-ns 'window.performance.timing.navigationStart))))
+#?(:cljs
+   (def high-performance-timer-available?
+     (boolean
+      (and (find-ns 'window)
+           (find-ns 'window.performance)
+           (find-ns 'window.performance.timing)
+           (find-ns 'window.performance.timing.navigationStart)))))
 
 (defn timestamp
   "Returns an integer representing the number of milliseconds since
