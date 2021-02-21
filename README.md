@@ -4,9 +4,15 @@ A discrete-event system based on the DEVS formalism.
 
 This version implements Dynamic Parallel DEVS with Ports.
 
+## Usage
+
 This is intended to be used as a library.
 
-## Usage
+See the docstrings for documentation.
+
+See the tests for example usage.
+
+## Development
 
 Run `make` to get a list of commands.
 
