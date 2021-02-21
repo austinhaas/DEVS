@@ -1,6 +1,33 @@
 (ns pettomato.devs.lib.random
   "Seedable drop-in replacements for Clojure's random functions. Uses
-  clojure.test.check.random for the PRNG implementation."
+  clojure.test.check.random for the PRNG implementation.
+
+  Be careful with lazy sequences. For example,
+
+  (with-random-seed 123
+    (repeatedly 100 rand))
+
+  will not produce repeatable values, because `rand` will be evaluated outside
+  `with-random-seed`.
+
+  If the whole seq can be realized, then one solution is to add a `doall`. For
+  example,
+
+  (with-random-seed 123
+    (doall (repeatedly 100 rand)))
+
+  will produce repeatable values.
+
+  Note that this specific problem won't occur if the lazy seq is created and
+  consumed within the body of `with-random-seed`. For example, the main entry
+  point for an entire app might start with `with-random-seed`. But it is
+  probably a good idea to avoid mixing laziness with random number generation,
+  just like other side-effects. You wouldn't want the sequence of random numbers
+  to depend on the lazy sequence chunking implementation, for example.
+
+  I'm assuming that similar considerations apply to distributed computing; I
+  haven't looked into that. I'd start an investigation with the underlying
+  library this code is based on: clojure.test.check.random."
   (:refer-clojure :exclude [rand rand-int shuffle random-sample rand-nth])
   #?(:cljs
      (:require-macros
