@@ -90,8 +90,16 @@
     (vec a)))
 
 (defn random-sample
-  "Returns items from coll with random probability of prob (0.0 - 1.0).
-  Returns a transducer when no collection is provided."
+  "Returns a lazy seq of items from coll with random probability given by `prob`,
+  which is a number from 0.0 to 1.0, inclusive. Returns a transducer when no
+  collection is provided. The items in the result will be in the same order as
+  the input collection.
+
+  For example, (random-sample 0.5 xs) will return a collection about half the
+  size of xs. Each item in xs will have a 50% chance of being included in the
+  result.
+
+  See the note in the namespace docstring about laziness."
   ([prob]
    (filter (fn [_] (< (rand) prob))))
   ([prob coll]
