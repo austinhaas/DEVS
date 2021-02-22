@@ -30,75 +30,66 @@
 
 (defn inverter [delay]
   (atomic-model
-   [{:out   false
-     :sigma 0}
-    0]
-   (fn int-update [s]
-     (assoc s :sigma infinity))
-   (fn ext-update [s e x]
-     (let [out (not (last (:in x)))]
-       (if (= out (:out s))
-         (update s :sigma - e)
-         (assoc s :out out :sigma delay))))
-   nil
-   (fn output [s] {:out [(:out s)]})
-   :sigma))
+   :initial-state   {:out   false
+                     :sigma 0}
+   :internal-update (fn [s] (assoc s :sigma infinity))
+   :external-update (fn [s e x]
+                      (let [out (not (last (:in x)))]
+                        (if (= out (:out s))
+                          (update s :sigma - e)
+                          (assoc s :out out :sigma delay))))
+   :output          (fn [s] {:out [(:out s)]})
+   :time-advance    :sigma))
 
 (defn and-gate [delay]
   (atomic-model
-   [{:in-1  false
-     :in-2  false
-     :out   false
-     :sigma 0}
-    0]
-   (fn int-update [s]
-     (assoc s :sigma infinity))
-   (fn ext-update [s e x]
-     (let [;; Intake messages.
-           s' (reduce-kv (fn [s port vs]
-                           (case port
-                             :in-1 (assoc s :in-1 (last vs))
-                             :in-2 (assoc s :in-2 (last vs))))
-                         s
-                         x)
-           ;; Compute result.
-           s' (assoc s' :out (and (:in-1 s')
-                                  (:in-2 s')))]
-       ;; Update delay clock.
-       (if (= (:out s) (:out s')) ;; Has the output changed?
-         (update s' :sigma - e)
-         (assoc s' :sigma delay))))
-   nil
-   (fn output [s] {:out [(:out s)]})
-   :sigma))
+   :initial-state   {:in-1  false
+                     :in-2  false
+                     :out   false
+                     :sigma 0}
+   :internal-update (fn [s] (assoc s :sigma infinity))
+   :external-update (fn [s e x]
+                      (let [;; Intake messages.
+                            s' (reduce-kv (fn [s port vs]
+                                            (case port
+                                              :in-1 (assoc s :in-1 (last vs))
+                                              :in-2 (assoc s :in-2 (last vs))))
+                                          s
+                                          x)
+                            ;; Compute result.
+                            s' (assoc s' :out (and (:in-1 s')
+                                                   (:in-2 s')))]
+                        ;; Update delay clock.
+                        (if (= (:out s) (:out s')) ;; Has the output changed?
+                          (update s' :sigma - e)
+                          (assoc s' :sigma delay))))
+   :output          (fn [s] {:out [(:out s)]})
+   :time-advance    :sigma))
 
 (defn or-gate [delay]
   (atomic-model
-   [{:in-1  false
-     :in-2  false
-     :out   false
-     :sigma 0}
-    0]
-   (fn int-update [s]
-     (assoc s :sigma infinity))
-   (fn ext-update [s e x]
-     (let [;; Intake messages.
-           s' (reduce-kv (fn [s port vs]
-                           (case port
-                             :in-1 (assoc s :in-1 (last vs))
-                             :in-2 (assoc s :in-2 (last vs))))
-                         s
-                         x)
-           ;; Compute result.
-           s' (assoc s' :out (or (:in-1 s')
-                                 (:in-2 s')))]
-       ;; Update delay clock.
-       (if (= (:out s) (:out s')) ;; Has the output changed?
-         (update s' :sigma - e)
-         (assoc s' :sigma delay))))
-   nil
-   (fn output [s] {:out [(:out s)]})
-   :sigma))
+   :initial-state   {:in-1  false
+                     :in-2  false
+                     :out   false
+                     :sigma 0}
+   :internal-update (fn [s] (assoc s :sigma infinity))
+   :external-update (fn [s e x]
+                      (let [;; Intake messages.
+                            s' (reduce-kv (fn [s port vs]
+                                            (case port
+                                              :in-1 (assoc s :in-1 (last vs))
+                                              :in-2 (assoc s :in-2 (last vs))))
+                                          s
+                                          x)
+                            ;; Compute result.
+                            s' (assoc s' :out (or (:in-1 s')
+                                                  (:in-2 s')))]
+                        ;; Update delay clock.
+                        (if (= (:out s) (:out s')) ;; Has the output changed?
+                          (update s' :sigma - e)
+                          (assoc s' :sigma delay))))
+   :output          (fn [s] {:out [(:out s)]})
+   :time-advance    :sigma))
 
 ;;------------------------------------------------------------------------------
 ;; Composite function boxes

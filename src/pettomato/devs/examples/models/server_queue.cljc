@@ -90,30 +90,27 @@
   messages."
   [id]
   (atomic-model
-   (let [s {:id       id
-            :queue    queue ;; A FIFO of jobs.
-            :workers  queue ;; A FIFO of available workers.
-            :capacity 0
-            :output   {}
-            :sigma    infinity}
-         e 0]
-      [s e])
-    (fn internal-update     [state]
-      (-> (assoc state :output {} :sigma infinity)
-          distribute-work))
-    (fn external-update     [state elapsed messages]
-      (reduce-kv (fn [state port vs]
-                   (cond
-                     ;; incoming jobs
-                     (= port :in) (-> state
-                                      (import-jobs vs)
-                                      maybe-grow)
-                     ;; completed jobs
-                     :else        (-> state
-                                      (export-jobs (second port) vs)
-                                      maybe-shrink)))
-                 (assoc state :sigma 0)
-                 messages))
-    nil
-    :output
-    :sigma))
+   :initial-state   {:id       id
+                     :queue    queue ;; A FIFO of jobs.
+                     :workers  queue ;; A FIFO of available workers.
+                     :capacity 0
+                     :output   {}
+                     :sigma    infinity}
+   :internal-update (fn [state]
+                      (-> (assoc state :output {} :sigma infinity)
+                          distribute-work))
+   :external-update (fn [state elapsed messages]
+                      (reduce-kv (fn [state port vs]
+                                   (cond
+                                     ;; incoming jobs
+                                     (= port :in) (-> state
+                                                      (import-jobs vs)
+                                                      maybe-grow)
+                                     ;; completed jobs
+                                     :else        (-> state
+                                                      (export-jobs (second port) vs)
+                                                      maybe-shrink)))
+                                 (assoc state :sigma 0)
+                                 messages))
+   :output          :output
+   :time-advance    :sigma))

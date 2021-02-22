@@ -72,12 +72,13 @@
                         :int (fn [s x] (ext-update (int-update s) 0 x))
                         :ext (fn [s x] (int-update (ext-update s (time-advance s) x)))
                         nil)]
-    (atomic-model [initial-state 0]
-                  int-update
-                  ext-update
-                  con-update
-                  output
-                  time-advance)))
+    (atomic-model
+     :initial-state    initial-state
+     :internal-update  int-update
+     :external-update  ext-update
+     :confluent-update con-update
+     :output           output
+     :time-advance     time-advance)))
 
 (deftest confluence-tests
 

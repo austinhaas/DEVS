@@ -56,27 +56,23 @@
                   (case (first port)
                     :in (-> s (send v) (idle (second port)) maybe-process-next)))))]
       (atomic-model
-       ;; Initial state.
-       (let [queue []
-             state {:idle   server-ks
-                    :queue  queue
-                    :sigma  0
-                    :output {:init [[(count queue) (count server-ks)]]}}
-             state (reduce add-server state server-ks)
-             e     0]
-         [state e])
-       (fn int-update [s]
-         (log/trace "int-update")
-         (assoc s :sigma infinity :output {}))
-       (fn ext-update [s e x]
-         (log/tracef "ext-update: %s" x)
-         (let [s' (-> (reduce dispatch s (for [[k vs] x, v vs] [k v]))
-                      ;; Assuming every external event results in an output message.
-                      (assoc :sigma 0))]
-           (update-in s' [:output :size] conj [(count (:queue s')) (count (:idle s'))])))
-       nil
-       :output
-       :sigma))))
+       :initial-state   (let [queue []
+                              state {:idle   server-ks
+                                     :queue  queue
+                                     :sigma  0
+                                     :output {:init [[(count queue) (count server-ks)]]}}]
+                          (reduce add-server state server-ks))
+       :internal-update (fn [s]
+                          (log/trace "int-update")
+                          (assoc s :sigma infinity :output {}))
+       :external-update (fn [s e x]
+                          (log/tracef "ext-update: %s" x)
+                          (let [s' (-> (reduce dispatch s (for [[k vs] x, v vs] [k v]))
+                                       ;; Assuming every external event results in an output message.
+                                       (assoc :sigma 0))]
+                            (update-in s' [:output :size] conj [(count (:queue s')) (count (:idle s'))])))
+       :output          :output
+       :time-advance    :sigma))))
 
 (defn node [n-servers]
   (network-model {:queue (queue :queue n-servers)}
@@ -112,28 +108,25 @@
                                                             (update-in [:in-transit-to 0] inc))
                 :else                                   s)))]
     (atomic-model
-     (let [s {:output      {}
-              :sigma       infinity
-              :queue-sizes [0 0]
-              :idle-sizes  [0 0]}
-           e 0]
-       [s e])
-     (fn int-update [s]
-       (assoc s :sigma infinity :output {}))
-     (fn ext-update [s e x]
-       (let [s (assoc s :in-transit-to [0 0])]
-         (-> (reduce (fn [s [port [q-size idle-size]]]
-                       (case port
-                         :init1 (update-size s 0 q-size idle-size)
-                         :init2 (update-size s 1 q-size idle-size)
-                         :size1 (update-size s 0 q-size idle-size)
-                         :size2 (update-size s 1 q-size idle-size)))
-                     (assoc s :sigma 0)
-                     (for [[k vs] x, v vs] [k v]))
-             maybe-move)))
-     nil
-     :output
-     :sigma)))
+     :initial-state   {:output      {}
+                       :sigma       infinity
+                       :queue-sizes [0 0]
+                       :idle-sizes  [0 0]}
+     :internal-update (fn [s]
+                        (assoc s :sigma infinity :output {}))
+     :external-update (fn [s e x]
+                        (let [s (assoc s :in-transit-to [0 0])]
+                          (-> (reduce (fn [s [port [q-size idle-size]]]
+                                        (case port
+                                          :init1 (update-size s 0 q-size idle-size)
+                                          :init2 (update-size s 1 q-size idle-size)
+                                          :size1 (update-size s 0 q-size idle-size)
+                                          :size2 (update-size s 1 q-size idle-size)))
+                                      (assoc s :sigma 0)
+                                      (for [[k vs] x, v vs] [k v]))
+                              maybe-move)))
+     :output          :output
+     :time-advance    :sigma)))
 
 (defn network-1 [n-servers-per-node threshold]
   (network-model
