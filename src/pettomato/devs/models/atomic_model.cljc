@@ -20,11 +20,17 @@
     external-update - A function that takes a state, an elapsed time, and a bag
   of messages, and returns a new state.
 
-    confluent-update - A function that takes a state and a bag of messages, and
-  returns a new state. Called when the model is imminent and has incoming
-  messages. The bag of messages is implemented as a map from ports to sequences
-  of values. If nil, a default implementation that first calls
-  internal-update-fn and then calls external-update-fn will be used.
+    confluent-update - A function (or keyword, see below) that takes a state and
+  a bag of messages, and returns a new state. Called when the model is imminent
+  and has incoming messages. The bag of messages is implemented as a map from
+  ports to sequences of values. For convenience, special keywords can be
+  supplied instead of a function, and a corresponding function will be created:
+
+      :internal-first - Generates a function that calls internal-update and then
+  external-update. This is the default if confluent-update is not specified.
+
+      :external-first - Generates a function that calls external-update and then
+  internal-update.
 
     output - A function that takes a state and returns a bag of messages.
 
@@ -46,11 +52,14 @@
       :or   {initial-elapsed-time 0
              internal-update      identity
              external-update      (fn [s e x] s)
-             output               (constantly nil)
+             output               (constantly {})
              time-advance         (constantly infinity)}
       :as   options}]
-  (let [confluent-update (or confluent-update
-                             (fn [s x] (external-update (internal-update s) 0 x)))]
+  (let [confluent-update (cond
+                           (ifn? confluent-update)                   confluent-update
+                           (or (nil? confluent-update)
+                               (= :internal-first confluent-update)) (fn [s x] (external-update (internal-update s) 0 x))
+                           (= :external-first confluent-update)      (fn [s x] (internal-update (external-update s (time-advance s) x))))]
     (assert (number? initial-elapsed-time))
     (assert (ifn? internal-update))
     (assert (ifn? external-update))
