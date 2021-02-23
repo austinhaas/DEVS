@@ -40,9 +40,8 @@
                 [:gen :out-2 :server :in2 identity]
                 [:server :out :network :out identity]
                 [:server :structure :network :structure identity]])]
-      (testing "Runs without errors."
-        (is (boolean (seq (afap-root-coordinator (network-simulator net) :start 0 :end 2000)))))
-      ;; Uncomment the following expression to print out the results.
-      #_
-      (-> (afap-root-coordinator (network-simulator net) :start 0 :end 2000)
-          pp-event-log))))
+      (testing "Runs without errors. Test pp-event-log, too."
+        (is (< 0 (count
+                  (with-out-str
+                    (-> (afap-root-coordinator (network-simulator net) :start 0 :end 2000)
+                        pp-event-log)))))))))
