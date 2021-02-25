@@ -18,7 +18,6 @@
    [pettomato.devs.lib.coll :refer [prune]]
    [pettomato.devs.lib.log :as log]
    [pettomato.devs.lib.mail :refer [merge-mail route-mail sort-mail]]
-   [pettomato.devs.lib.number :refer [infinity]]
    [pettomato.devs.models.atomic-model :refer [atomic-model?]]
    [pettomato.devs.models.network-model :refer [network-model?]]
    [pettomato.devs.simulator :refer [Simulator initialize collect-mail transition time-of-last-event time-of-next-event]]
