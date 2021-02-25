@@ -41,7 +41,7 @@ display-dependency-updates : pom.xml ## Report on stale dependencies
 
 .PHONY: coverage
 coverage : ## Report on unit test coverage (uses cloverage)
-	$(clojure) -M:coverage:test
+	$(clojure) -M:test:coverage
 
 .PHONY: eastwood
 eastwood : ## Run the Eastwood linter
