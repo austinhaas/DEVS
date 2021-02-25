@@ -55,6 +55,7 @@ clean : ## Remove temporary files
 	rm -rf target
 	rm -rf out
 	rm -f pom.xml
+	rm -rf .eastwood
 
 .DEFAULT_GOAL := help
 
