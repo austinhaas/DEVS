@@ -29,10 +29,11 @@
                                                   :server-daemon false}}
            :coverage                 {:extra-deps {cloverage/cloverage {:mvn/version "RELEASE"}}
                                       :main-opts  ["-m" "cloverage.coverage"
-                                                    "--src-ns-path" "src"
-                                                    "--test-ns-path" "test"]
+                                                   "--src-ns-path" "src"
+                                                   "--test-ns-path" "test"]
                                       :exec-fn    cloverage.coverage/run-project
                                       :exec-args  {:src-ns-path  ["src"]
                                                    :test-ns-path ["test"]}}
-           :eastwood                 {:main-opts  ["-m" "eastwood.lint" {:source-paths ["src"]}]
+           :eastwood                 {:main-opts  ["-m" "eastwood.lint" {:source-paths ["src"]
+                                                                         :add-linters  [:unused-fn-args :unused-locals :unused-namespaces :unused-private-vars]}]
 	                                    :extra-deps {jonase/eastwood {:mvn/version "RELEASE"}}}}}
