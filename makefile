@@ -43,6 +43,10 @@ display-dependency-updates : pom.xml ## Report on stale dependencies
 coverage : ## Report on unit test coverage (uses cloverage)
 	$(clojure) -M:coverage:test
 
+.PHONY: eastwood
+eastwood : ## Run the Eastwood linter
+	$(clojure) -M:test:eastwood
+
 .PHONY: clean
 clean : ## Remove temporary files
 	rm -rf .cljs-test-runner-out
