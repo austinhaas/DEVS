@@ -20,7 +20,7 @@
 
     max-steps - Maximum number of steps. Intended usage: preventing runaway
   simulations (e.g., a model constantly returns a time-advance value of
-  0). Default: infinity."
+  0). Default: infinity. Throws an AssertionError if max-steps is reached."
   [sim & {:keys [start end max-steps]
           :or   {start     0
                  end       infinity
