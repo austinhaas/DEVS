@@ -1,12 +1,13 @@
 (ns pettomato.devs.root-coordinators.step-root-coordinator
-  "A root coordinator that can be run in steps."
   (:require
    [pettomato.devs.lib.log :as log]
    [pettomato.devs.lib.number :refer [infinity]]
    [pettomato.devs.simulator :refer [initialize collect-mail transition time-of-next-event]]
    [pettomato.devs.vars :refer [*sim-time*]]))
 
-(defn- step-1 [sim t]
+(defn- step-1
+  "Advance sim to time t. Returns [sim mail]."
+  [sim t]
   (binding [*sim-time* t]
     (log/tracef "step-1 t: %s" t)
     (let [[sim out] (collect-mail sim t)
@@ -14,7 +15,7 @@
       [sim out])))
 
 (defn step-while
-  "Step sim while (compare (time-of-next-event sim) end) returns logical true.
+  "Advance sim while (compare (time-of-next-event sim) end) returns logical true.
 
   Returns [sim event-log]."
   [sim end & {:keys [compare]
@@ -32,25 +33,34 @@
         :else           [sim out]))))
 
 (defn step-to
-  "Step sim up to, but not including, time end.
+  "Advance sim to end-time (exclusive).
 
   Returns [sim event-log]."
   [sim end]
   (step-while sim end :compare <))
 
 (defn step-through
-  "Step sim up to, and including, end time.
+  "Advance sim to end time (inclusive).
 
-  Note that this doesn't guarantee that there won't be another event at end
-  time. In general, simulators only guarantee that the timestamps are
-  nondecreasing, and the real-time simulator, in particular, allows simulators
-  to change their time-of-next-event.
+  Returns [sim event-log].
 
-  Returns [sim event-log]."
+  Note that this does not guarantee that there won't be another event at end
+  time. Simulators only guarantee that timestamps are nondecreasing."
   [sim end]
   (step-while sim end :compare <=))
 
 (defn step-root-coordinator
+  "Step through a simulation.
+
+  Args:
+    sim - A simulator.
+
+  Optional keyword args:
+    start - Simulation start time (inclusive). Default: 0.
+
+  Returns:
+    An initialized simulator. Use `step-while`, `step-to`, and
+   `step-through` to advance it."
   [sim & {:keys [start]
           :or   {start 0}}]
   (binding [*sim-time* start]
