@@ -12,33 +12,33 @@
 
   Returns a seq of [timestamp mail].
 
-  Options:
+  Optional keyword args:
 
-  start - Simulation start time (inclusive). Default: 0.
+    start - Simulation start time (inclusive). Default: 0.
 
-  end - Simulation end time (exclusive). Default: infinity.
+    end - Simulation end time (exclusive). Default: infinity.
 
-  limit - Maximum number of iterations. Intended to prevent runaway
-  simulations. Default: infinity."
-  [sim & {:keys [start end limit]
-          :or   {start 0
-                 end   infinity
-                 limit infinity}}]
-  (binding [log/*log-function* log-fn]
-    (log/tracef "START afap-root-coordinator {:start %s :end %s :limit %s}" start end limit)
-    (loop [sim (binding [*sim-time* start] (initialize sim start))
-           out (transient [])
-           i   0]
-      (assert (< i limit) (str "limit reached: " i))
-      (let [t (time-of-next-event sim)]
-        (binding [*sim-time* t] (log/tracef "[ step %s ] --------------------------------------------------" i))
-        (if (< t end)
-          (let [[sim out'] (binding [*sim-time* t] (collect-mail sim t))
-                sim        (binding [*sim-time* t] (transition sim {} t))
-                out        (if (seq out')
-                             (conj! out [t out'])
-                             out)]
-            (recur sim out (inc i)))
-          (do (log/tracef "END afap-root-coordinator {:start %s :end %s :limit %s}" start end limit)
-              (-> (persistent! out)
-                  format-event-log)))))))
+    max-steps - Maximum number of steps. Intended usage: preventing runaway
+  simulations (e.g., a model constantly returns a time-advance value of
+  0). Default: infinity."
+  [sim & {:keys [start end max-steps]
+          :or   {start     0
+                 end       infinity
+                 max-steps infinity}}]
+  (log/tracef "START afap-root-coordinator {:start %s :end %s :max-steps %s}" start end max-steps)
+  (loop [sim (binding [*sim-time* start] (initialize sim start))
+         out (transient [])
+         i   0]
+    (assert (< i max-steps) (str "Maximum number of steps reached: " i))
+    (let [t (time-of-next-event sim)]
+      (binding [*sim-time* t] (log/tracef "[ step %s ] --------------------------------------------------" i))
+      (if (< t end)
+        (let [[sim out'] (binding [*sim-time* t] (collect-mail sim t))
+              sim        (binding [*sim-time* t] (transition sim {} t))
+              out        (if (seq out')
+                           (conj! out [t out'])
+                           out)]
+          (recur sim out (inc i)))
+        (do (log/tracef "END afap-root-coordinator {:start %s :end %s :max-steps %s}" start end max-steps)
+            (-> (persistent! out)
+                format-event-log))))))
