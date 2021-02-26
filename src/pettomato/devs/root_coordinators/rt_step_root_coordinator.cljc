@@ -11,28 +11,35 @@
 (defn rt-step-root-coordinator
   "A real-time root-coordinator that can be run in steps.
 
-  This provides a system to map from wallclock-time to sim-time, but something
-  else still needs to drive the updates.
+  This extends the step-root-coordinator with functionality to map from
+  wall-time to sim-time. Something else will need to drive the updates.
 
-  Options:
+  Args:
+    sim - A simulator.
 
-  start - Simulation start time (inclusive). Default: 0.
+    wall-time - The current wall-time.
 
-  scale - The time scale factor. Default: 1.0.
+  Optional keyword args:
+    start - Simulation start time (inclusive). Default: 0.
 
-  output-fn - A function that will be invoked each time there is simulation
-  output. It should take a single argument: an event log."
-  [sim wall-time & {:keys [start scale output-fn]
-                    :or   {start     0
-                           scale     1.0
-                           output-fn (fn [event-log]
-                                       (let [s (with-out-str (pp-event-log event-log))]
-                                         (when (seq s)
-                                           (log/infof "*** output *** \n%s" s))))}}]
-  {:clock     (clock/clock wall-time start :scale-factor scale)
+    scale - The time scale factor. Default: 1.0.
+
+    output-fn - A function that will be invoked each time there is simulation
+  output. It should take a single argument: an event log. Default: A function
+  that logs a pretty-printed version of the output at the info log level.
+
+  Returns:
+    A root-coordinator."
+  [sim wall-time & {:keys [start scale-factor output-fn]
+                    :or   {start        0
+                           scale-factor 1.0
+                           output-fn    (fn [event-log]
+                                          (let [s (with-out-str (pp-event-log event-log))]
+                                            (when (seq s)
+                                              (log/infof "*** output *** \n%s" s))))}}]
+  {:clock     (clock/clock wall-time start :scale-factor scale-factor)
    :sim       (step-root-coordinator sim :start start)
-   :output-fn output-fn
-   :status    :stopped})
+   :output-fn output-fn})
 
 (defn- step-through-and-transition
   "Like step-through, but always invokes a transition at end time, even if the
@@ -42,9 +49,9 @@
   (let [[sim event-log] (step-through sim end)]
     ;; If there happens to be a scheduled event at end time, then there is no
     ;; need for the artificial transition. But if there isn't, the artificial
-    ;; transition will be made, and then the sim will be step(ped)-through to
-    ;; the current time again, in case the artificial transition resulted in the
-    ;; sim becoming immediately imminent.
+    ;; transition will be made, and then the sim will be advanced to the current
+    ;; time again, in case the artificial transition resulted in the sim
+    ;; becoming immediately imminent.
     (log/tracef "time-of-last-event: %s" (time-of-last-event sim))
     (if (= (time-of-last-event sim) end)
       [sim event-log]
@@ -55,6 +62,18 @@
         [sim (concat event-log event-log')]))))
 
 (defn step-through-to-wall-time
+  "Advance the simulation to wall-time.
+
+  Args:
+    rc - A root coordinator.
+    wall-time - The current wall-time.
+
+  Optional keyword args:
+    max-sim-time - The maximum sim-time the simulation should advance to.
+  Default: infinity.
+
+  Returns:
+    A new root coordinator."
   [rc wall-time & {:keys [max-sim-time]
                    :or   {max-sim-time infinity}}]
   (let [{:keys [clock sim output-fn]} rc
@@ -66,12 +85,16 @@
     (assoc rc :clock clock :sim sim)))
 
 (defn get-clock-scale-factor
+  "Returns the root coordinator's current time scale factor."
   [rc]
   (clock/get-scale-factor (:clock rc)))
 
 (defn set-clock-scale-factor
-  [rc wt scale]
-  (update rc :clock clock/set-scale-factor wt scale))
+  "Set the root coordinator's current time scale factor."
+  [rc wall-time scale-factor]
+  (update rc :clock clock/set-scale-factor wall-time scale-factor))
 
-(defn get-sim-time [rc]
+(defn get-sim-time
+  "Returns the root coordinator's current sim-time."
+  [rc]
   (clock/get-sim-time (:clock rc)))
