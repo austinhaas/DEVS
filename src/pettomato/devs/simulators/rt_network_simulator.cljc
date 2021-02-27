@@ -11,8 +11,8 @@
   anticipated.
 
   2. All component sims will have their transition function invoked any time
-  this network simulator's transitions function is invoked, even if they are not
-  imminent nor receiving mail. This allows each sim to receive the current sim
+  this network simulator's transition function is invoked, even if they are not
+  imminent nor receiving mail. This allows each sim to update to the current sim
   time."
   (:require
    [pettomato.devs.lib.coll :refer [prune]]
@@ -33,7 +33,7 @@
 
   mail - The local mail (p->vs) for the component simulator.
 
-  t - The current sim time."
+  t - The current sim-time."
   [network-sim k mail t]
   (let [sim  (get-in network-sim [:k->sim k])
         sim' (binding [*path* (conj *path* k)]
@@ -50,7 +50,7 @@
 
   mail - Inbound mail for this simulator (k->p->vs).
 
-  t - The current sim time."
+  t - The current sim-time."
   [network-sim mail t]
   ;; Note that this could be made to run in parallel.
   (reduce-kv #(apply-transition %1 %2 %3 t)
@@ -166,6 +166,10 @@
 (declare rt-network-simulator)
 
 (defn default-model->sim
+  "A function that takes a model and returns a simulator for that model.
+
+  This version maps atomic-models to rt-atomic-simulators and network-models to
+  rt-network-simulators."
   [model]
   (cond
     (atomic-model?  model) (rt-atomic-simulator  model)
@@ -173,13 +177,19 @@
     :else                  (throw (ex-info "Unknown model type." {}))))
 
 (defn rt-network-simulator
-  "model - A real-time network model.
+  "Wrap a real-time network model in a real-time network simulator.
 
-  Options:
+  Args:
+    model - A real-time network model.
 
-  model->sim - A function that takes a model and returns a new simulator for
-  that model. The default pairs atomic models with rt-atomic-simulator and
-  network models with rt-network-simulator."
+  Optional keyword args:
+    model->sim - A function that takes a model and returns a simulator for that
+  model. The default maps atomic-models to rt-atomic-simulators and
+  network-models to rt-network-simulators. This is used for dynamic structure
+  changes.
+
+  Returns:
+    A simulator."
   [model & {:keys [model->sim]
             :or   {model->sim default-model->sim}}]
   (map->RealTimeNetworkSimulator {:model      model

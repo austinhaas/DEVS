@@ -1,4 +1,5 @@
 (ns pettomato.devs.simulators.network-simulator
+  "A network simulator."
   (:require
    [pettomato.devs.lib.coll :refer [prune]]
    [pettomato.devs.lib.log :as log]
@@ -20,7 +21,7 @@
 
   mail - The local mail (p->vs) for the component simulator.
 
-  t - The current sim time."
+  t - The current sim-time."
   [network-sim k mail t]
   (let [sim  (get-in network-sim [:k->sim k])
         sim' (binding [*path* (conj *path* k)]
@@ -38,7 +39,7 @@
 
   mail - Inbound mail for this simulator (k->p->vs).
 
-  t - The current sim time."
+  t - The current sim-time."
   [network-sim mail t]
   ;; Note that this could be made to run in parallel.
   (reduce-kv #(apply-transition %1 %2 %3 t)
@@ -151,6 +152,10 @@
 (declare network-simulator)
 
 (defn default-model->sim
+  "A function that takes a model and returns a simulator for that model.
+
+  This version maps atomic-models to atomic-simulators and network-models to
+  network-simulators."
   [model]
   (cond
     (atomic-model?  model) (atomic-simulator  model)
@@ -158,13 +163,18 @@
     :else                  (throw (ex-info "Unknown model type." {}))))
 
 (defn network-simulator
-  "model - A network model.
+  "Wrap a network model in a network simulator.
 
-  Options:
+  Args:
+    model - A network model.
 
-  model->sim - A function that takes a model and returns a new simulator for
-  that model. The default pairs atomic models with atomic-simulator and network
-  models with network-simulator."
+  Optional keyword args:
+    model->sim - A function that takes a model and returns a simulator for that
+  model. The default maps atomic-models to atomic-simulators and network-models
+  to network-simulators. This is used for dynamic structure changes.
+
+  Returns:
+    A simulator."
   [model & {:keys [model->sim]
             :or   {model->sim default-model->sim}}]
   (map->NetworkSimulator {:model      model

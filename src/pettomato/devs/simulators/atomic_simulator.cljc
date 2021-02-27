@@ -1,4 +1,10 @@
 (ns pettomato.devs.simulators.atomic-simulator
+  "An atomic simulator.
+
+  This simulator differs from the real-time version by throwing an
+  exception if the transition function is invoked and the simulator is
+  neither imminent nor receiving mail. The real-time version handles these
+  \"no-op\" invocations, which are used for real-time synchronization."
   (:require
    [pettomato.devs.lib.log :as log]
    [pettomato.devs.simulator :refer [Simulator]]))
@@ -22,7 +28,7 @@
     (let [state (cond
                   (and (= t tn) (empty? mail)) ((:internal-update  model) state)
                   (and (= t tn) (seq    mail)) ((:confluent-update model) state mail)
-                  (< t tn)                     ((:external-update  model) state (- t tl) mail)
+                  (and (< t tn) (seq    mail)) ((:external-update  model) state (- t tl) mail)
                   :else                        (throw (ex-info "unexpected state" {})))
           tl    t
           tn    (+ tl ((:time-advance model) state))]
@@ -30,5 +36,13 @@
   (time-of-last-event [sim] tl)
   (time-of-next-event [sim] tn))
 
-(defn atomic-simulator [model]
+(defn atomic-simulator
+  "Wrap an atomic model in an atomic simulator.
+
+  Args:
+    model - An atomic model.
+
+  Returns:
+    A simulator."
+  [model]
   (map->AtomicSimulator {:model model}))
