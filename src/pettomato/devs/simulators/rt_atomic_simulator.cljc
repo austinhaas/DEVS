@@ -47,9 +47,17 @@
   "Wrap a real-time atomic model in a real-time atomic simulator.
 
   Args:
-    model - An atomic model.
+    model - An real-time atomic model.
 
   Returns:
-    A simulator."
+    A simulator.
+
+  The only difference between an atomic model and a real-time atomic model is
+  that the real-time model's external-update function must handle being invoked
+  with an empty set of incoming messages. Since external-updates are passed the
+  elapsed-time, these \"no-op\" invocations can be used for temporal
+  synchronization. The function `pettomato.devs.models.atomic-model/->rt` can be
+  used to automically convert non-real-time atomic models to real-time atomic
+  models."
   [model]
   (map->RealTimeAtomicSimulator {:model model}))

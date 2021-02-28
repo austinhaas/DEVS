@@ -60,7 +60,7 @@
   If :priority is :ext, then it will factor in the external messages before
   computing the next value."
   [& {:keys [priority]
-      :or   {priority nil}}]
+      :or   {priority :int}}]
   (let [initial-state {:value  true
                        :output true
                        :sigma  1}
@@ -70,8 +70,7 @@
         time-advance  :sigma
         con-update    (case priority
                         :int (fn [s x] (ext-update (int-update s) 0 x))
-                        :ext (fn [s x] (int-update (ext-update s (time-advance s) x)))
-                        nil)]
+                        :ext (fn [s x] (int-update (ext-update s (time-advance s) x))))]
     (atomic-model
      :initial-state    initial-state
      :internal-update  int-update
