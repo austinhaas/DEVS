@@ -66,14 +66,16 @@
 
 (defn- connect [network-sim [sk sp rk rp f]]
   (log/tracef "connect: %s" [sk sp rk rp f])
-  (-> network-sim
-      (update-in [:routes sk sp rk rp] (fnil conj #{}) f)))
+  (let [f (or f identity)] ;; f is optional; defaults to identity.
+    (-> network-sim
+        (update-in [:routes sk sp rk rp] (fnil conj #{}) f))))
 
 (defn- disconnect [network-sim [sk sp rk rp f]]
   (log/tracef "disconnect: %s" [sk sp rk rp f])
-  (-> network-sim
-      (update-in [:routes sk sp rk rp] disj f)
-      (update :routes prune [sk sp rk rp])))
+  (let [f (or f identity)]  ;; f is optional; defaults to identity.
+    (-> network-sim
+        (update-in [:routes sk sp rk rp] disj f)
+        (update :routes prune [sk sp rk rp]))))
 
 (defn- apply-network-structure-changes [model->sim network-sim net-msgs t]
   ;; Network structure messages are grouped and processed in a specific order.
