@@ -1,145 +1,36 @@
-* Redirect err to local thread.
-** What I expect to happen.
-   - Launch a socket server.
-   - Connect to the server.
-   - Create a thread and within it, bind *out* and *err* to the current
-     client/thread's values.
-   - Throw an exception in that thread.
-   - I expect to see the exception in the current client.
-** What actually happens
-   - Errors appear where the socket server was created.
-** Notes
-   https://github.com/clojure-emacs/cider/issues/1588
-   - Is there a better way to manage a background process?
-
-(println "My first message.")
-(throw (ex-info "My first exception." {}))
-
-(.start
- (Thread.
-  (fn []
-    (println "My second message.")
-    (throw (ex-info "My second exception" {})))))
-
-(.start
- (Thread.
-  (let [out *out*
-        err *err*]
-    (fn []
-      (binding [*out* out
-                *err* err]
-        (println "My third message.")
-        (throw (ex-info "My third exception" {})))))))
-
-** Google groups: https://groups.google.com/g/clojure/c/t3Pp8l9Pe4A
 * DEVS
-** DONE Improve timestamp implementation.
-*** DONE Confirm that it is working in the browser.
-*** DONE Cache the boolean expression.
-** DONE Commit
-** DONE Update README.
-** Check on current status
-*** DONE fix transducer bad idea
-*** DONE fix rt-devs-test
-*** commit work
-** Polish
-** Publish
+** Add more tests
+*** Check that a rt-model that is imminent handles the no-op case correctly.
+    - I'm concerned this will be handled by a confluent update fn, when it
+      should be an internal-update.
+*** Consider testing the RT root coordinator by faking the wall-time updates
+*** confluent-update keywords
+*** Validate network structure.
+    - I hit an NPE b/c a route was invalid.
+**** Must contain at least one model.
+     - Or else initialize needs to handle that case with tl.
+**** Don't allow the same port to be both input and output.
+*** Test a RT dynamic network.
+*** Test a mixed RT and non-RT network.
+*** Test replaying an input history.
+*** Determine how to validate the TMS example.
+*** Add tests for parallelization.
 ** Setup example cljs project
 *** DONE Set up a demo with D3.
 *** ---> Plug new system into game.
-** Consider testing the RT root coordinator by faking the wall-time updates
-** Document any good info in the above tasks, then delete them.
-** Test a RT dynamic network.
-** Test a mixed RT and non-RT network.
-** Test replaying an input history.
-** Consider letting the component specify which simulator to use for a dynamically added model.
-   - Consider abstracting structure changes, so that the user can supply an
-     interpreter that updates the network sim.
-     - This interpreter, for example, might resolve symbols to simulators (so
-       that the message can be pure data).
-** Make route fn optional
-** Validate network structure.
-   - I hit an NPE b/c a route was invalid.
-*** Must contain at least one model.
-    - Or else initialize needs to handle that case with tl.
-*** Don't allow the same port to be both input and output.
-** Check that a model has no connections before removing it.
-   - Make it optional
-   - In dev mode, all checks should be enabled.
-   - Add tests.
-** Develop logging / metrics system.
-*** Goals
-**** Customizable
-     - Feed into 3rd party logger.
-**** Extensible
-**** Flexible
-     - Easy to adjust.
-**** Support something like log levels.
-**** Support gathering metrics.
-     - The idea is to capture some core bits of information about the internal,
-       run-time behavior and make it presentable.
-       - # of steps
-       - # of parallel processes
-       - # of messages
-       - by network
-**** Capture logs w/o printing them.
-     - Allow user to query and inspect.
-**** Make it easy to write to a file.
-     - And to load from it. We should be able to compare stats on two historical
-       logs.
-       - How valuable is this if we can re-run the simulation?
-         - Stats could always be useful.
-*** Notes
-    - Separate storing from retrieving.
-      - Initially, we just want storing. Retrieving can be a user-defined
-        implementation.
-    - What are the elements we want to capture?
-      - path (implicit)
-      - sim-time (implicit)
-
-      - model type?
-
-      - event type
-        - predefined
-          - model function
-          - imminent
-          - mail
-          - network structure change
-          - log message
-            - log level
-        - user-defined?
-
-
-    - I think we need to separate:
-      - logging
-      - filtering
-      - reading/querying
-
-    - but we need semantic meaning
-*** DONE Proposal: Use the typical logging facilities
-    - Allow user to overwrite the implementations.
-*** DONE Proposal: multimethods
-    - I don't think we can dispatch the way I'd like to.
-    - The dispatch fn is static and predetermined.
-    - We'd need to dispatch on multiple fields.
-      - I suspect that would be complicated and still not solve any real
-        problem.
-*** DONE Proposal: interceptors
-    - There is something common between interceptors and dynamic bindings.
-      - context
-    - log
-      - A function that...
-    - *log-interceptors*
-      - A stack of interceptors.
-*** DONE Proposal: Use functional composition
-    - Start simple.
-*** Collect logs w/o printing.
-*** Support gathering metrics.
-** Determine how to validate the TMS example.
-** Add tests for parallelization.
-** Consider renaming queue to agenda.
-** Implement structure changes for updating a model.
-** update docs
+** Publish
+** Add tutorial.
+** Update docs
+*** Document any good info in the following tasks.
+**** DONE Improve timestamp implementation.
+***** DONE Confirm that it is working in the browser.
+***** DONE Cache the boolean expression.
+**** DONE Commit
+**** DONE Update README.
+**** DONE Check on current status
+***** DONE fix transducer bad idea
+***** DONE fix rt-devs-test
+***** DONE commit work
 *** On mixing RT and non-RT models
     - Why it is ok to assume toplevel models are RT.
       - If all models were non-RT, then organization wouldn't matter; they could
@@ -661,6 +552,76 @@
                (update-in m [receiver in-port] into (map f vs)))
              {}
              flattened)))
+** Make route fn optional
+** Develop logging / metrics system.
+*** Goals
+**** Customizable
+     - Feed into 3rd party logger.
+**** Extensible
+**** Flexible
+     - Easy to adjust.
+**** Support something like log levels.
+**** Support gathering metrics.
+     - The idea is to capture some core bits of information about the internal,
+       run-time behavior and make it presentable.
+       - # of steps
+       - # of parallel processes
+       - # of messages
+       - by network
+**** Capture logs w/o printing them.
+     - Allow user to query and inspect.
+**** Make it easy to write to a file.
+     - And to load from it. We should be able to compare stats on two historical
+       logs.
+       - How valuable is this if we can re-run the simulation?
+         - Stats could always be useful.
+*** Notes
+    - Separate storing from retrieving.
+      - Initially, we just want storing. Retrieving can be a user-defined
+        implementation.
+    - What are the elements we want to capture?
+      - path (implicit)
+      - sim-time (implicit)
+
+      - model type?
+
+      - event type
+        - predefined
+          - model function
+          - imminent
+          - mail
+          - network structure change
+          - log message
+            - log level
+        - user-defined?
+
+
+    - I think we need to separate:
+      - logging
+      - filtering
+      - reading/querying
+
+    - but we need semantic meaning
+*** DONE Proposal: Use the typical logging facilities
+    - Allow user to overwrite the implementations.
+*** DONE Proposal: multimethods
+    - I don't think we can dispatch the way I'd like to.
+    - The dispatch fn is static and predetermined.
+    - We'd need to dispatch on multiple fields.
+      - I suspect that would be complicated and still not solve any real
+        problem.
+*** DONE Proposal: interceptors
+    - There is something common between interceptors and dynamic bindings.
+      - context
+    - log
+      - A function that...
+    - *log-interceptors*
+      - A stack of interceptors.
+*** DONE Proposal: Use functional composition
+    - Start simple.
+*** Collect logs w/o printing.
+*** Support gathering metrics.
+** Implement structure changes for updating a model.
 ** Benchmark
 *** Create an example for benchmarking.
 *** cljs vs clj might vary significantly
@@ -674,21 +635,13 @@
 *** Use an array to hold model state.
     - Use indices as model references instead of paths.
 *** Test creating new records vs. updating properties.
-** Implement lazy root-coordinator
-(defn lazy-afap-root-coordinator [sim start-time end-time]
-  (letfn [(step [sim]
-            (let [t (time-of-next-event sim)]
-              (if (< end-time t)
-                nil
-                (let [[sim' out'] (receive-*-message sim t)
-                      sim'        (receive-x-message sim' {} t)]
-                  (if (seq out')
-                    (cons [t out'] (lazy-seq (step sim')))
-                    (lazy-seq (step sim')))))))]
-    (lazy-seq (step (receive-i-message sim start-time)))))
 ** Consider improvements
-*** Consider taking some keywords for con-update
-    - :int and :ext, to specify the most common priorities.
+*** Check that a model has no connections before removing it.
+    - Make it optional
+    - In dev mode, all checks should be enabled.
+    - Add tests.
+*** Consider renaming queue to agenda.
+
 *** Consider implementing models as records.
     - Users supply maps.
     - Self-labeling.
@@ -699,25 +652,7 @@
     - This was an explicit assumption in one of the papers.
 *** Consider if there is any advantage to separating network routes from internal routes.
 *** Consider using special symbols for :network and :structure.
-*** Consider separating elapsed time from total-state.
-    - Separate out returning the initial elapsed-time and make it default to 0.
-** Add destructor to models.
-** Improve debugging
-*** Graphical animation
-**** Proposal: Use D3
-     - force simulation
-     https://github.com/d3/d3-force/blob/v2.1.1/README.md#forceSimulation
-     - Might be a great application/showcase for the customizable logging
-       system.
-     - Consider using the logging system to capture the state changes.
-       - Unsure if this is a good idea. The internal state of the system is
-         distinct from the simulation messages.
-*** Render network using graphviz.
-*** Stepper
-    - Like prolog.
-    - Step forward and back in time. Inspect states.
-** Check that we are using the high resolution timer for the browser.
-** Consider more improvements
+*** Add destructor to models.
 *** Consider declaring ports in models.
     - To elucidate the interface.
     - Could this buy additional clarity in the handling of messages?
@@ -746,6 +681,20 @@
       process them efficiently. It would be nice to be able to write
       code in a straightforward way, but have it optimized
       automatically.
+** Improve debugging
+*** Graphical animation
+**** Proposal: Use D3
+     - force simulation
+     https://github.com/d3/d3-force/blob/v2.1.1/README.md#forceSimulation
+     - Might be a great application/showcase for the customizable logging
+       system.
+     - Consider using the logging system to capture the state changes.
+       - Unsure if this is a good idea. The internal state of the system is
+         distinct from the simulation messages.
+*** Render network using graphviz.
+*** Stepper
+    - Like prolog.
+    - Step forward and back in time. Inspect states.
 ** Implement a distributed root coordinator.
    - One problem with using atoms to implement some kind of mailbox is that it
      is awkward to add a listener to an atom that also empties it.
