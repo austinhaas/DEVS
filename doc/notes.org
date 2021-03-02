@@ -1,10 +1,11 @@
 * DEVS
 ** Add more tests
+*** Test default route fn.
 *** Check that a rt-model that is imminent handles the no-op case correctly.
     - I'm concerned this will be handled by a confluent update fn, when it
       should be an internal-update.
-*** Consider testing the RT root coordinator by faking the wall-time updates
-*** confluent-update keywords
+*** Test rt-step-root-coordinator by faking the wall-time updates.
+*** Test confluent-update keywords.
 *** Validate network structure.
     - I hit an NPE b/c a route was invalid.
 **** Must contain at least one model.
@@ -12,15 +13,59 @@
 **** Don't allow the same port to be both input and output.
 *** Test a RT dynamic network.
 *** Test a mixed RT and non-RT network.
-*** Test replaying an input history.
 *** Determine how to validate the TMS example.
 *** Add tests for parallelization.
-** Setup example cljs project
-*** DONE Set up a demo with D3.
-*** ---> Plug new system into game.
-** Publish
-** Add tutorial.
 ** Update docs
+*** Develop logging / metrics system.
+**** Goals
+***** Customizable
+      - Feed into 3rd party logger.
+***** Extensible
+***** Flexible
+      - Easy to adjust.
+***** Support something like log levels.
+***** Support gathering metrics.
+      - The idea is to capture some core bits of information about the internal,
+        run-time behavior and make it presentable.
+        - # of steps
+        - # of parallel processes
+        - # of messages
+        - by network
+***** Capture logs w/o printing them.
+      - Allow user to query and inspect.
+***** Make it easy to write to a file.
+      - And to load from it. We should be able to compare stats on two historical
+        logs.
+        - How valuable is this if we can re-run the simulation?
+          - Stats could always be useful.
+**** Notes
+     - Separate storing from retrieving.
+       - Initially, we just want storing. Retrieving can be a user-defined
+         implementation.
+     - What are the elements we want to capture?
+       - path (implicit)
+       - sim-time (implicit)
+
+       - model type?
+
+       - event type
+         - predefined
+           - model function
+           - imminent
+           - mail
+           - network structure change
+           - log message
+             - log level
+         - user-defined?
+
+
+     - I think we need to separate:
+       - logging
+       - filtering
+       - reading/querying
+
+     - but we need semantic meaning
+
 *** Document any good info in the following tasks.
 **** DONE Improve timestamp implementation.
 ***** DONE Confirm that it is working in the browser.
@@ -552,75 +597,11 @@
                (update-in m [receiver in-port] into (map f vs)))
              {}
              flattened)))
-** Make route fn optional
-** Develop logging / metrics system.
-*** Goals
-**** Customizable
-     - Feed into 3rd party logger.
-**** Extensible
-**** Flexible
-     - Easy to adjust.
-**** Support something like log levels.
-**** Support gathering metrics.
-     - The idea is to capture some core bits of information about the internal,
-       run-time behavior and make it presentable.
-       - # of steps
-       - # of parallel processes
-       - # of messages
-       - by network
-**** Capture logs w/o printing them.
-     - Allow user to query and inspect.
-**** Make it easy to write to a file.
-     - And to load from it. We should be able to compare stats on two historical
-       logs.
-       - How valuable is this if we can re-run the simulation?
-         - Stats could always be useful.
-*** Notes
-    - Separate storing from retrieving.
-      - Initially, we just want storing. Retrieving can be a user-defined
-        implementation.
-    - What are the elements we want to capture?
-      - path (implicit)
-      - sim-time (implicit)
-
-      - model type?
-
-      - event type
-        - predefined
-          - model function
-          - imminent
-          - mail
-          - network structure change
-          - log message
-            - log level
-        - user-defined?
-
-
-    - I think we need to separate:
-      - logging
-      - filtering
-      - reading/querying
-
-    - but we need semantic meaning
-*** DONE Proposal: Use the typical logging facilities
-    - Allow user to overwrite the implementations.
-*** DONE Proposal: multimethods
-    - I don't think we can dispatch the way I'd like to.
-    - The dispatch fn is static and predetermined.
-    - We'd need to dispatch on multiple fields.
-      - I suspect that would be complicated and still not solve any real
-        problem.
-*** DONE Proposal: interceptors
-    - There is something common between interceptors and dynamic bindings.
-      - context
-    - log
-      - A function that...
-    - *log-interceptors*
-      - A stack of interceptors.
-*** DONE Proposal: Use functional composition
-    - Start simple.
-*** Collect logs w/o printing.
-*** Support gathering metrics.
+** Setup example cljs project
+*** DONE Set up a demo with D3.
+*** ---> Plug new system into game.
+** Publish
+** Add tutorial.
 ** Implement structure changes for updating a model.
 ** Benchmark
 *** Create an example for benchmarking.
@@ -636,6 +617,9 @@
     - Use indices as model references instead of paths.
 *** Test creating new records vs. updating properties.
 ** Consider improvements
+*** Log to a file
+*** Add support for collecting metrics.
+    - Via the extensible logging system.
 *** Check that a model has no connections before removing it.
     - Make it optional
     - In dev mode, all checks should be enabled.
