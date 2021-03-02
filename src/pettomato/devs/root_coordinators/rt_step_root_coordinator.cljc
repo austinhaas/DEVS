@@ -11,8 +11,9 @@
 (defn rt-step-root-coordinator
   "A real-time root-coordinator that can be run in steps.
 
-  This extends the step-root-coordinator with functionality to map from
-  wall-time to sim-time. Something else will need to drive the updates.
+  This extends step-root-coordinator with functionality to map from wall-time to
+  sim-time. It is still a \"step\" simulator; something else will need to drive
+  the updates.
 
   Args:
     sim - A simulator.
