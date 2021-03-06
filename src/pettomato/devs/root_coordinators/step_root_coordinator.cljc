@@ -60,7 +60,29 @@
 
   Returns:
     An initialized simulator. Use `step-while`, `step-to`, and
-   `step-through` to advance it."
+   `step-through` to advance it.
+
+  This may be thought of as the core of a root-coordinator. The key component
+  that is missing is something to drive the updates. A complete root-coordinator
+  implementation depends on the platform and requirements.
+
+  Some examples:
+
+    - An \"as-fast-as-possible\" simulator may run through an entire simulation
+      in a single loop.
+
+    - A real-time simulator might synchronize the updates with a real-time clock.
+
+    - In the browser, a real-time simulator might use setInterval or
+      updateAnimationFrame to drive the updates.
+
+    - On the JVM, a real-time simulator might use threads.
+
+    - A manually-driven system, perhaps for debugging, might provide an
+      interface for users to advance the simulation one step at a time.
+
+  All cases need the same logic for determining the next event and processing
+  it."
   [sim & {:keys [start]
           :or   {start 0}}]
   (binding [*sim-time* start]
