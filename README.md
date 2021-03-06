@@ -2,7 +2,9 @@
 
 A discrete-event simulation system based on the DEVS formalism.
 
-This version implements Dynamic Parallel DEVS with Ports.
+This is my personal implementation of Dynamic Parallel DEVS with Ports. It is
+based on my interpretation of the literature. I've tried to make it functional
+and efficient.
 
 ## Usage
 
