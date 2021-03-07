@@ -43,6 +43,34 @@
                       (-> (network-simulator net)
                           afap-root-coordinator))))))
 
+(deftest route-function-tests
+
+  (testing "Using route functions"
+    (is (event-log= [[5  {:out [[10]]}]
+                     [15 {:out [[20]]}]]
+                    (let [gen (lazy-seq-generator [[0  {:out [1]}]
+                                                   [10 {:out [2]}]])
+                          del (delay1 5)
+                          net (network-model {:gen gen
+                                              :del del}
+                                             [[:gen :out :del :in (partial * 10)]
+                                              [:del :out :network :out vector]])]
+                      (-> (network-simulator net)
+                          afap-root-coordinator)))))
+
+  (testing "Default route function"
+    (is (event-log= [[5  {:out [1]}]
+                     [15 {:out [2]}]]
+                    (let [gen (lazy-seq-generator [[0  {:out [1]}]
+                                                   [10 {:out [2]}]])
+                          del (delay1 5)
+                          net (network-model {:gen gen
+                                              :del del}
+                                             [[:gen :out :del :in]
+                                              [:del :out :network :out]])]
+                      (-> (network-simulator net)
+                          afap-root-coordinator))))))
+
 (defn switch
   "A very contrived model that is used to demonstrate confluence.
 

@@ -1,8 +1,5 @@
 * TODO
-** Document network structure messages
 ** Add more tests.
-*** Test route fn.
-*** Test default route fn.
 *** Check that a rt-model that is imminent handles the no-op case correctly.
     - I'm concerned this will be handled by a confluent update fn, when it
       should be an internal-update.
