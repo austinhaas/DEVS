@@ -8,7 +8,19 @@
 
    A model may receive multiple bags of messages before sim-time advances.
 
+   Note that at least one of the papers says that the system preserves sender
+   message order, but we aren't doing that. I don't understand why we would want
+   that and supporting it would complicate the implementation. For example, we
+   couldn't use maps to represent message bags, because the order of message
+   associated with different ports is unspecified.
 * Implementation Notes
+** On using non-namespaced keywords :network and :structure in routes.
+
+   Namespaced keywords would help elevate these symbols and keep them from
+   clashing with user-defined model names, but namespaced keywords are more
+   cumbersome to use and they reduce legibility significantly when printing mail
+   and routes.
+
 ** On two types of graphs
 
    There are two types of graphs in this system:
