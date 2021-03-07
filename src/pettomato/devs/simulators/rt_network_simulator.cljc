@@ -156,7 +156,20 @@
   changes.
 
   Returns:
-    A simulator."
+    A simulator.
+
+  The network's component models can request network structure changes by
+  sending special messages from a :structure port.
+
+  The following messages are supported:
+
+  [:add-model model-name model]
+
+  [:rem-model model-name]
+
+  [:connect route]
+
+  [:disconnect route]"
   [model & {:keys [model->sim]
             :or   {model->sim default-model->sim}}]
   (map->RealTimeNetworkSimulator {:model      model
