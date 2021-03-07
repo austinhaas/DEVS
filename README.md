@@ -8,11 +8,26 @@ and efficient.
 
 ## Usage
 
-This is intended to be used as a library.
+This is intended to be used as a library and SDK.
 
 See the docstrings for documentation.
 
 See the tests for example usage.
+
+See [this examples namespace](./src/pettomato/devs/examples/) for example components.
+
+See [these notes](./doc/notes.org) for more information on the implementation.
+
+### Model names
+
+Model names can be any form. Keywords, symbols, and strings are obvious choices,
+but vectors like [:agent 1] are also permitted.
+
+### Logging system
+
+A flexible logging system can be used to trace a simulation.
+
+See [pettomato.devs.lib.log](./src/pettomato/devs/lib/log.cljc) and [pettomato.devs.lib.logging](./src/pettomato/devs/lib/logging.cljc).
 
 ## Development
 

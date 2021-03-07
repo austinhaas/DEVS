@@ -1,0 +1,158 @@
+* TODO
+** Add more tests.
+*** Test route fn.
+*** Test default route fn.
+*** Check that a rt-model that is imminent handles the no-op case correctly.
+    - I'm concerned this will be handled by a confluent update fn, when it
+      should be an internal-update.
+*** Test rt-step-root-coordinator by faking the wall-time updates.
+*** Test confluent-update keywords.
+*** Validate network structure.
+    - I hit an NPE b/c a route was invalid.
+**** Must contain at least one model.
+     - Or else initialize needs to handle that case with tl.
+**** Don't allow the same port to be both input and output.
+*** Test a RT dynamic network.
+*** Test a mixed RT and non-RT network.
+*** Determine how to validate the TMS example.
+*** Add tests for parallelization.
+** Document network structure messages
+** Consider categorizing functions.
+    - behavior (int-update, etc.)
+    - structure (add-lp, connect, etc.)
+    - communication (send, receive)
+** Set up example cljs project.
+** Publish.
+** Add tutorial.
+** Implement structure changes for updating a model.
+   - A model could be replaced with a different implementation, while
+     maintaining the same state.
+   - Check the literature to see what the intention is.
+** Benchmark.
+*** Create an example for benchmarking.
+*** cljs vs clj might vary significantly
+*** Make sure tracing isn't adding any overhead when it is disabled.
+*** Index routes by [name port].
+*** Test multithreads.
+    - Bubble up number of simulators that need update and allocate resources
+      accordingly.
+*** Store model fns in AtomicSimulator
+    - Instead of looking them up in the model.
+*** Use an array to hold model state.
+    - Use indices as model references instead of paths.
+*** Test creating new records vs. updating properties.
+** Develop logging / metrics system.
+*** Goals
+**** Customizable
+     - Feed into 3rd party logger.
+**** Extensible
+**** Flexible
+     - Easy to adjust.
+**** Support something like log levels.
+**** Support gathering metrics.
+     - The idea is to capture some core bits of information about the internal,
+       run-time behavior and make it presentable.
+       - # of steps
+       - # of parallel processes
+       - # of messages
+       - by network
+**** Capture logs w/o printing them.
+     - Allow user to query and inspect.
+**** Make it easy to write to a file.
+     - And to load from it. We should be able to compare stats on two historical
+       logs.
+       - How valuable is this if we can re-run the simulation?
+         - Stats could always be useful.
+*** Notes
+    - Separate storing from retrieving.
+      - Initially, we just want storing. Retrieving can be a user-defined
+        implementation.
+    - What are the elements we want to capture?
+      - path (implicit)
+      - sim-time (implicit)
+
+      - model type?
+
+      - event type
+        - predefined
+          - model function
+          - imminent
+          - mail
+          - network structure change
+          - log message
+            - log level
+        - user-defined?
+
+
+    - I think we need to separate:
+      - logging
+      - filtering
+      - reading/querying
+
+    - but we need semantic meaning
+** Consider improvements.
+*** Log to a file
+*** Add support for collecting metrics.
+    - Via the extensible logging system.
+*** Check that a model has no connections before removing it.
+    - Make it optional
+    - In dev mode, all checks should be enabled.
+    - Add tests.
+*** Consider renaming queue to agenda.
+*** Consider implementing models as records.
+    - Users supply maps.
+    - Self-labeling.
+    - Validate.
+    - Apply defaults.
+*** Consider if sender message order should be preserved.
+    - Meaning, the order on the receivers end preserved.
+    - This was an explicit assumption in one of the papers.
+*** Consider if there is any advantage to separating network routes from internal routes.
+*** Consider using special symbols for :network and :structure.
+*** Add destructor to models.
+*** Consider declaring ports in models.
+    - To elucidate the interface.
+    - Could this buy additional clarity in the handling of messages?
+      - E.g., maybe there could be different port strategies, such as
+        FIFO, or order by type.
+      - We don't want to require that the update fns must be defined
+        within a port-translating macro.
+    - Might help catch errors.
+      - Don't let something connect to a non-existent port.
+    - Optimizations could use this information.
+**** Proposal: Use network structure messages.
+     - Adding a new model entails establishing its interface.
+     - This is consistent with at least one of the dynamic structure papers.
+*** Consider allowing pass thru connections for networks.
+    - Can't create a "pass thru" connection where an input to :N
+      connects to an output of :N.
+    - I seem to recall this being explicitly disallowed in the literature, but I
+      can't recall where. I'm not sure what it means to allow this.
+    - This would be useful for debugging.
+*** Consider deleting models where sigma = infinity and no inports.
+    - I'm having trouble coming up with a scenario where this would
+      occur. Removing spent generators? It would still probably be better to be
+      explicit about it.
+*** Consider using monads in update fns.
+    - Currently, it's annoying to have to organize the messages to
+      process them efficiently. It would be nice to be able to write
+      code in a straightforward way, but have it optimized
+      automatically.
+** Improve debugging.
+*** Graphical animation
+**** Proposal: Use D3
+     - force simulation
+     https://github.com/d3/d3-force/blob/v2.1.1/README.md#forceSimulation
+     - Might be a great application/showcase for the customizable logging
+       system.
+     - Consider using the logging system to capture the state changes.
+       - Unsure if this is a good idea. The internal state of the system is
+         distinct from the simulation messages.
+*** Render network using graphviz.
+*** Stepper
+    - Like prolog.
+    - Step forward and back in time. Inspect states.
+** Implement a distributed root coordinator.
+   - I've considered using atoms with listeners, like an async "mailbox", but it
+     is awkward, if not illegal, for the handler to respond to changes and also
+     modify the atom by emptying it (triggering a recursive notification).
