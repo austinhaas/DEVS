@@ -4,7 +4,6 @@
     - I'm concerned this will be handled by a confluent update fn, when it
       should be an internal-update.
 *** Test rt-step-root-coordinator by faking the wall-time updates.
-*** Test confluent-update keywords.
 *** Validate network structure.
     - I hit an NPE b/c a route was invalid.
 **** Must contain at least one model.

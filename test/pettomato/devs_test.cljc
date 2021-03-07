@@ -82,30 +82,30 @@
   result of this work can be influenced by external messages, so the order in a
   confluent update is significant.
 
-  If :priority is :int, then it will compute the next value before considering
-  imminent messages.
-
-  If :priority is :ext, then it will factor in the external messages before
-  computing the next value."
-  [& {:keys [priority]
-      :or   {priority :int}}]
+  The confluent-update parameter is passed to atomic-model via
+  the :confluent-update keyword option."
+  [& {:keys [confluent-update]}]
   (let [initial-state {:value  true
                        :output true
                        :sigma  1}
         int-update    (fn [s]     (assoc s :output (:value s) :sigma 1)) ; "Compute" the new value.
         ext-update    (fn [s e x] (-> s (update :value not) (update :sigma - e)))
         output        (fn [s]     {:out [(:output s)]})
-        time-advance  :sigma
-        con-update    (case priority
-                        :int (fn [s x] (ext-update (int-update s) 0 x))
-                        :ext (fn [s x] (int-update (ext-update s (time-advance s) x))))]
-    (atomic-model
-     :initial-state    initial-state
-     :internal-update  int-update
-     :external-update  ext-update
-     :confluent-update con-update
-     :output           output
-     :time-advance     time-advance)))
+        time-advance  :sigma]
+    (if confluent-update
+      (atomic-model
+       :initial-state    initial-state
+       :internal-update  int-update
+       :external-update  ext-update
+       :confluent-update confluent-update
+       :output           output
+       :time-advance     time-advance)
+      (atomic-model
+       :initial-state    initial-state
+       :internal-update  int-update
+       :external-update  ext-update
+       :output           output
+       :time-advance     time-advance))))
 
 (deftest confluence-tests
 
@@ -115,7 +115,7 @@
                      [3 {:out [true]}]
                      [4 {:out [false]}]]
                     (let [gen (generator 2 true)
-                          sw  (switch :priority :int)
+                          sw  (switch :confluent-update :internal-first)
                           net (network-model {:gen gen
                                               :sw  sw}
                                              [[:gen :out :sw :in identity]
@@ -124,13 +124,13 @@
                           network-simulator
                           (afap-root-coordinator :end 5))))))
 
-  (testing "Confluence test #2: internal before external"
+  (testing "Confluence test #2: external before internal"
     (is (event-log= [[1 {:out [true]}]
                      [2 {:out [true]}]
                      [3 {:out [false]}]
                      [4 {:out [false]}]]
                     (let [gen (generator 2 true)
-                          sw  (switch :priority :ext)
+                          sw  (switch :confluent-update :external-first)
                           net (network-model {:gen gen
                                               :sw  sw}
                                              [[:gen :out :sw :in identity]
