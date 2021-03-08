@@ -42,4 +42,10 @@
                            :cljs ExceptionInfo)
                         #":time-advance must implement IFn; value: 100"
                         (atomic-model
-                         :time-advance 100))))
+                         :time-advance 100)))
+
+  (is (thrown-with-msg? #?(:clj clojure.lang.ExceptionInfo
+                           :cljs ExceptionInfo)
+                        #"Invalid options supplied to atomic-model: \{:foo 100\}"
+                        (atomic-model
+                         :foo 100))))
