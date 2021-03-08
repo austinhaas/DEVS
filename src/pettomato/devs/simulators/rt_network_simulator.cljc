@@ -21,9 +21,13 @@
    [pettomato.devs.models.atomic-model :refer [atomic-model?]]
    [pettomato.devs.models.network-model :refer [network-model?]]
    [pettomato.devs.simulator :refer [Simulator initialize collect-mail transition time-of-last-event time-of-next-event]]
-   [pettomato.devs.simulators.network-simulator :as network-simulator]
    [pettomato.devs.simulators.rt-atomic-simulator :refer [rt-atomic-simulator]]
    [pettomato.devs.vars :refer [*path*]]))
+
+;; Note that some of these functions are identical to functions in
+;; network-simulator, but they depend on distinct implementations of other
+;; functions. Only `connect` and `disconnect` could be referenced directly from
+;; network-simulator, but that doesn't seem worth the indirection.
 
 (defn apply-transition
   "Invoke a transition for a single simulator.
@@ -44,7 +48,19 @@
     (-> network-sim
         (assoc-in [:k->sim k] sim'))))
 
-(def ^:private apply-transitions #'network-simulator/apply-transitions)
+(defn- apply-transitions
+  "Invoke a transition across all component simulators.
+
+  network-sim - The network simulator.
+
+  mail - Inbound mail for this simulator (k->p->vs).
+
+  t - The current sim-time."
+  [network-sim mail t]
+  ;; Note that this could be made to run in parallel.
+  (reduce-kv #(apply-transition %1 %2 %3 t)
+             network-sim
+             mail))
 
 (defn- add-model [model->sim network-sim k model t]
   (log/tracef "add-model: %s" k)
@@ -62,11 +78,35 @@
     (-> network-sim
         (update :k->sim dissoc k))))
 
-(def ^:private connect #'network-simulator/connect)
+(defn- connect [network-sim [sk sp rk rp f]]
+  (log/tracef "connect: %s" [sk sp rk rp f])
+  (let [f (or f identity)] ;; f is optional; defaults to identity.
+    (-> network-sim
+        (update-in [:routes sk sp rk rp] (fnil conj #{}) f))))
 
-(def ^:private disconnect #'network-simulator/disconnect)
+(defn- disconnect [network-sim [sk sp rk rp f]]
+  (log/tracef "disconnect: %s" [sk sp rk rp f])
+  (let [f (or f identity)]  ;; f is optional; defaults to identity.
+    (-> network-sim
+        (update-in [:routes sk sp rk rp] disj f)
+        (update :routes prune [sk sp rk rp]))))
 
-(def ^:private apply-network-structure-changes #'network-simulator/apply-network-structure-changes)
+(defn- apply-network-structure-changes [model->sim network-sim net-msgs t]
+  ;; Network structure messages are grouped and processed in a specific order.
+  ;; Himmelspach, Jan, and Adelinde M. Uhrmacher. "Processing dynamic PDEVS models."
+  ;; The IEEE Computer Society's 12th Annual International Symposium on Modeling, Analysis, and Simulation of Computer and Telecommunications Systems, 2004.
+  ;; Section 3.2
+  ;; http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.302.3385&rep=rep1&type=pdf
+  (let [net-msgs   (group-by first net-msgs)
+        add-model  (fn [sim [_ k model]] (add-model  model->sim sim k model t))
+        rem-model  (fn [sim [_ k]]       (rem-model  sim k))
+        connect    (fn [sim [_ route]]   (connect    sim route))
+        disconnect (fn [sim [_ route]]   (disconnect sim route))]
+    (as-> network-sim network-sim
+      (reduce disconnect network-sim (:disconnect net-msgs))
+      (reduce rem-model  network-sim (:rem-model  net-msgs))
+      (reduce add-model  network-sim (:add-model  net-msgs))
+      (reduce connect    network-sim (:connect    net-msgs)))))
 
 (defn- imminent [k->sim t]
   (for [[k sim] k->sim
