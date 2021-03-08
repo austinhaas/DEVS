@@ -87,22 +87,37 @@
                              (-> (external-update state (time-advance state) mail)
                                  internal-update))
 
-                           (ifn? confluent-update)
+                           :else
                            confluent-update)]
-    (assert (number? initial-elapsed-time))
-    (assert (ifn? internal-update))
-    (assert (ifn? external-update))
-    (assert (ifn? confluent-update))
-    (assert (ifn? output))
-    (assert (ifn? time-advance))
-    (assert (empty? (dissoc options
-                            :initial-state
-                            :initial-elapsed-time
-                            :internal-update
-                            :external-update
-                            :confluent-update
-                            :output
-                            :time-advance)))
+    (when-not (number? initial-elapsed-time)
+      (throw (ex-info (str ":initial-elapsed-time must be a number; value: " initial-elapsed-time)
+                      {})))
+    (when-not (ifn? internal-update)
+      (throw (ex-info (str ":internal-update must implement IFn; value: " internal-update)
+                      {})))
+    (when-not (ifn? external-update)
+      (throw (ex-info (str ":external-update must implement IFn; value: " external-update)
+                      {})))
+    (when-not (ifn? confluent-update)
+      (throw (ex-info (str ":confluent-update must implement IFn; value: " confluent-update)
+                      {})))
+    (when-not (ifn? output)
+      (throw (ex-info (str ":output must implement IFn; value: " output)
+                      {})))
+    (when-not (ifn? time-advance)
+      (throw (ex-info (str ":time-advance must implement IFn; value: " time-advance)
+                      {})))
+    (let [extra-options (dissoc options
+                                :initial-state
+                                :initial-elapsed-time
+                                :internal-update
+                                :external-update
+                                :confluent-update
+                                :output
+                                :time-advance)]
+      (when (seq extra-options)
+        (throw (ex-info (str "Invalid options supplied to atomic-model: " extra-options)
+                        {}))))
     {:initial-total-state [initial-state initial-elapsed-time]
      :internal-update     internal-update
      :external-update     external-update
