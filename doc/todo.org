@@ -4,15 +4,10 @@
     - I'm concerned this will be handled by a confluent update fn, when it
       should be an internal-update.
 *** Test rt-step-root-coordinator by faking the wall-time updates.
-*** Validate network structure.
-    - I hit an NPE b/c a route was invalid.
-**** Must contain at least one model.
-     - Or else initialize needs to handle that case with tl.
-**** Don't allow the same port to be both input and output.
 *** Test a RT dynamic network.
 *** Test a mixed RT and non-RT network.
-*** Determine how to validate the TMS example.
 *** Add tests for parallelization.
+*** Determine how to validate the TMS example.
 ** Publish.
 ** Add tutorial.
 ** Set up cljs example.
