@@ -1,10 +1,17 @@
 * TODO
 ** Add more tests.
+*** Test atomic-simulator exceptions
+*** Test rt-atomic-simulator exceptions
+*** Test rt-atomic-simulator confluent-update
+*** Test rt-network-simulator dynamic structure
+*** Test network-simulator exceptions
+*** Test atomic-model/->RT confluent-update
+*** Test changing RT clock scale-factor
+*** Check that dynamic structure changes are valid.
 *** Check that a rt-model that is imminent handles the no-op case correctly.
     - I'm concerned this will be handled by a confluent update fn, when it
       should be an internal-update.
 *** Test rt-step-root-coordinator by faking the wall-time updates.
-*** Test a RT dynamic network.
 *** Test a mixed RT and non-RT network.
 *** Add tests for parallelization.
 *** Determine how to validate the TMS example.
