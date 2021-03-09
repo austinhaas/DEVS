@@ -26,13 +26,13 @@
   (collect-mail [sim t]
     (log/trace "--- collect-mail ---")
     (let [tn (time-of-next-event sim)]
-      (assert (= t tn) (str "synchronization error: (not (= " t " " tn ")")))
+      (assert (= t tn) (str "synchronization error: (not (= " t " " tn "))")))
     (let [mail ((:output model) state)]
       [sim mail]))
   (transition [sim mail t]
     (log/trace "--- transition ---")
     (let [tn (time-of-next-event sim)]
-      (assert (<= tl t tn) (str "synchronization error: (not (<= " tl " " t " " tn ")"))
+      (assert (<= tl t tn) (str "synchronization error: (not (<= " tl " " t " " tn "))"))
       (let [state (if (= t tn)
                     (if (seq mail)
                       ((:confluent-update model) state mail)
