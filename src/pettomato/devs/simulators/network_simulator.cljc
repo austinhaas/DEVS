@@ -108,7 +108,7 @@
   (collect-mail [sim t]
     (log/trace "--- collect-mail ---")
     (assert (= t (time-of-next-event sim))
-            (str "synchronization error: (not (= " t " " (time-of-next-event sim) ")"))
+            (str "synchronization error: (not (= " t " " (time-of-next-event sim) "))"))
     (let [imminent      (pq/peek queue)
           _             (log/tracef "imminent: %s" imminent)
           ;; Note that this could be made to run in parallel.
@@ -132,7 +132,7 @@
   (transition [sim ext-mail t]
     (log/trace "--- transition ---")
     (assert (<= (time-of-last-event sim) t (time-of-next-event sim))
-            (str "synchronization error: (not (<= " (time-of-last-event sim) " " t " " (time-of-next-event sim) ")"))
+            (str "synchronization error: (not (<= " (time-of-last-event sim) " " t " " (time-of-next-event sim) "))"))
     (let [tn       (time-of-next-event sim)
           imminent (if (= t tn) (pq/peek queue) [])
           _        (log/tracef "imminent: %s" imminent)
