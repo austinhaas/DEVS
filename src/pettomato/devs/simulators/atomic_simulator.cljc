@@ -19,12 +19,12 @@
       (assoc sim :state s :tl tl :tn tn)))
   (collect-mail [sim t]
     (log/trace "--- collect-mail ---")
-    (assert (= t tn) (str "synchronization error: (not (= " t " " tn ")"))
+    (assert (= t tn) (str "synchronization error: (not (= " t " " tn "))"))
     (let [mail ((:output model) state)]
       [sim mail]))
   (transition [sim mail t]
     (log/trace "--- transition ---")
-    (assert (<= tl t tn) (str "synchronization error: (not (<= " tl " " t " " tn ")"))
+    (assert (<= tl t tn) (str "synchronization error: (not (<= " tl " " t " " tn "))"))
     (let [state (cond
                   (and (= t tn) (empty? mail)) ((:internal-update  model) state)
                   (and (= t tn) (seq    mail)) ((:confluent-update model) state mail)
