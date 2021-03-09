@@ -1,10 +1,11 @@
 * TODO
 ** Add more tests.
-*** Test atomic-simulator exceptions
-*** Test rt-atomic-simulator exceptions
+*** DONE Test atomic-simulator exceptions
+*** DONE Test network-simulator exceptions
+*** DONE Test rt-atomic-simulator exceptions
+*** DONE Test rt-network-simulator exceptions
 *** Test rt-atomic-simulator confluent-update
 *** Test rt-network-simulator dynamic structure
-*** Test network-simulator exceptions
 *** Test atomic-model/->RT confluent-update
 *** Test changing RT clock scale-factor
 *** Check that dynamic structure changes are valid.
@@ -15,6 +16,13 @@
 *** Test a mixed RT and non-RT network.
 *** Add tests for parallelization.
 *** Determine how to validate the TMS example.
+** Consider if network-simulator should throw an exception if transition is called incorrectly
+   - I.e., called without any models being imminent or receiving any messages.
+   - Technically, a network sim could receive messages that aren't currently
+     routed to any component. I think we just want to check if it was called
+     without any messages at all.
+   - The question is: what would this gain? Maybe it is better for this
+     implementation to be robust than throw an error.
 ** Publish.
 ** Add tutorial.
 ** Set up cljs example.
