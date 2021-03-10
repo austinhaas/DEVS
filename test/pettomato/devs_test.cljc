@@ -72,7 +72,7 @@
                           afap-root-coordinator))))))
 
 (defn switch
-  "A very contrived model that is used to demonstrate confluence.
+  "A contrived model to demonstrate confluence.
 
   After an initial delay of one frame, this model emits true each frame, until
   it receives a message, and then it will return false, until it receives
@@ -226,12 +226,7 @@
                                                      (delay1 2)
                                                      5 15)]
                       (-> (network-simulator net)
-                          (afap-root-coordinator :start 0 :end 20))))))
-
-  ;; Test that structure changes happen from bottom up.
-  ;; Remove the parent and the child.
-
-  )
+                          (afap-root-coordinator :start 0 :end 20)))))))
 
 (deftest ad-hoc-structure-change-tests
 
