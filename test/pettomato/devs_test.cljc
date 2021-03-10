@@ -18,7 +18,8 @@
     (is (event-log= [[2 {:out ["x"]}]
                      [4 {:out ["x"]}]
                      [6 {:out ["x"]}]
-                     [8 {:out ["x"]}]]
+                     [8 {:out ["x"]}]
+                     [10 {:out ["x"]}]]
                     (-> (generator 2 "x")
                         atomic-simulator
                         (afap-root-coordinator :end 10)))))
@@ -113,7 +114,8 @@
     (is (event-log= [[1 {:out [true]}]
                      [2 {:out [true]}]
                      [3 {:out [true]}]
-                     [4 {:out [false]}]]
+                     [4 {:out [false]}]
+                     [5 {:out [false]}]]
                     (let [gen (generator 2 true)
                           sw  (switch :confluent-update :internal-first)
                           net (network-model {:gen gen
@@ -128,7 +130,8 @@
     (is (event-log= [[1 {:out [true]}]
                      [2 {:out [true]}]
                      [3 {:out [false]}]
-                     [4 {:out [false]}]]
+                     [4 {:out [false]}]
+                     [5 {:out [true]}]]
                     (let [gen (generator 2 true)
                           sw  (switch :confluent-update :external-first)
                           net (network-model {:gen gen
@@ -143,7 +146,8 @@
     (is (event-log= [[1 {:out [true]}]
                      [2 {:out [true]}]
                      [3 {:out [true]}]
-                     [4 {:out [false]}]]
+                     [4 {:out [false]}]
+                     [5 {:out [false]}]]
                     (let [gen (generator 2 true)
                           sw  (switch)
                           net (network-model {:gen gen
@@ -274,7 +278,8 @@
                       [16 {:gen-out ("msg-16")}]
                       [17 {:gen-out ("msg-17")}]
                       [18 {:gen-out ("msg-18"), :del-2-out ("msg-16")}]
-                      [19 {:gen-out ("msg-19"), :del-2-out ("msg-17")}]]
+                      [19 {:gen-out ("msg-19"), :del-2-out ("msg-17")}]
+                      [20 {:gen-out ("msg-20"), :del-2-out ("msg-18")}]]
                     (let [gen   (lazy-seq-generator (for [i (range)] [1 {:out [(str "msg-" (inc i))]}]))
                           del-1 (delay1 1)
                           del-2 (delay1 2)

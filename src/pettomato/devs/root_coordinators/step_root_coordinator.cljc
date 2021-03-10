@@ -40,14 +40,16 @@
   (step-while sim end :compare <))
 
 (defn step-through
-  "Advance sim to end time (inclusive).
+  "Advance sim to end time (inclusive, unless end = infinity).
 
   Returns [sim event-log].
 
   Note that this does not guarantee that there won't be another event at end
   time. Simulators only guarantee that timestamps are nondecreasing."
   [sim end]
-  (step-while sim end :compare <=))
+  (if (= end infinity)
+    (step-while sim end :compare <)
+    (step-while sim end :compare <=)))
 
 (defn step-root-coordinator
   "Step through a simulation.

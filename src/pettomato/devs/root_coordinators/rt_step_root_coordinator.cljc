@@ -70,7 +70,7 @@
     wall-time - The current wall-time.
 
   Optional keyword args:
-    max-sim-time - The maximum sim-time the simulation should advance to.
+    max-sim-time - The maximum sim-time the simulation should advance to (inclusive).
   Default: infinity.
 
   Returns:
