@@ -7,15 +7,22 @@
    [pettomato.devs.lib.mail :refer [local-mail=]]))
 
 (defn event-log=
-  "Compare two event-log data structures for equality."
-  [el1 el2]
-  (or (and (empty? el1)
-           (empty? el2))
-      (let [[t1 mail1] (first el1)
-            [t2 mail2] (first el2)]
-        (and (= t1 t2)
-             (local-mail= mail1 mail2)
-             (event-log= (rest el1) (rest el2))))))
+  "Compare event-log data structures for equality."
+  ([el] true)
+  ([el1 el2]
+   (or (and (empty? el1)
+            (empty? el2))
+       (let [[t1 mail1] (first el1)
+             [t2 mail2] (first el2)]
+         (and (= t1 t2)
+              (local-mail= mail1 mail2)
+              (recur (rest el1) (rest el2))))))
+  ([el1 el2 & more]
+   (if (event-log= el1 el2)
+     (if (next more)
+       (recur el2 (first more) (next more))
+       (event-log= el2 (first more)))
+     false)))
 
 #_
 (defn pp-event-log [event-log & {:keys [key-sort-fn
