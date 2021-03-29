@@ -4,7 +4,7 @@
       [clojure.test :refer [deftest is testing]]
       :cljs
       [cljs.test :refer-macros [deftest is testing]])
-   [pettomato.devs.examples.models :refer [generator delay1]]
+   [pettomato.devs.examples.models :refer [generator fixed-delay]]
    [pettomato.devs.models.network-model :refer [network-model]]
    [pettomato.devs.simulator :refer [initialize collect-mail transition time-of-last-event time-of-next-event]]
    [pettomato.devs.simulators.network-simulator :refer [default-model->sim network-simulator]]))
@@ -15,7 +15,7 @@
                            :cljs js/Error)
                         #"synchronization error: \(not \(= 0 10\)\)"
                         (let [gen (generator 10 100)
-                              del (delay1 5)
+                              del (fixed-delay 5)
                               net (network-model {:gen gen
                                                   :del del}
                                                  [[:gen :out :del :in identity]
@@ -29,7 +29,7 @@
                            :cljs js/Error)
                         #"synchronization error: \(not \(<= 0 11 10\)\)"
                         (let [gen (generator 10 100)
-                              del (delay1 5)
+                              del (fixed-delay 5)
                               net (network-model {:gen gen
                                                   :del del}
                                                  [[:gen :out :del :in identity]

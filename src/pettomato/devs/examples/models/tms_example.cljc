@@ -4,14 +4,14 @@
   This server moves workers to where the work is, but it doesn't scale up or
   down otherwise."
   (:require
-   [pettomato.devs.examples.models :refer [delay2]]
+   [pettomato.devs.examples.models :refer [variable-delay]]
    [pettomato.devs.lib.log :as log]
    [pettomato.devs.lib.number :refer [infinity]]
    [pettomato.devs.models.atomic-model :refer [atomic-model]]
    [pettomato.devs.models.network-model :refer [network-model]]
    [pettomato.devs.vars :refer [*sim-time*]]))
 
-(def server delay2)
+(def server variable-delay)
 
 (defn queue [k n-servers]
   (let [server-ks (for [i (range n-servers)] (keyword (str "worker-" (gensym))))]

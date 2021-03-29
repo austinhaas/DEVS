@@ -1,7 +1,7 @@
 (ns pettomato.devs.examples.models.server-queue
   "A dynamic structure example."
   (:require
-   [pettomato.devs.examples.models :refer [delay2]]
+   [pettomato.devs.examples.models :refer [variable-delay]]
    [pettomato.devs.lib.coll :refer [queue]]
    [pettomato.devs.lib.log :as log]
    [pettomato.devs.lib.number :refer [infinity]]
@@ -18,7 +18,7 @@
 
 ;;; worker
 
-(def ^:private worker delay2)
+(def ^:private worker variable-delay)
 
 ;;; server
 

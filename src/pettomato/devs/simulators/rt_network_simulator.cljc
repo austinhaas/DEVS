@@ -42,9 +42,7 @@
   [network-sim k mail t]
   (let [sim  (get-in network-sim [:k->sim k])
         sim' (binding [*path* (conj *path* k)]
-               (transition sim mail t))  ; recursive step
-        tn   (time-of-next-event sim) ; Previously scheduled time; (<= t tn).
-        tn'  (time-of-next-event sim')]
+               (transition sim mail t))] ; recursive step
     (-> network-sim
         (assoc-in [:k->sim k] sim'))))
 
@@ -66,15 +64,13 @@
   (log/tracef "add-model: %s" k)
   (let [sim (model->sim model)
         sim (binding [*path* (conj *path* k)]
-              (initialize sim t))
-        tn  (time-of-next-event sim)]
+              (initialize sim t))]
     (-> network-sim
         (update :k->sim assoc k sim))))
 
 (defn- rem-model [network-sim k]
   (log/tracef "rem-model: %s" k)
-  (let [sim (get-in network-sim [:k->sim k])
-        tn  (time-of-next-event sim)]
+  (let [sim (get-in network-sim [:k->sim k])]
     (-> network-sim
         (update :k->sim dissoc k))))
 
@@ -110,7 +106,8 @@
 
 (defn- imminent [k->sim t]
   (for [[k sim] k->sim
-        :when (= t (time-of-next-event sim))]
+        :when (= t (binding [*path* (conj *path* k)]
+                     (time-of-next-event sim)))]
     k))
 
 (defrecord RealTimeNetworkSimulator [model k->sim routes int-mail net-msgs model->sim]
@@ -125,50 +122,56 @@
       (reduce connect sim (:routes model))))
   (collect-mail [sim t]
     (log/trace "--- collect-mail ---")
-    (assert (= t (time-of-next-event sim))
-            (str "synchronization error: (not (= " t " " (time-of-next-event sim) "))"))
-    (let [imminent      (imminent k->sim t)
-          _             (log/tracef "imminent: %s" imminent)
-          ;; Note that this could be made to run in parallel.
-          sim-and-mail  (map (fn [k]
-                               (binding [*path* (conj *path* k)]
-                                 (collect-mail (k->sim k) t))) ; recursive step
-                             imminent)
-          k->sim'       (zipmap imminent (map first  sim-and-mail))
-          outbound-mail (zipmap imminent (map second sim-and-mail))
-          _             (log/tracef "outbound-mail: %s" outbound-mail)
-          inbound-mail  (route-mail routes outbound-mail)
-          _             (log/tracef " inbound-mail: %s" inbound-mail)
-          [int-mail
-           ext-mail
-           net-msgs]    (sort-mail inbound-mail)
-          sim           (-> sim
-                            (update :k->sim merge k->sim')
-                            (assoc :int-mail int-mail
-                                   :net-msgs net-msgs))]
-      [sim ext-mail]))
+    (let [tn (time-of-next-event sim)]
+      (assert (= t tn)
+              (str "synchronization error: (not (= " t " " tn "))"))
+      (let [imminent      (imminent k->sim t)
+            _             (log/tracef "imminent: %s" (vec imminent)) ;; TODO: Don't convert to vector here; do it in the log fn.
+            ;; Note that this could be made to run in parallel.
+            sim-and-mail  (map (fn [k]
+                                 (binding [*path* (conj *path* k)]
+                                   (collect-mail (k->sim k) t))) ; recursive step
+                               imminent)
+            k->sim'       (zipmap imminent (map first  sim-and-mail))
+            outbound-mail (zipmap imminent (map second sim-and-mail))
+            _             (log/tracef "outbound-mail: %s" outbound-mail)
+            inbound-mail  (route-mail routes outbound-mail)
+            _             (log/tracef " inbound-mail: %s" inbound-mail)
+            [int-mail
+             ext-mail
+             net-msgs]    (sort-mail inbound-mail)
+            sim           (-> sim
+                              (update :k->sim merge k->sim')
+                              (assoc :int-mail int-mail
+                                     :net-msgs net-msgs))]
+        [sim ext-mail])))
   (transition [sim ext-mail t]
     (log/trace "--- transition ---")
-    (assert (<= (time-of-last-event sim) t (time-of-next-event sim))
-            (str "synchronization error: (not (<= " (time-of-last-event sim) " " t " " (time-of-next-event sim) "))"))
-    (let [tn       (time-of-next-event sim)
-          imminent (imminent k->sim t)
-          _        (log/tracef "imminent: %s" imminent)
-          ;; All componenet sims are updated, even if they are not imminent.
-          all-mail (zipmap (keys k->sim) (repeat {}))
-          ext-mail (route-mail routes {:network ext-mail}) ; Assumption: There are no routes from :network to :network.
-          _        (log/tracef "ext-mail: %s" ext-mail)
-          mail     (merge-mail all-mail int-mail ext-mail)
-          _        (log/tracef "mail: %s" mail)]
-      (-> sim
-          (apply-transitions mail t)
-          ((partial apply-network-structure-changes model->sim) net-msgs t)
-          (assoc :int-mail {})
-          (assoc :net-msgs []))))
+    (let [tl (time-of-last-event sim)
+          tn (time-of-next-event sim)]
+      (assert (<= tl t tn)
+              (str "synchronization error: (not (<= " tl " " t " " tn "))"))
+      (let [imminent (imminent k->sim t)
+            _        (log/tracef "imminent: %s" (vec imminent)) ;; TODO: Don't convert to vector here; do it in the log fn.
+            ;; All component sims are updated, even if they are not imminent.
+            all-mail (zipmap (keys k->sim) (repeat {}))
+            ext-mail (route-mail routes {:network ext-mail}) ; Assumption: There are no routes from :network to :network.
+            _        (log/tracef "ext-mail: %s" ext-mail)
+            mail     (merge-mail all-mail int-mail ext-mail)
+            _        (log/tracef "mail: %s" mail)]
+        (-> sim
+            (apply-transitions mail t)
+            ((partial apply-network-structure-changes model->sim) net-msgs t)
+            (assoc :int-mail {})
+            (assoc :net-msgs [])))))
   (time-of-last-event [sim]
-    (reduce max (map time-of-last-event (vals k->sim))))
+    (reduce max (map (fn [[k sim]] (binding [*path* (conj *path* k)]
+                                     (time-of-last-event sim)))
+                     k->sim)))
   (time-of-next-event [sim]
-    (reduce min (map time-of-next-event (vals k->sim)))))
+    (reduce min (map (fn [[k sim]] (binding [*path* (conj *path* k)]
+                                     (time-of-next-event sim)))
+                     k->sim))))
 
 (declare rt-network-simulator)
 

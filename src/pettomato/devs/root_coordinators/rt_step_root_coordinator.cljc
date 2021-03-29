@@ -46,19 +46,18 @@
   "Like step-through, but always invokes a transition at end time, even if the
   simulator is not imminent (presumably, for time synchronization)."
   [sim end]
-  (log/tracef "step-through-and-transition end: %s" end)
+  ;;(log/tracef "rt-step-root-coordinator/step-through-and-transition end: %s" end)
   (let [[sim event-log] (step-through sim end)]
     ;; If there happens to be a scheduled event at end time, then there is no
     ;; need for the artificial transition. But if there isn't, the artificial
     ;; transition will be made, and then the sim will be advanced to the current
     ;; time again, in case the artificial transition resulted in the sim
     ;; becoming immediately imminent.
-    (log/tracef "time-of-last-event: %s" (time-of-last-event sim))
     (if (= (time-of-last-event sim) end)
       [sim event-log]
       ;; No need to collect mail; we know the sim isn't imminent, or the
       ;; previous call to step-through would've captured that.
-      (let [sim              (binding [*sim-time* end] (transition sim {} end))
+      (let [sim              (transition sim {} end)
             [sim event-log'] (step-through sim end)]
         [sim (concat event-log event-log')]))))
 
@@ -77,13 +76,14 @@
     A new root coordinator."
   [rc wall-time & {:keys [max-sim-time]
                    :or   {max-sim-time infinity}}]
+  ;;(log/tracef "rt-step-root-coordinator/step-through-to-wall-time: %s" wall-time max-sim-time)
   (let [{:keys [clock sim output-fn]} rc
-        clock                         (clock/advance clock wall-time)
-        sim-time                      (min (clock/get-sim-time clock) max-sim-time)
-        _                             (log/tracef "Updating sim-time to %s" sim-time)
-        [sim out]                     (step-through-and-transition sim sim-time)]
-    (output-fn out)
-    (assoc rc :clock clock :sim sim)))
+        clock    (clock/advance clock wall-time)
+        sim-time (min (clock/get-sim-time clock) max-sim-time)]
+    (binding [*sim-time* sim-time]
+      (let [[sim out] (step-through-and-transition sim sim-time)]
+        (output-fn out)
+        (assoc rc :clock clock :sim sim)))))
 
 (defn get-clock-scale-factor
   "Returns the root coordinator's current time scale factor."

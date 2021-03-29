@@ -23,13 +23,17 @@
     (let [mail ((:output model) state)]
       [sim mail]))
   (transition [sim mail t]
-    (log/trace "--- transition ---")
+    (log/tracef "--- transition ---")
     (assert (<= tl t tn) (str "synchronization error: (not (<= " tl " " t " " tn "))"))
     (let [state (cond
                   (and (= t tn) (empty? mail)) ((:internal-update  model) state)
                   (and (= t tn) (seq    mail)) ((:confluent-update model) state mail)
                   (and (< t tn) (seq    mail)) ((:external-update  model) state (- t tl) mail)
-                  :else                        (throw (ex-info "unexpected state" {})))
+                  :else                        (throw (ex-info "Illegal state for transition; sim is not imminent nor receiving mail."
+                                                               {:tl         tl
+                                                                :t          t
+                                                                :tn         tn
+                                                                :mail-count (count mail)})))
           tl    t
           tn    (+ tl ((:time-advance model) state))]
       (assoc sim :state state :tl tl :tn tn)))

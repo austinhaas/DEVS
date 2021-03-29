@@ -28,7 +28,7 @@
 
   (is (thrown-with-msg? #?(:clj clojure.lang.ExceptionInfo
                            :cljs ExceptionInfo)
-                        #"unexpected state"
+                        #"Illegal state for transition; sim is not imminent nor receiving mail."
                         (-> (generator 10 100)
                             atomic-simulator
                             (initialize 0)

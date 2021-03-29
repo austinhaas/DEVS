@@ -76,18 +76,15 @@
              output               (constantly {})
              time-advance         (constantly infinity)}
       :as   options}]
-  (let [confluent-update (cond
-                           (= :internal-first confluent-update)
-                           (fn [state mail]
-                             (-> (internal-update state)
-                                 (external-update 0 mail)))
+  (let [confluent-update (case confluent-update
+                           :internal-first (fn [state mail]
+                                             (-> (internal-update state)
+                                                 (external-update 0 mail)))
 
-                           (= :external-first confluent-update)
-                           (fn [state mail]
-                             (-> (external-update state (time-advance state) mail)
-                                 internal-update))
+                           :external-first (fn [state mail]
+                                             (-> (external-update state (time-advance state) mail)
+                                                 internal-update))
 
-                           :else
                            confluent-update)]
     (when-not (number? initial-elapsed-time)
       (throw (ex-info (str ":initial-elapsed-time must be a number; value: " initial-elapsed-time)
@@ -136,7 +133,7 @@
                   :output
                   :time-advance}
                 (set (keys model)))))
-
+#_
 (defn ->rt
   "Extend an atomic model to support real-time behavior.
 

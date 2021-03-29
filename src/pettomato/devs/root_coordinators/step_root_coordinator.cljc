@@ -9,7 +9,6 @@
   "Advance sim to time t. Returns [sim mail]."
   [sim t]
   (binding [*sim-time* t]
-    (log/tracef "step-1 t: %s" t)
     (let [[sim out] (collect-mail sim t)
           sim       (transition sim {} t)]
       [sim out])))
@@ -20,7 +19,6 @@
   Returns [sim event-log]."
   [sim end & {:keys [compare]
               :or   {compare <}}]
-  (log/tracef "step-while end: %s" end)
   (loop [sim sim
          out []]
     (let [t (time-of-next-event sim)]
@@ -31,7 +29,7 @@
                                            out)]
                           (recur sim out))
         :else           [sim out]))))
-
+#_
 (defn step-to
   "Advance sim to end-time (exclusive).
 

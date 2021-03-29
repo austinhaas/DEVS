@@ -4,7 +4,7 @@
       [clojure.test :refer [deftest is testing]]
       :cljs
       [cljs.test :refer-macros [deftest is testing]])
-   [pettomato.devs.examples.models :refer [generator lazy-seq-generator delay1]]
+   [pettomato.devs.examples.models :refer [generator lazy-seq-generator single-delay fixed-delay]]
    [pettomato.devs.lib.event-log :refer [event-log=]]
    [pettomato.devs.models.atomic-model :refer [atomic-model]]
    [pettomato.devs.models.network-model :refer [network-model]]
@@ -36,7 +36,7 @@
                      [15 {:out ["y"]}]]
                     (let [gen (lazy-seq-generator [[0  {:out ["x"]}]
                                                    [10 {:out ["y"]}]])
-                          del (delay1 5)
+                          del (fixed-delay 5)
                           net (network-model {:gen gen
                                               :del del}
                                              [[:gen :out :del :in identity]
@@ -51,7 +51,7 @@
                      [15 {:out [[20]]}]]
                     (let [gen (lazy-seq-generator [[0  {:out [1]}]
                                                    [10 {:out [2]}]])
-                          del (delay1 5)
+                          del (fixed-delay 5)
                           net (network-model {:gen gen
                                               :del del}
                                              [[:gen :out :del :in (partial * 10)]
@@ -64,7 +64,7 @@
                      [15 {:out [2]}]]
                     (let [gen (lazy-seq-generator [[0  {:out [1]}]
                                                    [10 {:out [2]}]])
-                          del (delay1 5)
+                          del (fixed-delay 5)
                           net (network-model {:gen gen
                                               :del del}
                                              [[:gen :out :del :in]
@@ -72,91 +72,37 @@
                       (-> (network-simulator net)
                           afap-root-coordinator))))))
 
-(defn switch
-  "A contrived model to demonstrate confluence.
-
-  After an initial delay of one frame, this model emits true each frame, until
-  it receives a message, and then it will return false, until it receives
-  another message, which switches it back to true, and so on.
-
-  The idea is that the model does some work in its internal update, and the
-  result of this work can be influenced by external messages, so the order in a
-  confluent update is significant.
-
-  The confluent-update parameter is passed to atomic-model via
-  the :confluent-update keyword option."
-  [& {:keys [confluent-update]}]
-  (let [initial-state {:value  true
-                       :output true
-                       :sigma  1}
-        int-update    (fn [s]     (assoc s :output (:value s) :sigma 1)) ; "Compute" the new value.
-        ext-update    (fn [s e x] (-> s (update :value not) (update :sigma - e)))
-        output        (fn [s]     {:out [(:output s)]})
-        time-advance  :sigma]
-    (if confluent-update
-      (atomic-model
-       :initial-state    initial-state
-       :internal-update  int-update
-       :external-update  ext-update
-       :confluent-update confluent-update
-       :output           output
-       :time-advance     time-advance)
-      (atomic-model
-       :initial-state    initial-state
-       :internal-update  int-update
-       :external-update  ext-update
-       :output           output
-       :time-advance     time-advance))))
-
 (deftest confluence-tests
 
-  (testing "Confluence test #1: internal before external"
-    (is (event-log= [[1 {:out [true]}]
-                     [2 {:out [true]}]
-                     [3 {:out [true]}]
-                     [4 {:out [false]}]
-                     [5 {:out [false]}]]
-                    (let [gen (generator 2 true)
-                          sw  (switch :confluent-update :internal-first)
+  (testing "internal-first"
+    (is (event-log= [[200 {:out ['tick]}]
+                     [300 {:out ['tick]}]
+                     [400 {:out ['tick]}]]
+                    (let [gen (lazy-seq-generator [[100 {:out ['tick]}]
+                                                   [100 {:out ['tick]}]
+                                                   [100 {:out ['tick]}]])
+                          del (single-delay 100 :internal-first)
                           net (network-model {:gen gen
-                                              :sw  sw}
-                                             [[:gen :out :sw :in identity]
-                                              [:sw :out :network :out identity]])]
+                                              :del del}
+                                             [[:gen :out :del :in]
+                                              [:del :out :network :out]])]
                       (-> net
                           network-simulator
-                          (afap-root-coordinator :end 5))))))
+                          (afap-root-coordinator :end 500))))))
 
-  (testing "Confluence test #2: external before internal"
-    (is (event-log= [[1 {:out [true]}]
-                     [2 {:out [true]}]
-                     [3 {:out [false]}]
-                     [4 {:out [false]}]
-                     [5 {:out [true]}]]
-                    (let [gen (generator 2 true)
-                          sw  (switch :confluent-update :external-first)
+  (testing "external-first"
+    (is (event-log= [[400 {:out ['tick]}]]
+                    (let [gen (lazy-seq-generator [[100 {:out ['tick]}]
+                                                   [100 {:out ['tick]}]
+                                                   [100 {:out ['tick]}]])
+                          del (single-delay 100 :external-first)
                           net (network-model {:gen gen
-                                              :sw  sw}
-                                             [[:gen :out :sw :in identity]
-                                              [:sw :out :network :out identity]])]
+                                              :del del}
+                                             [[:gen :out :del :in]
+                                              [:del :out :network :out]])]
                       (-> net
                           network-simulator
-                          (afap-root-coordinator :end 5))))))
-
-  (testing "Confluence test #3: default priority"
-    (is (event-log= [[1 {:out [true]}]
-                     [2 {:out [true]}]
-                     [3 {:out [true]}]
-                     [4 {:out [false]}]
-                     [5 {:out [false]}]]
-                    (let [gen (generator 2 true)
-                          sw  (switch)
-                          net (network-model {:gen gen
-                                              :sw  sw}
-                                             [[:gen :out :sw :in identity]
-                                              [:sw :out :network :out identity]])]
-                      (-> net
-                          network-simulator
-                          (afap-root-coordinator :end 5)))))))
+                          (afap-root-coordinator :end 500)))))))
 
 (deftest deep-delay-network
 
@@ -168,7 +114,7 @@
       (is (event-log= [[7 {:out ["x"]}]
                        [9 {:out ["x"]}]]
                       (let [gen (generator 2 "x")
-                            del (-> (delay1 5)
+                            del (-> (fixed-delay 5)
                                     delay-network-constructor
                                     delay-network-constructor
                                     delay-network-constructor
@@ -202,7 +148,7 @@
   (testing "Remove an atomic model before it is imminent."
     (is (event-log= []
                     (let [net (dynamic-delay-network (generator 5 "x")
-                                                     (delay1 2)
+                                                     (fixed-delay 2)
                                                      0 6)]
                       (-> (network-simulator net)
                           (afap-root-coordinator :start 0 :end 10))))))
@@ -210,7 +156,7 @@
   (testing "Remove an atomic model when it is imminent."
     (is (event-log= [[7 {:out ["x"]}]]
                     (let [net (dynamic-delay-network (generator 5 "x")
-                                                     (delay1 2)
+                                                     (fixed-delay 2)
                                                      0 7)]
                       (-> (network-simulator net)
                           (afap-root-coordinator :start 0 :end 10))))))
@@ -218,7 +164,7 @@
   (testing "Remove an atomic model after it is imminent."
     (is (event-log= [[7 {:out ["x"]}]]
                     (let [net (dynamic-delay-network (generator 5 "x")
-                                                     (delay1 2)
+                                                     (fixed-delay 2)
                                                      0 8)]
                       (-> (network-simulator net)
                           (afap-root-coordinator :start 0 :end 10))))))
@@ -227,7 +173,7 @@
     (is (event-log= [[12 {:out ["x"]}]
                      [17 {:out ["x"]}]]
                     (let [net (dynamic-delay-network (generator 5 "x")
-                                                     (delay1 2)
+                                                     (fixed-delay 2)
                                                      5 15)]
                       (-> (network-simulator net)
                           (afap-root-coordinator :start 0 :end 20)))))))
@@ -238,7 +184,7 @@
     (is (event-log= [[7 {:out ["msg 1" "Good"]}]]
                     (let [gen  (lazy-seq-generator [[5 {:out ["msg 1"]}]
                                                     [10 {:out ["msg 2"]}]])
-                          del  (network-model {:del  (delay1 2)
+                          del  (network-model {:del  (fixed-delay 2)
                                                :gen2 (lazy-seq-generator [[7 {:out ["Good"]}]
                                                                           [8 {:out ["Bad"]}]])}
                                               [[:network :in :del :in identity]
@@ -281,8 +227,8 @@
                       [19 {:gen-out ("msg-19"), :del-2-out ("msg-17")}]
                       [20 {:gen-out ("msg-20"), :del-2-out ("msg-18")}]]
                     (let [gen   (lazy-seq-generator (for [i (range)] [1 {:out [(str "msg-" (inc i))]}]))
-                          del-1 (delay1 1)
-                          del-2 (delay1 2)
+                          del-1 (fixed-delay 1)
+                          del-2 (fixed-delay 2)
                           exec  (lazy-seq-generator
                                  (cycle [[5 {:out [[:disconnect [:gen :out :del-1 :in identity]]
                                                    [:disconnect [:del-1 :out :network :del-1-out identity]]
