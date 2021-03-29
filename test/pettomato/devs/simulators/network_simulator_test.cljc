@@ -42,4 +42,4 @@
   (is (thrown-with-msg? #?(:clj clojure.lang.ExceptionInfo
                            :cljs ExceptionInfo)
                         #"Unknown model type."
-                        (default-model->sim nil))))
+                        (default-model->sim nil nil))))

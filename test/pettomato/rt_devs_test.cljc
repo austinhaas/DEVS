@@ -5,7 +5,7 @@
       :cljs
       [cljs.test :refer-macros [deftest is testing]])
    [pettomato.devs.simulators.rt-simulator-adapter :refer [rt-simulator-adapter]]
-   [pettomato.devs.examples.models :refer [generator]]
+   [pettomato.devs.examples.models :refer [generator single-delay]]
    [pettomato.devs.examples.rt-models :refer [rt-generator rt-lazy-seq-generator rt-single-delay]]
    [pettomato.devs.lib.date :refer [timestamp]]
    [pettomato.devs.lib.event-log :refer [event-log=]]
@@ -98,6 +98,52 @@
                       (-> net
                           rt-network-simulator
                           (rt-afap-root-coordinator :end 500)))))))
+
+(deftest mixed-rt-tests
+
+  (testing "generator, rt-single-delay"
+    (let [step-size 77
+          net       (network-model {:gen (generator 1000 'tick)
+                                    :del (rt-single-delay 200 :internal-first step-size)}
+                                   [[:gen :out :del :in]
+                                    [:del :out :network :out]])]
+      (is (event-log= [[1200 {:out ['tick]}]
+                       [2200 {:out ['tick]}]
+                       [3200 {:out ['tick]}]
+                       [4200 {:out ['tick]}]
+                       [5200 {:out ['tick]}]
+                       [6200 {:out ['tick]}]
+                       [7200 {:out ['tick]}]
+                       [8200 {:out ['tick]}]
+                       [9200 {:out ['tick]}]]
+                      (-> net
+                          (rt-network-simulator :model->sim (fn [k m]
+                                                              (case k
+                                                                :gen (comp rt-simulator-adapter atomic-simulator)
+                                                                :del rt-atomic-simulator                                                              )))
+                          (rt-afap-root-coordinator :end 10000 :step-size step-size))))))
+
+  (testing "rt-generator, single-delay"
+    (let [step-size 77
+          net       (network-model {:gen (rt-generator 1000 'tick step-size)
+                                    :del (single-delay 200 :internal-first)}
+                                   [[:gen :out :del :in]
+                                    [:del :out :network :out]])]
+      (is (event-log= [[1200 {:out ['tick]}]
+                       [2200 {:out ['tick]}]
+                       [3200 {:out ['tick]}]
+                       [4200 {:out ['tick]}]
+                       [5200 {:out ['tick]}]
+                       [6200 {:out ['tick]}]
+                       [7200 {:out ['tick]}]
+                       [8200 {:out ['tick]}]
+                       [9200 {:out ['tick]}]]
+                      (-> net
+                          (rt-network-simulator :model->sim (fn [k m]
+                                                              (case k
+                                                                :gen rt-atomic-simulator
+                                                                :del (comp rt-simulator-adapter atomic-simulator))))
+                          (rt-afap-root-coordinator :end 10000 :step-size step-size)))))))
 
 (deftest scale-factor-tests
   (let [output    (atom [])

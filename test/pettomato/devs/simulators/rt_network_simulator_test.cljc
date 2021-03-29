@@ -42,7 +42,7 @@
   (is (thrown-with-msg? #?(:clj clojure.lang.ExceptionInfo
                            :cljs ExceptionInfo)
                         #"Unknown model type."
-                        (default-model->sim nil)))
+                        (default-model->sim nil nil)))
 
   (testing "Real-time models must handle no-op transitions."
     (let [gen (generator 10 100)

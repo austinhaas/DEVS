@@ -62,9 +62,10 @@
 
 (defn- add-model [model->sim network-sim k model t]
   (log/tracef "add-model: %s" k)
-  (let [sim (model->sim model)
-        sim (binding [*path* (conj *path* k)]
-              (initialize sim t))]
+  (let [simulator (model->sim k model)
+        sim       (simulator model)
+        sim       (binding [*path* (conj *path* k)]
+                    (initialize sim t))]
     (-> network-sim
         (update :k->sim assoc k sim))))
 
@@ -176,29 +177,32 @@
 (declare rt-network-simulator)
 
 (defn default-model->sim
-  "A function that takes a model and returns a simulator for that model.
+  "A function that takes two args: a name and a model, and returns a simulator
+  for that model.
 
   This version maps atomic-models to rt-atomic-simulators and network-models to
   rt-network-simulators."
-  [model]
+  [k model]
   (cond
-    (atomic-model?  model) (rt-atomic-simulator  model)
-    (network-model? model) (rt-network-simulator model)
+    (atomic-model?  model) rt-atomic-simulator
+    (network-model? model) rt-network-simulator
     :else                  (throw (ex-info "Unknown model type." {}))))
 
 (defn rt-network-simulator
   "Wrap a real-time network model in a real-time network simulator.
 
   Args:
+
     model - A real-time network model.
 
   Optional keyword args:
-    model->sim - A function that takes a model and returns a simulator for that
-  model. The default maps atomic-models to rt-atomic-simulators and
-  network-models to rt-network-simulators. This is used for dynamic structure
-  changes.
+
+    model->sim - A function that takes two args: a name and a model, and returns
+    a simulator for that model. The default maps atomic-models to rt-atomic-simulators
+    and network-models to rt-network-simulators.
 
   Returns:
+
     A simulator.
 
   The network's component models can request network structure changes by
