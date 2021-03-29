@@ -48,9 +48,9 @@
              network-sim
              mail))
 
-(defn- add-model [model->sim network-sim k model t]
+(defn- add-model [find-simulator network-sim k model t]
   (log/tracef "add-model: %s" k)
-  (let [simulator (model->sim k model)
+  (let [simulator (find-simulator k model)
         sim       (simulator model)
         sim       (binding [*path* (conj *path* k)]
                     (initialize sim t))
@@ -82,14 +82,14 @@
         (update-in [:routes sk sp rk rp] disj f)
         (update :routes prune [sk sp rk rp]))))
 
-(defn- apply-network-structure-changes [model->sim network-sim net-msgs t]
+(defn- apply-network-structure-changes [find-simulator network-sim net-msgs t]
   ;; Network structure messages are grouped and processed in a specific order.
   ;; Himmelspach, Jan, and Adelinde M. Uhrmacher. "Processing dynamic PDEVS models."
   ;; The IEEE Computer Society's 12th Annual International Symposium on Modeling, Analysis, and Simulation of Computer and Telecommunications Systems, 2004.
   ;; Section 3.2
   ;; http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.302.3385&rep=rep1&type=pdf
   (let [net-msgs   (group-by first net-msgs)
-        add-model  (fn [sim [_ k model]] (add-model  model->sim sim k model t))
+        add-model  (fn [sim [_ k model]] (add-model  find-simulator sim k model t))
         rem-model  (fn [sim [_ k]]       (rem-model  sim k))
         connect    (fn [sim [_ route]]   (connect    sim route))
         disconnect (fn [sim [_ route]]   (disconnect sim route))]
@@ -99,14 +99,14 @@
       (reduce add-model  network-sim (:add-model  net-msgs))
       (reduce connect    network-sim (:connect    net-msgs)))))
 
-(defrecord NetworkSimulator [model k->sim routes queue int-mail net-msgs model->sim tl]
+(defrecord NetworkSimulator [model k->sim routes queue int-mail net-msgs find-simulator tl]
   Simulator
   (initialize [sim t]
     (log/trace "--- initialize ---")
     ;; Assuming initialize will only be called once.
     (let [sim (as-> sim sim
                 ;; Add models.
-                (reduce-kv #(add-model model->sim %1 %2 %3 t) sim (:models model))
+                (reduce-kv #(add-model find-simulator %1 %2 %3 t) sim (:models model))
                 ;; Add routes.
                 (reduce connect sim (:routes model)))]
       (assoc sim :tl (reduce max (map (fn [[k sim]]
@@ -153,7 +153,7 @@
             _        (log/tracef "mail: %s" mail)]
         (-> sim
             (apply-transitions mail t)
-            ((partial apply-network-structure-changes model->sim) net-msgs t)
+            ((partial apply-network-structure-changes find-simulator) net-msgs t)
             (assoc :int-mail {})
             (assoc :net-msgs [])
             (assoc :tl t)))))
@@ -163,7 +163,7 @@
 
 (declare network-simulator)
 
-(defn default-model->sim
+(defn default-find-simulator
   "A function that takes two args: a name and a model, and returns a simulator
   for that model.
 
@@ -184,7 +184,7 @@
 
   Optional keyword args:
 
-    model->sim - A function that takes two args: a name and a model, and returns
+    find-simulator - A function that takes two args: a name and a model, and returns
     a simulator for that model. The default maps atomic-models to atomic-simulators
     and network-models to network-simulators.
 
@@ -204,10 +204,10 @@
   [:connect route]
 
   [:disconnect route]"
-  [model & {:keys [model->sim]
-            :or   {model->sim default-model->sim}}]
-  (map->NetworkSimulator {:model      model
-                          :queue      (pq/priority-queue)
-                          :int-mail   {}
-                          :net-msgs   []
-                          :model->sim model->sim}))
+  [model & {:keys [find-simulator]
+            :or   {find-simulator default-find-simulator}}]
+  (map->NetworkSimulator {:model          model
+                          :queue          (pq/priority-queue)
+                          :int-mail       {}
+                          :net-msgs       []
+                          :find-simulator find-simulator}))

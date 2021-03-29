@@ -117,10 +117,10 @@
                        [8200 {:out ['tick]}]
                        [9200 {:out ['tick]}]]
                       (-> net
-                          (rt-network-simulator :model->sim (fn [k m]
-                                                              (case k
-                                                                :gen (comp rt-simulator-adapter atomic-simulator)
-                                                                :del rt-atomic-simulator                                                              )))
+                          (rt-network-simulator :find-simulator (fn [k m]
+                                                                  (case k
+                                                                    :gen (comp rt-simulator-adapter atomic-simulator)
+                                                                    :del rt-atomic-simulator                                                              )))
                           (rt-afap-root-coordinator :end 10000 :step-size step-size))))))
 
   (testing "rt-generator, single-delay"
@@ -139,10 +139,10 @@
                        [8200 {:out ['tick]}]
                        [9200 {:out ['tick]}]]
                       (-> net
-                          (rt-network-simulator :model->sim (fn [k m]
-                                                              (case k
-                                                                :gen rt-atomic-simulator
-                                                                :del (comp rt-simulator-adapter atomic-simulator))))
+                          (rt-network-simulator :find-simulator (fn [k m]
+                                                                  (case k
+                                                                    :gen rt-atomic-simulator
+                                                                    :del (comp rt-simulator-adapter atomic-simulator))))
                           (rt-afap-root-coordinator :end 10000 :step-size step-size)))))))
 
 (deftest scale-factor-tests

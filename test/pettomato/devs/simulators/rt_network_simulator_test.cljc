@@ -7,7 +7,7 @@
    [pettomato.devs.examples.models :refer [generator fixed-delay]]
    [pettomato.devs.models.network-model :refer [network-model]]
    [pettomato.devs.simulator :refer [initialize collect-mail transition time-of-last-event time-of-next-event]]
-   [pettomato.devs.simulators.rt-network-simulator :refer [default-model->sim rt-network-simulator]]))
+   [pettomato.devs.simulators.rt-network-simulator :refer [default-find-simulator rt-network-simulator]]))
 
 (deftest exception-tests
 
@@ -42,7 +42,7 @@
   (is (thrown-with-msg? #?(:clj clojure.lang.ExceptionInfo
                            :cljs ExceptionInfo)
                         #"Unknown model type."
-                        (default-model->sim nil nil)))
+                        (default-find-simulator nil nil)))
 
   (testing "Real-time models must handle no-op transitions."
     (let [gen (generator 10 100)

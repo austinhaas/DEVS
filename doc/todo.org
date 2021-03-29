@@ -1,8 +1,4 @@
 * TODO
-** DONE Create a mixed RT and non-RT network.
-   - Just use generator and delay.
-   - Determine how to integrate the simulator adapter.
-** Rename model->sim to find-simulator.
 ** Add a simple dynamic test.
    - Use a lazy-seq-generator to exercise all the dynamic commands.
    - It can be completely scripted; no need to implement management logic.

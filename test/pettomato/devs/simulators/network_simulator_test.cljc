@@ -7,7 +7,7 @@
    [pettomato.devs.examples.models :refer [generator fixed-delay]]
    [pettomato.devs.models.network-model :refer [network-model]]
    [pettomato.devs.simulator :refer [initialize collect-mail transition time-of-last-event time-of-next-event]]
-   [pettomato.devs.simulators.network-simulator :refer [default-model->sim network-simulator]]))
+   [pettomato.devs.simulators.network-simulator :refer [default-find-simulator network-simulator]]))
 
 (deftest exception-tests
 
@@ -42,4 +42,4 @@
   (is (thrown-with-msg? #?(:clj clojure.lang.ExceptionInfo
                            :cljs ExceptionInfo)
                         #"Unknown model type."
-                        (default-model->sim nil nil))))
+                        (default-find-simulator nil nil))))
