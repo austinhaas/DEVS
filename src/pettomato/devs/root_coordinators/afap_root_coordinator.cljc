@@ -12,7 +12,7 @@
 
   Optional keyword args:
     start - Simulation start time (inclusive). Default: 0.
-    end - Simulation end time (inclusive). Default: infinity.
+    end - Simulation end time (inclusive, unless infinity). Default: infinity.
 
   Returns:
     A seq of [timestamp mail].
