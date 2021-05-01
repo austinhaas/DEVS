@@ -11,6 +11,8 @@
 
 #?(:cljs
    (def high-performance-timer-available?
+     "True if the cljs run-time environment supports the high-performance timer,
+  otherwise false."
      (boolean
       (and (find-ns 'window)
            (find-ns 'window.performance)
@@ -31,6 +33,8 @@
                 (.now js/Date))))
 
 (defn format-date
+  "Formats the supplied date with the date-format string. If date-format is not
+  supplied, it defaults to HH:mm:ss.SSS."
   ([date] (format-date "HH:mm:ss.SSS" date))
   ([date-format date]
    #?(:clj  (-> (java.text.SimpleDateFormat. date-format) (.format date))
