@@ -16,7 +16,8 @@
   This should be used with rt-afap-root-coordinator. This DOES NOT account for
   scale-factor!
 
-  step-size - Should be the same as provided to rt-afap-root-coordinator."
+  step-size - Should be the same as the value provided to
+  rt-afap-root-coordinator."
   [period value step-size]
   (atomic-model
    :initial-state   {:local-sim-time        0
