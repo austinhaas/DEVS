@@ -25,8 +25,8 @@
 
     - Fujimoto. Parallel and Distributed Simulation Systems. 2000. p. 7."
   [sim & {:keys [start end]
-          :or   {start     0
-                 end       infinity}}]
+          :or   {start 0
+                 end   infinity}}]
   (let [[sim event-log] (-> (step-root-coordinator sim :start start)
                             (step-through end))]
     event-log))
