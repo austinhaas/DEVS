@@ -29,6 +29,8 @@
                                            out)]
                           (recur sim out))
         :else           [sim out]))))
+;; Commented out because it isn't currently used, but may be useful in the
+;; future.
 #_
 (defn step-to
   "Advance sim to end-time (exclusive).

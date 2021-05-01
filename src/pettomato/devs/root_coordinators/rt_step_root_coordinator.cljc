@@ -51,8 +51,8 @@
     ;; If there happens to be a scheduled event at end time, then there is no
     ;; need for the artificial transition. But if there isn't, the artificial
     ;; transition will be made, and then the sim will be advanced to the current
-    ;; time again, in case the artificial transition resulted in the sim
-    ;; becoming immediately imminent.
+    ;; time again, in case the artificial transition caused the sim to become
+    ;; imminent.
     (if (= (time-of-last-event sim) end)
       [sim event-log]
       ;; No need to collect mail; we know the sim isn't imminent, or the

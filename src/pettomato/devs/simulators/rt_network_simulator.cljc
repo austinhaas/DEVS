@@ -128,7 +128,7 @@
               (str "synchronization error: (not (= " t " " tn "))"))
       (let [imminent      (imminent k->sim t)
             _             (log/tracef "imminent: %s" (vec imminent)) ;; TODO: Don't convert to vector here; do it in the log fn.
-            ;; Note that this could be made to run in parallel.
+            ;; This could be parallelized.
             sim-and-mail  (map (fn [k]
                                  (binding [*path* (conj *path* k)]
                                    (collect-mail (k->sim k) t))) ; recursive step

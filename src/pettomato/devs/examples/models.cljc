@@ -49,15 +49,25 @@
   received before a previously received message has been sent, the previously
   received message will be discareded.
 
-  duration - A number. The amount of time to wait, in milliseconds, between
+  Args:
+
+    duration - A number. The amount of time to wait, in milliseconds, between
   receiving a message and resending it.
 
-  priority - A keyword: :internal-first or :external-first. Determines the
+  Optional keyword args:
+
+    priority - A keyword: :internal-first or :external-first. Determines the
   behavior when the model receives a new message at exactly the same time that
   it is scheduled to send a delayed message. If :internal-first, then the older
   message will be sent before the new message is processed. If :external-first,
-  then the older message will be discarded when the new message is received."
-  [duration priority]
+  then the older message will be discarded when the new message is
+  received. Defaults to :internal-first.
+
+  Returns:
+
+  An atomic model."
+  [duration & {:keys [priority]
+               :or {priority :internal-first}}]
   ;; This may not be a good example for how to code this behavior. This was
   ;; originally created to test confluence. I wanted something with obvious
   ;; behavior that would differ solely based on which state transition function
