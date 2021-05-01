@@ -2,7 +2,7 @@
   "Functions for mail data structures.
 
   A mail data structure is a map from keys to a map from ports to a collection
-  of values. key -> port -> values")
+  of values: key -> port -> values")
 
 (defn local-mail=
   "Compare two \"local\" mail data structures for equality.
@@ -25,9 +25,16 @@
 (defn route-mail
   "Takes routes and outbound mail. Returns inbound mail.
 
-  routes        - {sk {sp {rk {rp fs}}}}
-  outbound mail - {sk {sp vs}}
-  inbound mail  - {rk {rp vs}}"
+  routes        - sk -> sp -> rk -> rp -> fs
+  outbound mail - sk -> sp -> vs
+  inbound mail  - rk -> rp -> vs
+
+  s  - sender
+  r  - receiver
+  k  - key
+  p  - port
+  fs - functions (to apply to each value on the route)
+  vs - values"
   [routes mail]
   (reduce (fn [m [rk rp vs]]
             (update-in m [rk rp] into vs))
