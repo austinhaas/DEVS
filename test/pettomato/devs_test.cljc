@@ -81,7 +81,7 @@
                     (let [gen (lazy-seq-generator [[100 {:out ['tick]}]
                                                    [100 {:out ['tick]}]
                                                    [100 {:out ['tick]}]])
-                          del (single-delay 100 :internal-first)
+                          del (single-delay 100 :priority :internal-first)
                           net (network-model {:gen gen
                                               :del del}
                                              [[:gen :out :del :in]
@@ -95,7 +95,7 @@
                     (let [gen (lazy-seq-generator [[100 {:out ['tick]}]
                                                    [100 {:out ['tick]}]
                                                    [100 {:out ['tick]}]])
-                          del (single-delay 100 :external-first)
+                          del (single-delay 100 :priority :external-first)
                           net (network-model {:gen gen
                                               :del del}
                                              [[:gen :out :del :in]
@@ -126,59 +126,73 @@
                         (-> (network-simulator net)
                             (afap-root-coordinator :end 10))))))))
 
-(defn dynamic-delay-network
-  "Constructs a network that contains gen and adds del at start and removes it at
-  end. gen is connected to del and del is connected to the network.
-
-  This is not generally useful; it is just for testing adding and removing
-  models dynamically."
-  [gen del start end]
-  (network-model {:gen  gen
-                  :exec (lazy-seq-generator
-                         [[start {:out [[:add-model :del del]
-                                        [:connect [:gen :out :del :in identity]]
-                                        [:connect [:del :out :network :out identity]]]}]
-                          [end {:out [[:disconnect [:gen :out :del :in identity]]
-                                      [:disconnect [:del :out :network :out identity]]
-                                      [:rem-model :del]]}]])}
-                 [[:exec :out :network :structure identity]]))
-
 (deftest structure-change-tests
 
   (testing "Remove an atomic model before it is imminent."
     (is (event-log= []
-                    (let [net (dynamic-delay-network (generator 5 "x")
-                                                     (fixed-delay 2)
-                                                     0 6)]
-                      (-> (network-simulator net)
-                          (afap-root-coordinator :start 0 :end 10))))))
+                    (-> (network-model
+                         {:gen  (generator 5 "x")
+                          :del  (single-delay 2)
+                          :exec (lazy-seq-generator
+                                 [[6 {:out [[:disconnect [:gen :out :del     :in]]
+                                            [:disconnect [:del :out :network :out]]
+                                            [:rem-model :del]]}]])}
+                         [[:gen  :out :del     :in]
+                          [:del  :out :network :out]
+                          [:exec :out :network :structure]])
+                        network-simulator
+                        (afap-root-coordinator :start 0 :end 10)))))
 
   (testing "Remove an atomic model when it is imminent."
+    ;; Note that single-delay differs from fixed-delay here; it has an
+    ;; additional transient state before sending output, so if it is removed at
+    ;; the same time as it is imminent, then
     (is (event-log= [[7 {:out ["x"]}]]
-                    (let [net (dynamic-delay-network (generator 5 "x")
-                                                     (fixed-delay 2)
-                                                     0 7)]
-                      (-> (network-simulator net)
-                          (afap-root-coordinator :start 0 :end 10))))))
+                    (-> (network-model
+                         {:gen  (generator 5 "x")
+                          :del  (fixed-delay 2)
+                          :exec (lazy-seq-generator
+                                 [[7 {:out [[:disconnect [:gen :out :del     :in]]
+                                            [:disconnect [:del :out :network :out]]
+                                            [:rem-model :del]]}]])}
+                         [[:gen  :out :del     :in]
+                          [:del  :out :network :out]
+                          [:exec :out :network :structure]])
+                        network-simulator
+                        (afap-root-coordinator :start 0 :end 10)))))
 
   (testing "Remove an atomic model after it is imminent."
     (is (event-log= [[7 {:out ["x"]}]]
-                    (let [net (dynamic-delay-network (generator 5 "x")
-                                                     (fixed-delay 2)
-                                                     0 8)]
-                      (-> (network-simulator net)
-                          (afap-root-coordinator :start 0 :end 10))))))
+                    (-> (network-model
+                         {:gen  (generator 5 "x")
+                          :del  (single-delay 2)
+                          :exec (lazy-seq-generator
+                                 [[8 {:out [[:disconnect [:gen :out :del     :in]]
+                                            [:disconnect [:del :out :network :out]]
+                                            [:rem-model :del]]}]])}
+                         [[:gen  :out :del     :in]
+                          [:del  :out :network :out]
+                          [:exec :out :network :structure]])
+                        network-simulator
+                        (afap-root-coordinator :start 0 :end 10)))))
 
-  (testing "Adding an atomic model after it would have received input."
+  (testing "Adding an atomic model after it would have received input, and testing that order of structure change messages doesn't matter."
     (is (event-log= [[12 {:out ["x"]}]
                      [17 {:out ["x"]}]]
-                    (let [net (dynamic-delay-network (generator 5 "x")
-                                                     (fixed-delay 2)
-                                                     5 15)]
-                      (-> (network-simulator net)
-                          (afap-root-coordinator :start 0 :end 20)))))))
-
-(deftest ad-hoc-structure-change-tests
+                    (-> (network-model
+                         {:gen  (generator 5 "x")
+                          :exec (lazy-seq-generator
+                                 [[5 {:out (shuffle
+                                            [[:add-model :del (single-delay 2)]
+                                             [:connect [:gen  :out :del     :in]]
+                                             [:connect [:del  :out :network :out]]])}]
+                                  [15 {:out (shuffle
+                                             [[:disconnect [:gen :out :del     :in]]
+                                              [:disconnect [:del :out :network :out]]
+                                              [:rem-model :del]])}]])}
+                         [[:exec :out :network :structure]])
+                        network-simulator
+                        (afap-root-coordinator :start 0 :end 20)))))
 
   (testing "Remove a network model"
     (is (event-log= [[7 {:out ["msg 1" "Good"]}]]

@@ -14,6 +14,45 @@
    couldn't use maps to represent message bags, because the order of message
    associated with different ports is unspecified.
 * Implementation Notes
+** The network structure change implementation may be flawed.
+
+   - Structural changes are processed after nonstructural changes, within a
+     single step of the simulation. If there are multiple steps before time
+     advances, a common occurrence, then structural changes will be interleaved
+     with nonstructural changes within the same time point!
+
+   - This may lead to undesirable behavior. For example, consider a model that
+     outputs a value after a delay. If that model is imminent at the same time
+     it is removed, whether or not the output is produced may depend on if the
+     model employs a transitory state (ta=0) before it produces output.
+
+   - We could change the implementation such that network structure changes are
+     processed after all known messages at time t are processed, but we cannot
+     guarantee that a new message won't arrive at t. In general, we've made an
+     assumption that until a new event occurs after t, there could always be
+     another event at t.
+
+     - I don't know if this assumption holds. In the case of a non-RT sim, we
+       definitely can know when there will not be another event at time t.
+
+     - It should be easy to support the desired behavior. It adds a constraint:
+       timestamps must increase; but that doesn't seem restrictive. It may be
+       sufficient to document it.
+
+
+** On receiving mail multiple times before time advances
+   - An external state transition function may be invoked multiple times, with
+     distinct bags of mail, before simulation time advances.
+     - Example: A model replies to queries without advancing time.
+   - It is the responsibility of the modeler to ensure that messages received at
+     the same logical time are handled correctly.
+     - Often, this is trivial. For example, if a model accumulates values from
+       messages (e.g., summation), then it may not matter if concurrent messages
+       arrive together or separately.
+   - Consider two models that exchange a series of messages without advancing
+     time. There is a logical (causal) relationship between the messages. Not
+     sure what the recommendation here is, but models should be designed so this
+     isn't an issue.
 ** On using non-namespaced keywords :network and :structure in routes.
 
    Namespaced keywords would help elevate these symbols and keep them from
@@ -69,15 +108,21 @@
        account for this.
 ** On network structure changes
 
-   Network structure changes are communicated via the normal DEVS "in model"
-   message system.
+   Network structure changes are requested via the model output function, like
+   any other message.
 
-   Alternatively, they could be implemented as a system-level message (like the
-   state transition functions) and incorporated into the simulation update
-   algorithm. That's how they are typically described in the literature.
+   Alternatively, structure changes could be implemented as a system-level
+   message (like the state transition functions) and incorporated into the
+   simulation update algorithm. That's how they are typically described in the
+   literature.
 
    I chose to implement the network structure changes as normal messages because
-   it seemed much simpler to implement, model, and comprehend.
+   it seemed much simpler to implement, model, and comprehend. It basically
+   piggybacks on the existing system. For example, the message routing system
+   can be used without modification. And nothing else is needed to efficiently
+   determine which models are requesting structure changes or managing their
+   lifecycle; the normal system of time-advance, output, and internal-update is
+   used.
 
 ** On optimization
 

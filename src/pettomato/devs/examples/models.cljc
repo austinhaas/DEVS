@@ -47,7 +47,7 @@
   "A model that receives messages on port :in and sends them back out on port :out
   after duration. Only one message can be delayed at a time. If a new message is
   received before a previously received message has been sent, the previously
-  received message will be discareded.
+  received message will be discarded.
 
   Args:
 

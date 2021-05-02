@@ -1,22 +1,50 @@
 * TODO
+** DONE Determine if we are handling network structure correctly.
+   - I don't think single-delay and fixed-delay should differ.
+   - Should the network structure changes wait until after all other transitions
+     are processed?
+   - Answer: not really
+*** DONE Check what the papers say about this.
+**** [[https://repository.lib.ncsu.edu/bitstream/handle/1840.4/6989/1998_0056.pdf?sequence=1][Barros. Abstract Simulators for the DSDE Formalism]]
+     - Note that this isn't a parallel simulator.
+     - Section 5.2
+       - In the network simulator, network executives are updated after the
+         other models, within the scope of each network.
+**** [[http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.302.3385&rep=rep1&type=pdf][Himmelspach. Uhrmacher. Processing dynamic PDEVS models]]
+     - Study this. This approach may be better than what we've implemented. I
+       like the way the guarantee step checks each component before advancing
+       sim time. This might be simpler and more obvious than how we are
+       implicitly handling real-time.
+
+       - One problem with this is that models would need to use the time-advance
+         function to get "pacing" updates from the coordinator, and we want that
+         to be based on, for example, rAF, and not a number that the model would
+         know to report.
+
+     - I don't think this supports the idea I'm trying to solve. I don't think
+       either paper considers non-zero time-advances.
+
+*** DONE Check if we are handling time-of-next-event correctly.
+    - I think we want to call it at the beginning of each step.
+    - Yes, in step-root-coordinator/step-while, time-of-next-event is called at
+      the top of each loop.
+** Improve network structure implementation
+   - We are storing net-msgs already.
+    - We don't have to process them in the transition.
+*** How can we tell which simulators are imminent for structure changes.
+    - It's the same as nonstructural imminence, but yeah, we'd have to iterate
+      2x, and probably only one of those is going to be valid for each case.
+    - We considered how to bubble up other info that could be used; maybe we
+      should bubble up what type of update is required?
+*** Proposal
+**** Add new simulator function: structure-change
+**** Move structure change code under that fn.
+**** Update root coordinators to require that timestamps are increasing.
 ** Add a simple dynamic test.
    - Use a lazy-seq-generator to exercise all the dynamic commands.
    - It can be completely scripted; no need to implement management logic.
 ** Create a rt simple dynamic test.
-** Add docstrings to the rt-models.
 ** Add more tests.
-*** DONE Test atomic-simulator exceptions
-*** DONE Test network-simulator exceptions
-*** DONE Test rt-atomic-simulator exceptions
-*** DONE Test rt-network-simulator exceptions
-*** DONE Test rt-step-root-coordinator by faking the wall-time updates.
-*** DONE Test changing RT clock scale-factor
-*** DONE Determine how to use rt-afap-root-coordinator.
-    - We want to use all of the same tests for non-rt and rt implementations.
-
-    - The easiest solution is probably to just add the extra value in the
-      event-log= comparison.
-
 *** Test rt-atomic-simulator confluent-update
 *** Test rt-network-simulator dynamic structure
 *** Check that a rt-model that is imminent handles the no-op case correctly.
@@ -27,9 +55,9 @@
 *** Test removing a model without disconnecting it first.
 *** Test a mixed RT and non-RT network.
 *** Check that dynamic structure changes are valid.
-*** Test atomic-model/->RT confluent-update
 *** Add tests for parallelization.
 *** Determine how to validate the TMS example.
+** Add docstrings to the rt-models.
 ** Document this part of the RT implementation
    - The time-advance function will be called immediately after every no-op
      external-update. So, the model has a "response time" less than or equal to

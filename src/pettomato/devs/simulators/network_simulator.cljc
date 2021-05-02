@@ -104,11 +104,12 @@
   (initialize [sim t]
     (log/trace "--- initialize ---")
     ;; Assuming initialize will only be called once.
-    (let [sim (as-> sim sim
-                ;; Add models.
-                (reduce-kv #(add-model find-simulator %1 %2 %3 t) sim (:models model))
-                ;; Add routes.
-                (reduce connect sim (:routes model)))]
+    (as-> sim sim
+      ;; Add models.
+      (reduce-kv #(add-model find-simulator %1 %2 %3 t) sim (:models model))
+      ;; Add routes.
+      (reduce connect sim (:routes model))
+      ;; Cache tl.
       (assoc sim :tl (reduce max (map (fn [[k sim]]
                                         (binding [*path* (conj *path* k)]
                                           (time-of-last-event sim)))

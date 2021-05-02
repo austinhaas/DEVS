@@ -43,7 +43,11 @@
   (testing "Three unequal inputs"
     (is (false? (event-log= sample-event-log
                             sample-event-log
-                            [])))))
+                            []))))
+
+  (testing "Non-compacted input"
+    (is (true? (event-log= [[0 {:x [1 2]}]]
+                           [[0 {:x [2]}] [0 {:x [1]}]])))))
 
 (deftest pp-event-log-test
 

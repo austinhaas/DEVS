@@ -18,9 +18,13 @@
                        (frequencies (get m2 k)))
                     (recur (rest kvs))))))))
 
+(def merge-local-mail
+  "Like clojure.core/merge, but for local-mail data structures."
+  (partial merge-with into))
+
 (def merge-mail
-  "Like clojure.core/merge, but specifically for mail data structures."
-  (partial merge-with (partial merge-with into)))
+  "Like clojure.core/merge, but for mail data structures."
+  (partial merge-with merge-local-mail))
 
 (defn route-mail
   "Takes routes and outbound mail. Returns inbound mail.

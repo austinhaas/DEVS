@@ -67,7 +67,8 @@
                           infinity)))))
 
 (defn rt-single-delay
-  [duration priority step-size]
+  [duration step-size & {:keys [priority]
+                         :or {priority :internal-first}}]
   (atomic-model
    :initial-state    {:phase                 :passive
                       :value                 nil

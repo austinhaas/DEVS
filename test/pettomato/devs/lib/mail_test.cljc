@@ -5,3 +5,8 @@
       :cljs
       [cljs.test :refer-macros [deftest is testing]])
    [pettomato.devs.lib.mail :as mail]))
+
+(deftest merge-local-mail-tests
+  (is (mail/local-mail=
+       {:x [1 2]}
+       (mail/merge-local-mail {:x [1]} {:x [2]}))))
