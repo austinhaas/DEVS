@@ -14,7 +14,7 @@ See the docstrings for documentation.
 
 See the tests for example usage.
 
-See [this examples namespace](./src/pettomato/devs/examples/) for example components.
+See [this namespace](./src/pettomato/devs/examples/) for example models.
 
 See [these notes](./doc/notes.org) for more information on the implementation.
 
@@ -53,5 +53,4 @@ Run `make` to get a list of commands.
 
 Copyright © 2021 Austin Haas
 
-Distributed under the Eclipse Public License either version 1.0 or (at
-your option) any later version.
+Distributed under the Eclipse Public License either version 1.0 or (at your option) any later version.
