@@ -1,0 +1,163 @@
+* TODO
+** DONE Determine if we are handling network structure correctly.
+   - I don't think single-delay and fixed-delay should differ.
+   - Should the network structure changes wait until after all other transitions
+     are processed?
+   - Answer: not really
+*** DONE Check what the papers say about this.
+**** [[https://repository.lib.ncsu.edu/bitstream/handle/1840.4/6989/1998_0056.pdf?sequence=1][Barros. Abstract Simulators for the DSDE Formalism]]
+     - Note that this isn't a parallel simulator.
+     - Section 5.2
+       - In the network simulator, network executives are updated after the
+         other models, within the scope of each network.
+**** [[http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.302.3385&rep=rep1&type=pdf][Himmelspach. Uhrmacher. Processing dynamic PDEVS models]]
+     - Study this. This approach may be better than what we've implemented. I
+       like the way the guarantee step checks each component before advancing
+       sim time. This might be simpler and more obvious than how we are
+       implicitly handling real-time.
+
+       - One problem with this is that models would need to use the time-advance
+         function to get "pacing" updates from the coordinator, and we want that
+         to be based on, for example, rAF, and not a number that the model would
+         know to report.
+
+     - I don't think this supports the idea I'm trying to solve. I don't think
+       either paper considers non-zero time-advances.
+
+*** DONE Check if we are handling time-of-next-event correctly.
+    - I think we want to call it at the beginning of each step.
+    - Yes, in step-root-coordinator/step-while, time-of-next-event is called at
+      the top of each loop.
+** Determine how to specify version in pom.xml.
+   - Clojurescript does it in a build script: https://github.com/clojure/clojurescript/search?q=CLOJURESCRIPT_VERSION
+** Fix issue with network structure implementation
+   - We are storing net-msgs already.
+    - We don't have to process them in the transition.
+*** How can we tell which simulators are imminent for structure changes?
+    - It's the same as nonstructural imminence, but yeah, we'd have to iterate
+      2x, and probably only one of those is going to be valid for each case.
+    - We considered how to bubble up other info that could be used; maybe we
+      should bubble up what type of update is required?
+*** Proposal
+**** Add new simulator function: structure-change
+**** Move structure change code under that fn.
+**** Update root coordinators to require that timestamps are increasing.
+** Add a simple dynamic test.
+   - Use a lazy-seq-generator to exercise all the dynamic commands.
+   - It can be completely scripted; no need to implement management logic.
+** Create a simple rt dynamic test.
+** Add more tests.
+*** Test rt-atomic-simulator confluent-update
+*** Test rt-network-simulator dynamic structure
+*** Check that a rt-model that is imminent handles the no-op case correctly.
+    - I'm concerned this will be handled by a confluent update fn, when it
+      should be an internal-update.
+*** Test that structure changes happen from the bottom up.
+    - Remove parent, then child.
+*** Test removing a model without disconnecting it first.
+*** Test a mixed RT and non-RT network.
+*** Check that dynamic structure changes are valid.
+*** Add tests for parallelization.
+*** Determine how to validate the TMS example.
+** Document this part of the RT implementation
+   - The time-advance function will be called immediately after every no-op
+     external-update. So, the model has a "response time" less than or equal to
+     the step size.
+** Consider if network-simulator should throw an exception if transition is called incorrectly
+   - I.e., called without any models being imminent or receiving any messages.
+   - Technically, a network sim could receive messages that aren't currently
+     routed to any component. I think we just want to check if it was called
+     without any messages at all.
+   - The question is: what would this gain? Maybe it is better for this
+     implementation to be robust than throw an error.
+** Publish.
+** Add tutorial.
+** Set up cljs example.
+** Improve robustness.
+*** Check that a model has no connections before removing it.
+    - Make it optional
+    - In dev mode, all checks should be enabled.
+    - Add tests.
+*** Consider declaring ports in models.
+    - To elucidate the interface.
+    - Could this buy additional clarity in the handling of messages?
+      - E.g., maybe there could be different port strategies, such as
+        FIFO, or order by type.
+      - We don't want to require that the update fns must be defined
+        within a port-translating macro.
+    - Might help catch errors.
+      - Don't let something connect to a non-existent port.
+    - Optimizations could use this information.
+**** Proposal: Use network structure messages.
+     - Adding a new model entails establishing its interface.
+     - This is consistent with at least one of the dynamic structure papers.
+** Implement structure changes for updating a model.
+   - A model could be replaced with a different implementation, while
+     maintaining the same state.
+   - Check the literature to see what the intention is.
+** Benchmark.
+*** Create an example for benchmarking.
+*** Consider that cljs vs clj might vary significantly.
+    - What should we do about that?
+**** Consider exporting benchmark results, for comparison.
+*** Test that logging isn't adding significant overhead when it is disabled.
+*** Test indexing routes by [name port] instead of name->route.
+*** Test multithreading.
+    - We'll need to bubble up the number of simulators that need to be updated
+      in each branch of the network hierarchy, and allocate resources
+      accordingly.
+*** Test storing a ref to models fns in the simulator.
+    - Instead of looking them up in the model.
+*** Test using an array to hold model state.
+    - Use indices as model references instead of paths.
+*** Test creating new records vs. updating properties.
+** Extend the logging system
+*** Log to a file
+    - And load from it. Compare stats on two historical logs.
+*** Capture metrics
+    - The idea is to capture some core bits of information about the internal,
+      run-time behavior and make it presentable.
+      - # of steps
+      - # of parallel processes
+      - # of messages
+      - by network
+*** Capture logs w/o printing
+    - Allow user to query and inspect.
+*** Handle key system messages specially.
+    - E.g., make it easy to control the handling of mail and network structure
+      change messages.
+** Consider improvements.
+*** Add destructor to models.
+**** Determine how this would be used.
+***** Proposal
+      - If a network model's destructor is invoked, then it will invoke the
+        destructor for every model in its network.
+      - If a model is removed through a network structure change, then its
+        destructor will be invoked.
+      - Root coordinators provide a function to invoke the top-level sim's
+        destructor.
+*** Determine if there is any advantage to separating network routes from internal routes.
+*** Consider allowing pass thru connections for networks.
+    - Can't create a "pass thru" connection where an input to :N
+      connects to an output of :N.
+    - I seem to recall this being explicitly disallowed in the literature, but I
+      can't recall where. I'm not sure what it means to allow this.
+    - This could be useful for debugging.
+** Improve debugging.
+*** Graphical animation
+**** Proposal: Use D3
+     - force simulation
+     https://github.com/d3/d3-force/blob/v2.1.1/README.md#forceSimulation
+     - Might be a great application/showcase for the customizable logging
+       system.
+     - Consider using the logging system to capture the state changes.
+       - Unsure if this is a good idea. The internal state of the system is
+         distinct from the simulation messages.
+*** Render network using graphviz.
+*** Stepper
+    - Like prolog.
+    - Step forward and back in time. Inspect states.
+** Implement a distributed root coordinator.
+   - I've considered using atoms with listeners, like an async "mailbox", but it
+     is awkward, if not illegal, for the listener to modify the thing it is
+     listening to (e.g., to empty the mailbox after reading it).

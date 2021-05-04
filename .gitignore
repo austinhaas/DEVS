@@ -1,11 +1,7 @@
-/classes
 pom.xml
-pom.xml.asc
-*.jar
-*.class
 .eastwood
-bench-out
 /.cljs-test-runner-out
+/.cljs_node_repl
 /.cpcache
 /out
-/.cljs_node_repl
+/target
