@@ -28,10 +28,12 @@
     - I think we want to call it at the beginning of each step.
     - Yes, in step-root-coordinator/step-while, time-of-next-event is called at
       the top of each loop.
-** Improve network structure implementation
+** Determine how to specify version in pom.xml.
+   - Clojurescript does it in a build script: https://github.com/clojure/clojurescript/search?q=CLOJURESCRIPT_VERSION
+** Fix issue with network structure implementation
    - We are storing net-msgs already.
     - We don't have to process them in the transition.
-*** How can we tell which simulators are imminent for structure changes.
+*** How can we tell which simulators are imminent for structure changes?
     - It's the same as nonstructural imminence, but yeah, we'd have to iterate
       2x, and probably only one of those is going to be valid for each case.
     - We considered how to bubble up other info that could be used; maybe we
@@ -43,7 +45,7 @@
 ** Add a simple dynamic test.
    - Use a lazy-seq-generator to exercise all the dynamic commands.
    - It can be completely scripted; no need to implement management logic.
-** Create a rt simple dynamic test.
+** Create a simple rt dynamic test.
 ** Add more tests.
 *** Test rt-atomic-simulator confluent-update
 *** Test rt-network-simulator dynamic structure
@@ -57,7 +59,6 @@
 *** Check that dynamic structure changes are valid.
 *** Add tests for parallelization.
 *** Determine how to validate the TMS example.
-** Add docstrings to the rt-models.
 ** Document this part of the RT implementation
    - The time-advance function will be called immediately after every no-op
      external-update. So, the model has a "response time" less than or equal to

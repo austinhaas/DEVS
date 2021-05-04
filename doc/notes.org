@@ -8,18 +8,18 @@
 
    A model may receive multiple bags of messages before sim-time advances.
 
-   Note that at least one of the papers says that the system preserves sender
-   message order, but we aren't doing that. I don't understand why we would want
-   that and supporting it would complicate the implementation. For example, we
-   couldn't use maps to represent message bags, because the order of message
+   At least one of the papers says that the system preserves sender message
+   order, but we aren't doing that. I don't understand why we would want that
+   and supporting it would complicate the implementation. For example, we
+   couldn't use maps to represent message bags, because the order of messages
    associated with different ports is unspecified.
 * Implementation Notes
 ** The network structure change implementation may be flawed.
 
    - Structural changes are processed after nonstructural changes, within a
      single step of the simulation. If there are multiple steps before time
-     advances, a common occurrence, then structural changes will be interleaved
-     with nonstructural changes within the same time point!
+     advances, which is common, then structural changes will be interleaved with
+     nonstructural changes within the same time point!
 
    - This may lead to undesirable behavior. For example, consider a model that
      outputs a value after a delay. If that model is imminent at the same time
@@ -38,7 +38,6 @@
      - It should be easy to support the desired behavior. It adds a constraint:
        timestamps must increase; but that doesn't seem restrictive. It may be
        sufficient to document it.
-
 
 ** On receiving mail multiple times before time advances
    - An external state transition function may be invoked multiple times, with
@@ -65,23 +64,23 @@
    There are two types of graphs in this system:
 
    1. The model hierarchy, where every model is either an atomic model or a
-      network model that is composed of atomic models and deeper network
-      models.
+      network model that is composed of models that may be atomic models and
+      network models.
 
    2. The connection topology, defined by the message routes.
 
    Additionally, networks are not explicit in the implementation. For example,
    networks do not have state and they do not send or receive messages. A
    connection may be made between a model and its containing network, and a
-   network may connect to another model. That result is that messages flow from
+   network may connect to another model. The result is that messages flow from
    one model to another; the containing network is just an abstraction.
 
 ** On efficient organization of mixed real-time and non-real-time systems
 
    Real-time components are updated every time the simulation advances.
 
-   I assume that the overwhelming majority of real-time systems will include
-   non-real-time components.
+   It is assumed that the overwhelming majority of real-time systems will
+   include non-real-time components.
 
    It would be inefficient to update non-real-time components every time the
    simulation advances.
@@ -90,7 +89,8 @@
 
    In a mixed system, the non-real-time components will likely be grouped
    together, possibly into a single branch. The only overhead should be
-   whatever bridges the root of that branch to the parent real-time simulator.
+   associated with whatever connects the root of that branch to the parent
+   real-time simulator.
 
 ** On flattening the network hierarchy
 
@@ -158,9 +158,8 @@
 
 ** On real-time simulators
 
-   A fixed time step can be used to simplify real-time implementations. It
-   especially helps handle a human-in-the-loop. Note that this makes the
-   top-level of the simulator like a traditional game architecture.
+   A fixed time step can simplify real-time implementations, especially when
+   there is a human-in-the-loop. This resembles a traditional game architecture.
 
    Currently, we are using the transition function to communicate the current
    sim time to real-time components. A consequence is that every real-time
@@ -186,8 +185,8 @@
 
    - Specifying which models are real-time is complicated and obscure.
 
-   - Handling no-op transitions is sub-optimal and it is not obvious why it is
-     needed.
+   - Handling no-op transitions is sub-optimal and it is not obvious to the
+     modeler why it is needed.
 
    - The update frequency is specified globally; models can't differ.
 
