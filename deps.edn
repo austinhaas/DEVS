@@ -1,5 +1,5 @@
 {:deps    {org.clojure/clojure       {:mvn/version "1.10.2"}
-           org.clojure/clojurescript {:mvn/version "1.10.822"}
+           org.clojure/clojurescript {:mvn/version "1.10.844"}
            org.clojure/test.check    {:mvn/version "1.1.0"}}
  :aliases {:test                     {:extra-paths ["test"]}
            :clj-runner               {:extra-deps {com.cognitect/test-runner {:git/url "https://github.com/cognitect-labs/test-runner.git"
@@ -36,4 +36,4 @@
                                                    :test-ns-path ["test"]}}
            :eastwood                 {:main-opts  ["-m" "eastwood.lint" {:source-paths ["src"]
                                                                          :add-linters  [:unused-fn-args :unused-locals :unused-namespaces :unused-private-vars]}]
-	                                    :extra-deps {jonase/eastwood {:mvn/version "0.3.14"}}}}}
+	                                    :extra-deps {jonase/eastwood {:mvn/version "0.4.1"}}}}}
