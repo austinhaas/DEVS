@@ -14,10 +14,10 @@
      "True if the cljs run-time environment supports the high-performance timer,
   otherwise false."
      (boolean
-      (and (find-ns 'window)
-           (find-ns 'window.performance)
-           (find-ns 'window.performance.timing)
-           (find-ns 'window.performance.timing.navigationStart)))))
+      (and js/window
+           (.-performance js/window)
+           (.-timing (.-performance js/window))
+           (.-navigationStart (.-timing (.-performance js/window)))))))
 
 (defn timestamp
   "Returns an integer representing the number of milliseconds since
