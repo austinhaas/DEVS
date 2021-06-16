@@ -28,17 +28,12 @@
           :or   {start     0
                  end       infinity
                  step-size 100}}]
-  (let [output (atom [])
-        rc     (rt-step-root-coordinator
-                sim
-                0
-                :start start
-                :output-fn (fn [event-log]
-                             (when (seq event-log)
-                               (swap! output into event-log))))]
-    (loop [rc rc
-           t  0]
-      (let [rc' (step-through-to-wall-time rc t :max-sim-time end)]
-        (when (< (get-sim-time rc') end)
-          (recur rc' (+ t step-size)))))
-    @output))
+  (let [wall-time 0]
+    (loop [rc        (rt-step-root-coordinator sim wall-time :start start)
+           t         wall-time
+           event-log []]
+      (let [[rc' event-log'] (step-through-to-wall-time rc t :max-sim-time end)
+            event-log        (into event-log event-log')]
+       (if (< (get-sim-time rc') end)
+         (recur rc' (+ t step-size) event-log)
+         event-log)))))

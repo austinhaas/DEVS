@@ -146,16 +146,11 @@
                           (rt-afap-root-coordinator :end 10000 :step-size step-size)))))))
 
 (deftest scale-factor-tests
-  (let [output    (atom [])
-        step-size 100
+  (let [step-size 100
         rc        (-> (generator 1000 'tick)
                       atomic-simulator
                       rt-simulator-adapter
-                      (rt-step-root-coordinator 0
-                                                :scale     1.0
-                                                :output-fn (fn [event-log]
-                                                             (when (seq event-log)
-                                                               (swap! output into event-log)))))
+                      (rt-step-root-coordinator 0 :scale 1.0))
         expected  [[1000 {:out ['tick]}]
                    [2000 {:out ['tick]}]
                    [3000 {:out ['tick]}]
@@ -163,16 +158,20 @@
                    [5000 {:out ['tick]}]
                    [6000 {:out ['tick]}]]]
     (is (= 1.0 (get-clock-scale-factor rc)))
-    (-> rc
-        (step-through-to-wall-time 1000)
-        (set-clock-scale-factor 2000 0.0)
-        (step-through-to-wall-time 3000)
-        (step-through-to-wall-time 4000)
-        (set-clock-scale-factor 5000 1.0)
-        (step-through-to-wall-time 6000)
-        (set-clock-scale-factor 7000 2.0)
-        (step-through-to-wall-time 8000))
-    (is (event-log= expected @output))))
+    (let [[rc event-log-1] (step-through-to-wall-time rc 1000)
+          rc               (set-clock-scale-factor rc 2000 0.0)
+          [rc event-log-2] (step-through-to-wall-time rc 3000)
+          [rc event-log-3] (step-through-to-wall-time rc 4000)
+          rc               (set-clock-scale-factor rc 5000 1.0)
+          [rc event-log-4] (step-through-to-wall-time rc 6000)
+          rc               (set-clock-scale-factor rc 7000 2.0)
+          [rc event-log-5] (step-through-to-wall-time rc 8000)
+          event-log        (concat event-log-1
+                                   event-log-2
+                                   event-log-3
+                                   event-log-4
+                                   event-log-5)]
+      (is (event-log= expected event-log)))))
 
 (deftest structure-change-tests
 

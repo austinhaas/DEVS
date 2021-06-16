@@ -25,22 +25,13 @@
 
     scale - The time scale factor. Default: 1.0.
 
-    output-fn - A function that will be invoked each time there is simulation
-  output. It should take a single argument: an event log. Default: A function
-  that logs a pretty-printed version of the output at the info log level.
-
   Returns:
     A root-coordinator."
-  [sim wall-time & {:keys [start scale-factor output-fn]
+  [sim wall-time & {:keys [start scale-factor]
                     :or   {start        0
-                           scale-factor 1.0
-                           output-fn    (fn [event-log]
-                                          (let [s (with-out-str (pp-event-log event-log))]
-                                            (when (seq s)
-                                              (log/infof "*** output *** \n%s" s))))}}]
-  {:clock     (clock/clock wall-time start :scale-factor scale-factor)
-   :sim       (step-root-coordinator sim :start start)
-   :output-fn output-fn})
+                           scale-factor 1.0}}]
+  {:clock (clock/clock wall-time start :scale-factor scale-factor)
+   :sim   (step-root-coordinator sim :start start)})
 
 (defn- step-through-and-transition
   "Like step-through, but always invokes a transition at end time, even if the
@@ -77,13 +68,12 @@
   [rc wall-time & {:keys [max-sim-time]
                    :or   {max-sim-time infinity}}]
   ;;(log/tracef "rt-step-root-coordinator/step-through-to-wall-time: %s" wall-time max-sim-time)
-  (let [{:keys [clock sim output-fn]} rc
+  (let [{:keys [clock sim]} rc
         clock    (clock/advance clock wall-time)
         sim-time (min (clock/get-sim-time clock) max-sim-time)]
     (binding [*sim-time* sim-time]
       (let [[sim out] (step-through-and-transition sim sim-time)]
-        (output-fn out)
-        (assoc rc :clock clock :sim sim)))))
+        [(assoc rc :clock clock :sim sim) out]))))
 
 (defn get-clock-scale-factor
   "Returns the root coordinator's current time scale factor."
