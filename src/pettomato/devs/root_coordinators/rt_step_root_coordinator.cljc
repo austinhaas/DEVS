@@ -64,7 +64,7 @@
   Default: infinity.
 
   Returns:
-    A new root coordinator."
+    [rc event-log]"
   [rc wall-time & {:keys [max-sim-time]
                    :or   {max-sim-time infinity}}]
   ;;(log/tracef "rt-step-root-coordinator/step-through-to-wall-time: %s" wall-time max-sim-time)
@@ -72,8 +72,8 @@
         clock    (clock/advance clock wall-time)
         sim-time (min (clock/get-sim-time clock) max-sim-time)]
     (binding [*sim-time* sim-time]
-      (let [[sim out] (step-through-and-transition sim sim-time)]
-        [(assoc rc :clock clock :sim sim) out]))))
+      (let [[sim event-log] (step-through-and-transition sim sim-time)]
+        [(assoc rc :clock clock :sim sim) event-log]))))
 
 (defn get-clock-scale-factor
   "Returns the root coordinator's current time scale factor."
