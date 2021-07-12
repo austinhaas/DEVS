@@ -14,7 +14,7 @@
   "A model that emits values according to a (possibly lazy and infinite) seq
   of [sigma mail].
 
-  s - A seq of [sigma mail] pairs.
+  coll - A collection of [sigma mail] pairs.
 
   sigma - A number. The delay, in milliseconds, before the associated mail
   should be output.
@@ -33,14 +33,14 @@
     ;; of time before each.
     (lazy-seq-generator (for [i (range)]
                           [(rand-int 1000) {:out [(str \"msg-\" i)]}]))"
-  [s]
+  [coll]
   (atomic-model
-   :initial-state   s
+   :initial-state   coll
    :internal-update next
    :output          (comp second first)
-   :time-advance    (fn [s]
-                      (if (seq s)
-                        (ffirst s)
+   :time-advance    (fn [coll]
+                      (if (seq coll)
+                        (ffirst coll)
                         infinity))))
 
 (defn single-delay
