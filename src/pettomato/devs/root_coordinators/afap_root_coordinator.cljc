@@ -15,7 +15,7 @@
     end - Simulation end time (inclusive, unless infinity). Default: infinity.
 
   Returns:
-    A seq of [timestamp mail].
+    A seq of [timestamp mail], containing all messages sent to the root network.
 
   \"Analytic simulations typically execute 'as-fast-as-possible,' meaning that
   the simulation attempts to complete its computations as quickly as it
