@@ -12,6 +12,40 @@
    [pettomato.devs.simulators.atomic-simulator :refer [atomic-simulator]]
    [pettomato.devs.vars :refer [*path*]]))
 
+(defn- add-model [find-simulator network-sim k model t]
+  (log/tracef "add-model: %s" k)
+  (let [simulator (find-simulator k model)
+        sim       (simulator model)
+        sim       (binding [*path* (conj *path* k)]
+                    (initialize sim t))
+        tn        (binding [*path* (conj *path* k)]
+                    (time-of-next-event sim))]
+    (-> network-sim
+        (update :k->sim assoc k sim)
+        (update :queue pq/insert tn k))))
+
+(defn- rem-model [network-sim k]
+  (log/tracef "rem-model: %s" k)
+  (let [sim (get-in network-sim [:k->sim k])
+        tn  (binding [*path* (conj *path* k)]
+              (time-of-next-event sim))]
+    (-> network-sim
+        (update :k->sim dissoc k)
+        (update :queue pq/delete tn k))))
+
+(defn- connect [network-sim [sk sp rk rp f]]
+  (log/tracef "connect: %s" [sk sp rk rp f])
+  (let [f (or f identity)] ;; f is optional; defaults to identity.
+    (-> network-sim
+        (update-in [:routes sk sp rk rp] (fnil conj #{}) f))))
+
+(defn- disconnect [network-sim [sk sp rk rp f]]
+  (log/tracef "disconnect: %s" [sk sp rk rp f])
+  (let [f (or f identity)]  ;; f is optional; defaults to identity.
+    (-> network-sim
+        (update-in [:routes sk sp rk rp] disj f)
+        (update :routes prune [sk sp rk rp]))))
+
 (defn apply-transition
   "Invoke a transition for a single simulator.
 
@@ -48,40 +82,6 @@
              network-sim
              mail))
 
-(defn- add-model [find-simulator network-sim k model t]
-  (log/tracef "add-model: %s" k)
-  (let [simulator (find-simulator k model)
-        sim       (simulator model)
-        sim       (binding [*path* (conj *path* k)]
-                    (initialize sim t))
-        tn        (binding [*path* (conj *path* k)]
-                    (time-of-next-event sim))]
-    (-> network-sim
-        (update :k->sim assoc k sim)
-        (update :queue pq/insert tn k))))
-
-(defn- rem-model [network-sim k]
-  (log/tracef "rem-model: %s" k)
-  (let [sim (get-in network-sim [:k->sim k])
-        tn  (binding [*path* (conj *path* k)]
-              (time-of-next-event sim))]
-    (-> network-sim
-        (update :k->sim dissoc k)
-        (update :queue pq/delete tn k))))
-
-(defn- connect [network-sim [sk sp rk rp f]]
-  (log/tracef "connect: %s" [sk sp rk rp f])
-  (let [f (or f identity)] ;; f is optional; defaults to identity.
-    (-> network-sim
-        (update-in [:routes sk sp rk rp] (fnil conj #{}) f))))
-
-(defn- disconnect [network-sim [sk sp rk rp f]]
-  (log/tracef "disconnect: %s" [sk sp rk rp f])
-  (let [f (or f identity)]  ;; f is optional; defaults to identity.
-    (-> network-sim
-        (update-in [:routes sk sp rk rp] disj f)
-        (update :routes prune [sk sp rk rp]))))
-
 (defn- apply-network-structure-changes [find-simulator network-sim net-msgs t]
   ;; Network structure messages are grouped and processed in a specific order.
   ;; Himmelspach, Jan, and Adelinde M. Uhrmacher. "Processing dynamic PDEVS models."
@@ -99,7 +99,7 @@
       (reduce add-model  network-sim (:add-model  net-msgs))
       (reduce connect    network-sim (:connect    net-msgs)))))
 
-(defrecord NetworkSimulator [model k->sim routes queue int-mail net-msgs find-simulator tl]
+(defrecord NetworkSimulator [model k->sim routes queue find-simulator tl]
   Simulator
   (initialize [sim t]
     (log/trace "--- initialize ---")
@@ -119,27 +119,26 @@
     (let [tn (time-of-next-event sim)]
       (assert (= t tn)
               (str "synchronization error: (not (= " t " " tn "))"))
-      (let [imminent      (pq/peek queue)
-            _             (log/tracef "imminent: %s" (vec imminent)) ;; TODO: Don't convert to vector here; do it in the log fn.
-            ;; This could be parallelized.
-            sim-and-mail  (map (fn [k]
-                                 (binding [*path* (conj *path* k)]
-                                   (collect-mail (k->sim k) t))) ; recursive step
-                               imminent)
-            k->sim'       (zipmap imminent (map first  sim-and-mail))
-            outbound-mail (zipmap imminent (map second sim-and-mail))
-            _             (log/tracef "outbound-mail: %s" outbound-mail)
-            inbound-mail  (route-mail routes outbound-mail)
-            _             (log/tracef " inbound-mail: %s" inbound-mail)
-            [int-mail
-             ext-mail
-             net-msgs]    (sort-mail inbound-mail)
-            sim           (-> sim
-                              (update :k->sim merge k->sim')
-                              (assoc :int-mail int-mail
-                                     :net-msgs net-msgs))]
-        [sim ext-mail])))
-  (transition [sim ext-mail t]
+      (let [imminent (pq/peek queue)]
+        (log/tracef "imminent: %s" (vec imminent)) ;; TODO: Don't convert to vector here; do it in the log fn.
+        (->> imminent
+             ;; This could be parallelized.
+             (map (fn [k]
+                    (binding [*path* (conj *path* k)]
+                      ;; recursive step
+                      (collect-mail (k->sim k) t))))
+             ;; outbound mail
+             (zipmap imminent)
+
+
+             )
+
+        )))
+
+  ;; This isn't our usual mail structure. It may have many nested keys.
+
+
+  (transition [sim mail t]
     (log/trace "--- transition ---")
     (let [tl (time-of-last-event sim)
           tn (time-of-next-event sim)]
@@ -147,11 +146,13 @@
               (str "synchronization error: (not (<= " tl " " t " " tn "))"))
       (let [imminent (if (= t tn) (pq/peek queue) [])
             _        (log/tracef "imminent: %s" (vec imminent)) ;; TODO: Don't convert to vector here; do it in the log fn.
-            imm-mail (zipmap imminent (repeat {}))
-            ext-mail (route-mail routes {:network ext-mail}) ; Assumption: There are no routes from :network to :network.
-            _        (log/tracef "ext-mail: %s" ext-mail)
-            mail     (merge-mail imm-mail int-mail ext-mail)
-            _        (log/tracef "mail: %s" mail)]
+            [int-mail
+             ext-mail
+             net-msgs]   (sort-mail mail)
+            ext-mail     (route-mail routes {:network ext-mail}) ; Assumption: There are no routes from :network to :network.
+            _            (log/tracef "ext-mail: %s" ext-mail)
+            mail         (merge-mail imm-mail int-mail ext-mail)
+            _            (log/tracef "mail: %s" mail)]
         (-> sim
             (apply-transitions mail t)
             ((partial apply-network-structure-changes find-simulator) net-msgs t)
@@ -194,7 +195,7 @@
     A simulator.
 
   The network's component models can request network structure changes by
-  sending special messages from a :structure port.
+  sending special messages to a :structure port.
 
   The following messages are supported:
 
@@ -209,6 +210,4 @@
             :or   {find-simulator default-find-simulator}}]
   (map->NetworkSimulator {:model          model
                           :queue          (pq/priority-queue)
-                          :int-mail       {}
-                          :net-msgs       []
                           :find-simulator find-simulator}))

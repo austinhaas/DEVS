@@ -1,6 +1,7 @@
 (ns pettomato.devs.models.atomic-model
   (:require
    [clojure.set :refer [subset?]]
+   [pettomato.devs.lib.log :as log]
    [pettomato.devs.lib.number :refer [infinity]]))
 
 (defn atomic-model

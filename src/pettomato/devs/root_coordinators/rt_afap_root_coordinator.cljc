@@ -21,8 +21,8 @@
   Returns:
     A seq of [timestamp mail].
 
-  This can be used to test real-time simulators and the rt-step-root-coordinator
-  with the same interface as afap-root-coordinator and without having to wait
+  This can be used to test real-time simulators and rt-step-root-coordinator,
+  using the same interface as afap-root-coordinator and without having to wait
   for actual time to pass."
   [sim & {:keys [start end step-size]
           :or   {start     0

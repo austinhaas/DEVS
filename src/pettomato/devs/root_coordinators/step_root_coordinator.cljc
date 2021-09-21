@@ -17,6 +17,12 @@
   "Advance sim while (compare (time-of-next-event sim) end) returns logical true.
 
   Returns [sim event-log]."
+  ;; This could be generalized, with a user-supplied predicate that takes the
+  ;; current sim or time-of-next-event, but I think this interface services the
+  ;; overwhelming majority of use-cases. Also, a predicate that takes the
+  ;; current sim would have to call time-of-next-event twice to implement this
+  ;; use-case, since the predicate would be opaque and time-of-next-event is
+  ;; still needed to make an update.
   [sim end & {:keys [compare]
               :or   {compare <}}]
   (loop [sim sim
@@ -29,6 +35,7 @@
                                            out)]
                           (recur sim out))
         :else           [sim out]))))
+
 ;; Commented out because it isn't currently used, but may be useful in the
 ;; future.
 #_

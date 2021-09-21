@@ -47,7 +47,7 @@
     (if (= (time-of-last-event sim) end)
       [sim event-log]
       ;; No need to collect mail; we know the sim isn't imminent, or the
-      ;; previous call to step-through would've captured that.
+      ;; previous call to step-through would've caught that.
       (let [sim              (transition sim {} end)
             [sim event-log'] (step-through sim end)]
         [sim (concat event-log event-log')]))))

@@ -1,6 +1,7 @@
 (ns pettomato.devs.examples.rt-models
   (:require
    [pettomato.devs.lib.number :refer [infinity]]
+   [pettomato.devs.lib.priority-queue :as pq]
    [pettomato.devs.models.atomic-model :refer [atomic-model]]))
 
 (defn rt-generator
@@ -198,3 +199,17 @@
                          (if (<= t1 t2 t3)
                            (- t2 t1)
                            infinity)))))
+#_
+(defn rt-function-generator
+  "
+  f - A function that takes no arguments and returns [sigma mail].
+  "
+  [f]
+  (atomic-model
+   :initial-state   (atom (f))
+   :internal-update (swap!)
+   :output          (comp second f-val)
+   :time-advance    (fn [_]
+                      (if-let [v (f-val)]
+                        (first v)
+                        infinity))))

@@ -1,10 +1,5 @@
 (ns pettomato.devs.simulators.atomic-simulator
-  "An atomic simulator.
-
-  This simulator differs from the real-time version by throwing an
-  exception if the transition function is invoked and the simulator is
-  neither imminent nor receiving mail. The real-time version handles these
-  \"no-op\" invocations, which are used for real-time synchronization."
+  "An atomic simulator."
   (:require
    [pettomato.devs.lib.log :as log]
    [pettomato.devs.simulator :refer [Simulator]]))
