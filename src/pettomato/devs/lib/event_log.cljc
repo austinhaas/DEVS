@@ -2,46 +2,33 @@
   "An event log is a seq of [timestamp outbound-mail], where timestamps are
   nondecreasing and outbound-mail is a \"local\" mail data structure (i.e., just
   port -> vals)."
+
+  ;; TODO: Replace nondecreasing with increasing, given the NIA?
+
   (:require
+   [pettomato.devs.lib.hyperreal :as h]
    [pettomato.devs.lib.string :refer [pad-left]]
-   [pettomato.devs.lib.mail :refer [local-mail= merge-local-mail]]))
+   [pettomato.devs.lib.mail :refer [local-mail=]]))
 
-(defn compact-event-log [el]
-  (->> el
-       (partition-by first)
-       (map (fn [p]
-              (let [t (ffirst p)
-                    m (apply merge-local-mail (map second p))]
-                [t m])))))
-
-(defn compacted-event-log=
-  "Compare compacted event-log data structures for equality."
+(defn event-log=
+  "Compare event-log data structures for equality."
   ([el] true)
   ([el1 el2]
    (or (and (empty? el1)
             (empty? el2))
        (let [[t1 mail1] (first el1)
              [t2 mail2] (first el2)]
-         (and (= t1 t2)
+         (and (boolean t1)
+              (boolean t2)
+              (h/= t1 t2)
               (local-mail= mail1 mail2)
               (recur (rest el1) (rest el2))))))
   ([el1 el2 & more]
-   (if (compacted-event-log= el1 el2)
+   (if (event-log= el1 el2)
      (if (next more)
        (recur el2 (first more) (next more))
-       (compacted-event-log= el2 (first more)))
+       (event-log= el2 (first more)))
      false)))
-
-(defn event-log=
-  "Compare event-log data structures for equality."
-  ([el] true)
-  ([el1 el2]
-   (compacted-event-log= (compact-event-log el1)
-                         (compact-event-log el2)))
-  ([el1 el2 & more]
-   (->> (list* el1 el2 more)
-        (map compact-event-log)
-        (apply compacted-event-log=))))
 
 #_
 (defn pp-event-log [event-log & {:keys [key-sort-fn

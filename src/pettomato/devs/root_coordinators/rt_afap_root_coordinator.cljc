@@ -1,6 +1,6 @@
 (ns pettomato.devs.root-coordinators.rt-afap-root-coordinator
   (:require
-   [pettomato.devs.lib.number :refer [infinity]]
+   [pettomato.devs.lib.hyperreal :as h :refer [H]]
    [pettomato.devs.root-coordinators.rt-step-root-coordinator
     :refer [rt-step-root-coordinator step-through-to-wall-time get-sim-time]]))
 
@@ -25,8 +25,8 @@
   using the same interface as afap-root-coordinator and without having to wait
   for actual time to pass."
   [sim & {:keys [start end step-size]
-          :or   {start     0
-                 end       infinity
+          :or   {start     h/zero
+                 end       h/infinity
                  step-size 100}}]
   (let [wall-time 0]
     (loop [rc        (rt-step-root-coordinator sim wall-time :start start)
@@ -34,6 +34,6 @@
            event-log []]
       (let [[rc' event-log'] (step-through-to-wall-time rc t :max-sim-time end)
             event-log        (into event-log event-log')]
-       (if (< (get-sim-time rc') end)
+       (if (h/< (get-sim-time rc') end)
          (recur rc' (+ t step-size) event-log)
          event-log)))))

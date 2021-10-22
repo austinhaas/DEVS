@@ -6,6 +6,7 @@
       [cljs.test :refer-macros [deftest is testing]])
    [pettomato.devs.examples.models :refer [lazy-seq-generator]]
    [pettomato.devs.examples.models.server-queue :refer [reset-next-id! server]]
+   [pettomato.devs.lib.hyperreal :as h :refer [H]]
    [pettomato.devs.lib.random :as rand]
    [pettomato.devs.models.network-model :refer [network-model]]
    [pettomato.devs.root-coordinators.afap-root-coordinator :refer [afap-root-coordinator]]
@@ -16,14 +17,16 @@
                           (map second)
                           (mapcat :out)
                           (remove nil?)
-                          (map #(assoc % :delay (- (:start-time %) (:arrival-time %)))))
+                          (map #(assoc % :delay (h/- (:start-time %) (:arrival-time %)))))
         start-delays (map :delay log)]
     {:total-jobs    (count log)
      :total-workers (count (distinct (map :worker log)))
-     :ave-delay     (/ (reduce + start-delays) (count start-delays))
-     :max-delay     (apply max start-delays)}))
+     :ave-delay     (/ (reduce + (map h/standard start-delays)) (count start-delays))
+     :max-delay     (h/standard (apply h/max start-delays))}))
 
 (deftest server-queue-test
+
+  ;; This is a good demonstration of reproducibility.
 
   (is (= {:total-jobs    100
           :total-workers 10
@@ -32,17 +35,17 @@
          (let [gen (lazy-seq-generator
                     (take 100
                           (for [i (range)]
-                            [(+ 1 (rand/rand-int 10)) {:out [{:id     (str "job-" i)
-                                                              :effort (+ 1 (rand/rand-int 100))}]}])))
+                            [(H (+ 1 (rand/rand-int 10))) {:out [{:id     (str "job-" i)
+                                                                  :effort (H (+ 1 (rand/rand-int 100)))}]}])))
                srv (server :server)
                net (network-model
                     {:gen    gen
                      :server srv}
-                    [[:gen :out :server :in identity]
-                     [:gen :out :network :gen-out identity]
-                     [:server :out :network :out identity]
-                     [:server :structure :network :structure identity]])]
+                    [[:gen :out :server :in]
+                     [:gen :out :network :gen-out]
+                     [:server :out :network :out]
+                     [:server :petition :network :petition]])]
            (reset-next-id!)
            (rand/with-random-seed 0
-             (-> (afap-root-coordinator (network-simulator net) :start 0 :end 1000)
+             (-> (afap-root-coordinator (network-simulator net) :start (H 0) :end (H 1000))
                  report))))))

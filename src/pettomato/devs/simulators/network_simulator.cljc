@@ -2,9 +2,9 @@
   "A network simulator."
   (:require
    [pettomato.devs.lib.coll :refer [prune]]
+   [pettomato.devs.lib.hyperreal :as h]
    [pettomato.devs.lib.log :as log]
    [pettomato.devs.lib.mail :refer [merge-mail route-mail sort-mail]]
-   [pettomato.devs.lib.number :refer [infinity]]
    [pettomato.devs.lib.priority-queue :as pq]
    [pettomato.devs.models.atomic-model :refer [atomic-model?]]
    [pettomato.devs.models.network-model :refer [network-model?]]
@@ -12,7 +12,7 @@
    [pettomato.devs.simulators.atomic-simulator :refer [atomic-simulator]]
    [pettomato.devs.vars :refer [*path*]]))
 
-(defn- add-model [find-simulator network-sim k model t]
+(defn- add-model [find-simulator network-sim k t model]
   (log/tracef "add-model: %s" k)
   (let [simulator (find-simulator k model)
         sim       (simulator model)
@@ -53,10 +53,10 @@
 
   k - The name of the component simulator.
 
-  mail - The local mail (p->vs) for the component simulator.
+  t - The current sim-time.
 
-  t - The current sim-time."
-  [network-sim k mail t]
+  mail - The local mail (p->vs) for the component simulator."
+  [network-sim k t mail]
   (let [sim  (get-in network-sim [:k->sim k])
         sim' (binding [*path* (conj *path* k)]
                (transition sim mail t))  ; recursive step
@@ -73,95 +73,94 @@
 
   network-sim - The network simulator.
 
-  mail - Inbound mail for this simulator (k->p->vs).
+  t - The current sim-time.
 
-  t - The current sim-time."
-  [network-sim mail t]
-  ;; Note that this could be made to run in parallel.
-  (reduce-kv #(apply-transition %1 %2 %3 t)
+  mail - Inbound mail for this simulator (k->p->vs)."
+  [network-sim t mail]
+  ;; This could run in parallel.
+  (reduce-kv #(apply-transition %1 %2 t %3)
              network-sim
              mail))
 
-(defn- apply-network-structure-changes [find-simulator network-sim net-msgs t]
-  ;; Network structure messages are grouped and processed in a specific order.
-  ;; Himmelspach, Jan, and Adelinde M. Uhrmacher. "Processing dynamic PDEVS models."
-  ;; The IEEE Computer Society's 12th Annual International Symposium on Modeling, Analysis, and Simulation of Computer and Telecommunications Systems, 2004.
-  ;; Section 3.2
+(defn- apply-petitions [find-simulator network-sim t petitions]
+  ;; Network structure messages are grouped and processed in a specific
+  ;; order. See Himmelspach, Jan, and Adelinde M. Uhrmacher. "Processing dynamic
+  ;; PDEVS models." The IEEE Computer Society's 12th Annual International
+  ;; Symposium on Modeling, Analysis, and Simulation of Computer and
+  ;; Telecommunications Systems, 2004. Section 3.2
   ;; http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.302.3385&rep=rep1&type=pdf
-  (let [net-msgs   (group-by first net-msgs)
-        add-model  (fn [sim [_ k model]] (add-model  find-simulator sim k model t))
+  (let [petitions  (group-by first petitions)
+        add-model  (fn [sim [_ k model]] (add-model  find-simulator sim k t model))
         rem-model  (fn [sim [_ k]]       (rem-model  sim k))
         connect    (fn [sim [_ route]]   (connect    sim route))
         disconnect (fn [sim [_ route]]   (disconnect sim route))]
     (as-> network-sim network-sim
-      (reduce disconnect network-sim (:disconnect net-msgs))
-      (reduce rem-model  network-sim (:rem-model  net-msgs))
-      (reduce add-model  network-sim (:add-model  net-msgs))
-      (reduce connect    network-sim (:connect    net-msgs)))))
+      (reduce disconnect network-sim (:disconnect petitions))
+      (reduce rem-model  network-sim (:rem-model  petitions))
+      (reduce add-model  network-sim (:add-model  petitions))
+      (reduce connect    network-sim (:connect    petitions)))))
 
-(defrecord NetworkSimulator [model k->sim routes queue find-simulator tl]
+(defrecord NetworkSimulator [model k->sim routes queue int-mail petitions find-simulator tl tn]
   Simulator
   (initialize [sim t]
     (log/trace "--- initialize ---")
     ;; Assuming initialize will only be called once.
     (as-> sim sim
       ;; Add models.
-      (reduce-kv #(add-model find-simulator %1 %2 %3 t) sim (:models model))
+      (reduce-kv #(add-model find-simulator %1 %2 t %3) sim (:models model))
       ;; Add routes.
       (reduce connect sim (:routes model))
       ;; Cache tl.
-      (assoc sim :tl (reduce max (map (fn [[k sim]]
-                                        (binding [*path* (conj *path* k)]
-                                          (time-of-last-event sim)))
-                                      (:k->sim sim))))))
+      (assoc sim :tl (apply h/max (map (fn [[k sim]]
+                                         (binding [*path* (conj *path* k)]
+                                           (time-of-last-event sim)))
+                                       (:k->sim sim))))
+      (assoc sim :tn (or (pq/peek-key (:queue sim)) h/infinity))))
   (collect-mail [sim t]
     (log/trace "--- collect-mail ---")
-    (let [tn (time-of-next-event sim)]
-      (assert (= t tn)
-              (str "synchronization error: (not (= " t " " tn "))"))
-      (let [imminent (pq/peek queue)]
-        (log/tracef "imminent: %s" (vec imminent)) ;; TODO: Don't convert to vector here; do it in the log fn.
-        (->> imminent
-             ;; This could be parallelized.
-             (map (fn [k]
-                    (binding [*path* (conj *path* k)]
-                      ;; recursive step
-                      (collect-mail (k->sim k) t))))
-             ;; outbound mail
-             (zipmap imminent)
-
-
-             )
-
-        )))
-
-  ;; This isn't our usual mail structure. It may have many nested keys.
-
-
-  (transition [sim mail t]
+    (assert (h/= t tn) (str "synchronization error: (not (= " t " " tn "))"))
+    (let [imminent      (pq/peek queue)
+          _             (log/tracef "imminent: %s" (vec imminent)) ;; TODO: Don't convert to vector here; do it in the log fn.
+          ;; This could be parallelized.
+          sim-mail      (map (fn [k]
+                               (binding [*path* (conj *path* k)]
+                                 (collect-mail (k->sim k) t))) ; recursive step
+                             imminent)
+          k->sim'       (zipmap imminent (map first  sim-mail))
+          outbound-mail (zipmap imminent (map second sim-mail))
+          _             (log/tracef "outbound-mail: %s" outbound-mail)
+          inbound-mail  (route-mail routes outbound-mail)
+          _             (log/tracef " inbound-mail: %s" inbound-mail)
+          [int-mail
+           ext-mail
+           petitions]   (sort-mail inbound-mail)
+          sim           (-> sim
+                            (update :k->sim merge k->sim')
+                            (assoc :int-mail  int-mail
+                                   :petitions petitions))]
+      [sim ext-mail]))
+  (transition [sim ext-mail t]
     (log/trace "--- transition ---")
-    (let [tl (time-of-last-event sim)
-          tn (time-of-next-event sim)]
-      (assert (<= tl t tn)
-              (str "synchronization error: (not (<= " tl " " t " " tn "))"))
-      (let [imminent (if (= t tn) (pq/peek queue) [])
-            _        (log/tracef "imminent: %s" (vec imminent)) ;; TODO: Don't convert to vector here; do it in the log fn.
-            [int-mail
-             ext-mail
-             net-msgs]   (sort-mail mail)
-            ext-mail     (route-mail routes {:network ext-mail}) ; Assumption: There are no routes from :network to :network.
-            _            (log/tracef "ext-mail: %s" ext-mail)
-            mail         (merge-mail imm-mail int-mail ext-mail)
-            _            (log/tracef "mail: %s" mail)]
-        (-> sim
-            (apply-transitions mail t)
-            ((partial apply-network-structure-changes find-simulator) net-msgs t)
-            (assoc :int-mail {})
-            (assoc :net-msgs [])
-            (assoc :tl t)))))
+    (assert (h/<= tl t tn) (str "synchronization error: (not (<= " tl " " t " " tn "))"))
+    (let [imminent (if (h/= t tn) (pq/peek queue) [])
+          _        (log/tracef "imminent: %s" (vec imminent)) ;; TODO: Don't convert to vector here; do it in the log fn.
+          ;; The transitions are "mail-driven", so the members of the imminent
+          ;; set are primed with an empty bag.
+          imm-mail (zipmap imminent (repeat {}))
+          ext-mail (route-mail routes {:network ext-mail})    ; Assumption: There are no routes from :network to :network.
+          _        (log/tracef "ext-mail: %s" ext-mail)
+          mail     (merge-mail imm-mail int-mail ext-mail)
+          _        (log/tracef "mail: %s" mail)
+          sim      (apply-transitions sim t mail)
+          sim      (apply-petitions find-simulator sim (h/+ t h/epsilon) petitions)]
+      (assoc sim
+             :int-mail  {}
+             :petitions []
+             :tl        t
+             :tn        (or (pq/peek-key (:queue sim))
+                            h/infinity))))
   (time-of-last-event [sim] tl)
-  (time-of-next-event [sim]
-    (or (pq/peek-key queue) infinity)))
+  (time-of-next-event [sim] tn))
 
 (declare network-simulator)
 
@@ -209,5 +208,5 @@
   [model & {:keys [find-simulator]
             :or   {find-simulator default-find-simulator}}]
   (map->NetworkSimulator {:model          model
-                          :queue          (pq/priority-queue)
+                          :queue          (pq/priority-queue h/comparator)
                           :find-simulator find-simulator}))

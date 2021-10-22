@@ -5,6 +5,7 @@
       :cljs
       [cljs.test :refer-macros [deftest is testing]])
    [pettomato.devs.examples.models :refer [generator]]
+   [pettomato.devs.lib.hyperreal :as h :refer [H]]
    [pettomato.devs.simulator :refer [initialize collect-mail transition time-of-last-event time-of-next-event]]
    [pettomato.devs.simulators.atomic-simulator :refer [atomic-simulator]]))
 
@@ -12,24 +13,24 @@
 
   (is (thrown-with-msg? #?(:clj AssertionError
                            :cljs js/Error)
-                        #"synchronization error: \(not \(= 0 10\)\)"
-                        (-> (generator 10 100)
+                        #"synchronization error"
+                        (-> (generator (H 10) 100)
                             atomic-simulator
-                            (initialize 0)
-                            (collect-mail 0))))
+                            (initialize h/zero)
+                            (collect-mail h/zero))))
 
   (is (thrown-with-msg? #?(:clj AssertionError
                            :cljs js/Error)
-                        #"synchronization error: \(not \(<= 0 11 10\)\)"
-                        (-> (generator 10 100)
+                        #"synchronization error"
+                        (-> (generator (H 10) 100)
                             atomic-simulator
-                            (initialize 0)
-                            (transition {:in [0]} 11))))
+                            (initialize h/zero)
+                            (transition {:in [0]} (H 11)))))
 
   (is (thrown-with-msg? #?(:clj clojure.lang.ExceptionInfo
                            :cljs ExceptionInfo)
                         #"Illegal state for transition; sim is not imminent nor receiving mail."
-                        (-> (generator 10 100)
+                        (-> (generator (H 10) 100)
                             atomic-simulator
-                            (initialize 0)
-                            (transition {} 0)))))
+                            (initialize h/zero)
+                            (transition {} h/zero)))))

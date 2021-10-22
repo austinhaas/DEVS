@@ -1,7 +1,7 @@
 (ns pettomato.devs.examples.models.digital-circuit
   (:require
    [pettomato.devs.examples.models :refer [lazy-seq-generator]]
-   [pettomato.devs.lib.number :refer [infinity]]
+   [pettomato.devs.lib.hyperreal :as h :refer [H]]
    [pettomato.devs.models.atomic-model :refer [atomic-model]]
    [pettomato.devs.models.network-model :refer [network-model]]
    [pettomato.devs.root-coordinators.afap-root-coordinator :refer [afap-root-coordinator]]
@@ -29,25 +29,29 @@
 ;; Primitive function boxes
 
 (defn inverter [delay]
+  (assert (h/hyperreal? delay))
   (atomic-model
    :initial-state   {:out   false
-                     :sigma 0}
-   :internal-update (fn [s] (assoc s :sigma infinity))
+                     :sigma h/epsilon}
+   :initial-elapsed-time h/epsilon
+   :internal-update (fn [s] (assoc s :sigma h/infinity))
    :external-update (fn [s e x]
                       (let [out (not (last (:in x)))]
                         (if (= out (:out s))
-                          (update s :sigma - e)
+                          (update s :sigma h/- e)
                           (assoc s :out out :sigma delay))))
    :output          (fn [s] {:out [(:out s)]})
    :time-advance    :sigma))
 
 (defn and-gate [delay]
+  (assert (h/hyperreal? delay))
   (atomic-model
    :initial-state   {:in-1  false
                      :in-2  false
                      :out   false
-                     :sigma 0}
-   :internal-update (fn [s] (assoc s :sigma infinity))
+                     :sigma h/epsilon}
+   :initial-elapsed-time h/epsilon
+   :internal-update (fn [s] (assoc s :sigma h/infinity))
    :external-update (fn [s e x]
                       (let [;; Intake messages.
                             s' (reduce-kv (fn [s port vs]
@@ -61,18 +65,20 @@
                                                    (:in-2 s')))]
                         ;; Update delay clock.
                         (if (= (:out s) (:out s')) ;; Has the output changed?
-                          (update s' :sigma - e)
+                          (update s' :sigma h/- e)
                           (assoc s' :sigma delay))))
    :output          (fn [s] {:out [(:out s)]})
    :time-advance    :sigma))
 
 (defn or-gate [delay]
+  (assert (h/hyperreal? delay))
   (atomic-model
    :initial-state   {:in-1  false
                      :in-2  false
                      :out   false
-                     :sigma 0}
-   :internal-update (fn [s] (assoc s :sigma infinity))
+                     :sigma h/epsilon}
+   :initial-elapsed-time h/epsilon
+   :internal-update (fn [s] (assoc s :sigma h/infinity))
    :external-update (fn [s e x]
                       (let [;; Intake messages.
                             s' (reduce-kv (fn [s port vs]
@@ -86,7 +92,7 @@
                                                   (:in-2 s')))]
                         ;; Update delay clock.
                         (if (= (:out s) (:out s')) ;; Has the output changed?
-                          (update s' :sigma - e)
+                          (update s' :sigma h/- e)
                           (assoc s' :sigma delay))))
    :output          (fn [s] {:out [(:out s)]})
    :time-advance    :sigma))
@@ -103,29 +109,29 @@
     :and-1 (and-gate and-gate-delay)
     :and-2 (and-gate and-gate-delay)
     :inv   (inverter inverter-delay)}
-   [[:network :a   :or      :in-1 identity]
-    [:network :a   :and-1   :in-1 identity]
-    [:network :b   :or      :in-2 identity]
-    [:network :b   :and-1   :in-2 identity]
-    [:or      :out :and-2   :in-1 identity]
-    [:and-1   :out :inv     :in   identity]
-    [:and-1   :out :network :c    identity]
-    [:inv     :out :and-2   :in-2 identity]
-    [:and-2   :out :network :s    identity]]))
+   [[:network :a   :or      :in-1]
+    [:network :a   :and-1   :in-1]
+    [:network :b   :or      :in-2]
+    [:network :b   :and-1   :in-2]
+    [:or      :out :and-2   :in-1]
+    [:and-1   :out :inv     :in  ]
+    [:and-1   :out :network :c   ]
+    [:inv     :out :and-2   :in-2]
+    [:and-2   :out :network :s   ]]))
 
 (defn full-adder [inverter-delay and-gate-delay or-gate-delay]
   (network-model
    {:ha-1 (half-adder inverter-delay and-gate-delay or-gate-delay)
     :ha-2 (half-adder inverter-delay and-gate-delay or-gate-delay)
     :or   (or-gate or-gate-delay)}
-   [[:network :a       :ha-1 :a identity]
-    [:network :b       :ha-2 :a identity]
-    [:network :c-in    :ha-2 :b identity]
-    [:ha-1 :s :network :s       identity]
-    [:ha-1 :c :or      :in-1    identity]
-    [:ha-2 :s :ha-1    :b    identity]
-    [:ha-2 :c :or      :in-2    identity]
-    [:or :out :network :c       identity]]))
+   [[:network :a       :ha-1 :a]
+    [:network :b       :ha-2 :a]
+    [:network :c-in    :ha-2 :b]
+    [:ha-1 :s :network :s      ]
+    [:ha-1 :c :or      :in-1   ]
+    [:ha-2 :s :ha-1    :b      ]
+    [:ha-2 :c :or      :in-2   ]
+    [:or :out :network :c      ]]))
 
 ;;------------------------------------------------------------------------------
 ;; Ripple carry adder
@@ -143,14 +149,14 @@
         ;; Connect them to the network. We don't connect an external carry
         ;; input.
         routes-1 (apply concat
-                        [[(key-fn (dec n-bits)) :c :network :c identity]]
+                        [[(key-fn (dec n-bits)) :c :network :c]]
                         (for [i (range n-bits)]
-                          [[:network [:a i] (key-fn i) :a identity]
-                           [:network [:b i] (key-fn i) :b identity]
-                           [(key-fn i) :s :network [:s i] identity]]))
+                          [[:network [:a i] (key-fn i) :a]
+                           [:network [:b i] (key-fn i) :b]
+                           [(key-fn i) :s :network [:s i]]]))
         ;; Connect them to each other.
         routes-2 (map (fn [i j]
-                        [(key-fn i) :c (key-fn j) :c-in identity])
+                        [(key-fn i) :c (key-fn j) :c-in])
                       (range n-bits)
                       (range 1 n-bits))
         routes   (concat routes-1 routes-2)]
@@ -181,18 +187,21 @@
 (defn ripple-carry-add
   "Adds two numbers using a ripple adder."
   [n-bits a b & {:keys [inverter-delay and-gate-delay or-gate-delay]
-                                :or   {inverter-delay 2
-                                       and-gate-delay 3
-                                       or-gate-delay  5}}]
-  (-> (network-model {:gen (lazy-seq-generator [[1000 (merge (encode n-bits a :a)
-                                                             (encode n-bits b :b))]])
-                      :rca (ripple-carry-adder n-bits 2 3 5)}
+                                :or   {inverter-delay (H 2)
+                                       and-gate-delay (H 3)
+                                       or-gate-delay  (H 5)}}]
+  (-> (network-model {:gen (lazy-seq-generator [[(H 1000) (merge (encode n-bits a :a)
+                                                                 (encode n-bits b :b))]])
+                      :rca (ripple-carry-adder n-bits
+                                               inverter-delay
+                                               and-gate-delay
+                                               or-gate-delay)}
                     (apply concat
-                           [[:rca :c :network :c identity]]
+                           [[:rca :c :network :c]]
                            (for [i (range n-bits)]
-                             [[:gen [:a i] :rca [:a i] identity]
-                              [:gen [:b i] :rca [:b i] identity]
-                              [:rca [:s i] :network [:s i] identity]])))
+                             [[:gen [:a i] :rca [:a i]]
+                              [:gen [:b i] :rca [:b i]]
+                              [:rca [:s i] :network [:s i]]])))
      network-simulator
      afap-root-coordinator
      decode))

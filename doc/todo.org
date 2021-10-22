@@ -24,24 +24,270 @@
      - I don't think this supports the idea I'm trying to solve. I don't think
        either paper considers non-zero time-advances.
 
-*** DONE Check if we are handling time-of-next-event correctly.
-    - I think we want to call it at the beginning of each step.
-    - Yes, in step-root-coordinator/step-while, time-of-next-event is called at
-      the top of each loop.
+** DONE Consider move to hyperreal time base.
+*** Problem statement
+    - Zero-length delays cause any notion of causation to be lost.
+    - Users must understand that the transition function may be called multiple
+      times without time advancing.
+    - Issues with dynamic structure: if an event causes a model to be removed
+      immediately, there is a chicken and egg paradox.
+*** Proposal: Use a superdense time base.
+    - I get the impression this is the most common solution, and there are many
+      variations (Nutaro).
+    - I think this solves the issue of reproducibility, but it doesn't clarify
+      confusion around simultaneity from the user's perspective.
+*** Proposal: Use a hyperreal time base.
+    - The hyperreal implementation is like Barros, but not the simulation
+      semantics.
+    - Not sure about the Non-Instantaneous Assumption.
+    - Differences from Barros:
+      - Barros allows zero-length delays, but imposes an infinitesimal delay (ε)
+        to every transition. We don't allow zero-length delays, and so don't
+        need to add an additional delay.
+      - Barros requires three steps (of duration ε) for a model to respond to
+        external input with an output. (See Mealy Machine example.) I think this
+        is to split the updates into something like: original model, w/ input,
+        new state w/ output, new state. Our version follows the usual DEVS
+        semantics, with the constraint against zero-length delays.
+    - Don't allow zero-length delays.
+      - Rationale: There's no such thing in the real-world. (I think) that is
+        mostly equivalent to Barros; in that system, the modeler can specify a
+        zero-length delay, but the system imposes an infinitesimal duration. The
+        modeler still needs to be aware of this delay, so that they can subtract
+        it from the next delay, if they want the outputs to align to whole
+        numbers.
+      - With this constraint, each simulator will only be updated once per time
+        point.
+      - Consequence: the earliest response to an external event is t+ε.
+    - I like that the hyperreal values are all on the number line. They have a
+      solid mathematical and physical basis (Barros).
+    - My rationale is that zero-length delays are fundamentally flawed, and
+      using the hyperreal base lets us avoid problems and add clarity without
+      sacrificing anything that wasn't already broken. For example, if a model
+      is triggered when exactly 5 inputs arrive at the "same time", then that
+      notion of simultaneity should be modeled with some interval (e.g., events
+      occurring within 100ms), and not rely on the inputs arriving at exactly
+      the same point in time, which is impossible in the real world.
+    - I don't see the value in accomodating these zero-delay events. Superdense
+      time, IIUC, works around them, so that modelers can continue to ignore the
+      inherent problem. Barros allows them in some sense, but still adds an
+      infinitesimal delay, so in what sense does it really allow them?
+***** Problem: How do we construct a model that sums all inputs at standard time t?
+      - i.e., We want it to ignore the infinitesimal component.
+      - I think we should have to choose an interval. There's no way to say, do
+        this after all the events at 2ε, 3ε, etc. have passed
+***** Problem: How long does it take to send a message? How long until a transition goes into effect?
+*** Implement hyperreal system w/ new sim algorithm
+**** Notes on analysis
+       - Would this implementation be simpler if the hierarchy was flattened?
+         - No need to store local state. I guess the topmost network does, but
+           it seems like it could be a lot simpler.
+
+       - Need to understand the difference between the hierarchical
+         vs. flattened implementations.
+         - Is there something saved by not having to update or keep references
+           to networks?
+           - We still need a reference of some kind, but maybe it doesn't have
+             to be updated as much, because it doesn't need to hold all the
+             models' state.
+       - Our current update implementation is naive. It proceeds in a
+         depth-first order, but it could be more memory efficient. For example,
+         if the network has 1000 atomic models and the last one is a deep
+         network, we can't finish processing that network until the deep network
+         is finished.
+
+         - Consider ordering siblings so that the longest branch is first.
+         - Consider sorting the networks topologically.
+
+       - It's not obvious how to handle the update at t + e that occurs if there
+         is any local mail or structure changes.
+** DONE Convert code to hyperreal time base
+** Revise the RT implementation
+*** Problem
+    - The current system is confusing and broken. The idea was to use the
+      existing DEVS framework, but instead of calling time-advance once, call it
+      as many times as needed, giving RT components an opportunity to update a
+      time-advance value. Most likely this would be a change from infinity to a
+      time within the current step. The problem is that it isn't clear when
+      time-advance is called and how that is interleaved with no-message
+      external updates.
+    - The current system assumes the system clock can be used for sync, because
+      RT components are expected to be able to return an update time-advance
+      value without knowing the current sim-time (or time-scale).
+    - I'm not 100% sure what the behavior is, which speaks for itself. In any
+      case, it seems like a mistake, and alternatives sound better.
+*** Notes
+    - RT simulators must adhere to a dynamic clock. If the external events,
+      including rAF, are communicated to the RT simulator as external messages,
+      the simulator will have all the info it needs to step the model up to the
+      target time. It does not need to understand a dynamic time-scale factor.
+    - Soft real-time is fine. We're aiming for a granularity of an animation
+      frame, or some other small interval. The simulation steps forward by
+      resolving all events, logically, up to the target time.
+*** Proposal
+    - No RT models or simulators.
+    - External events are specified via the implicit :network model and its
+      associated ports.
+    - There is no change to time-advance.
+    - The root coordinator implements the external event connections.
+      - E.g., the JS version adds event listeners.
+
+    - I don't like that swapping an external input with a recording requires a
+      network structure change, rather than just swapping out the model
+      implementation.
+
+    - Do we have to route all the way from the model to the network root?
+
+    - I don't like this. I don't like that any model that needs external effects
+      has to be wired all the way to the top. That means we can't truly consider
+      the model in isolation, and threading that wire through for a quick test
+      could be a PITA.
+**** Rationale
+***** Why not use "proxy" models?
+      - Simulators would have to distinguish between proxy models and regular
+        models.
+        - At least that burden is on the simulator implementer and not the
+          modeler.
+      - It wouldn't make sense for proxy models to use time-advance, but if a
+        proxy model was replaced with a recording, then the new model would use
+        time-advance; it seems wrong that the replacement would have different
+        external simulation behavior.
+        - I'm not sure this is a legitimate issue. Under the current proposal,
+          we'd go from no explicit model to an explicit model, so there's a big
+          difference regardless.
+***** Why not extend the model spec to include external events?
+      - Because changing from an external event to a recording of external
+        events would require a change to the receiving model. We could push that
+        out to another model, but that is just adding one level of indirection,
+        and would seem unnecessary in most cases.
+        - Still, if indirection makes it conceptually simpler to the modeler,
+          then go for it.
+*** Proposal: Proxy models
+    - Simulator knows how to implement.
+    - Easiest for the modeler; especially if you consider the task of swapping
+      out an AI with a human, when the model is deeply nested in the hierarchy.
+**** What info does the simulator need to propagate up?
+     - I suspect we can't just translate the presence of a proxy model to a new
+       network configuration, because we'd still need to propagate that up.
+**** Consider a dynamic network
+     - It should be possible to add a new proxy at run-time.
+*** Proposal: [:network :external]
+    - The consuming model is going to need a route, regardless; this saves us
+      from having to create a proxy model and interpret it.
+    - This is different than network structure messages, because it needs to be
+      propagated up. Network structure messages stay local.
+
+    - Maybe the root coordinator takes a function to handle messages that
+      propagate all the way up.
+      - Maybe this suggests not incorporating structure changes with other
+        messages. I don't see how that addresses this issue, though.
+
+
+    - I'm starting to like this one. There is still something unsettling about
+      these special network messages, but this seems like the conceptually
+      simplest design for the modeler and implementer. Seems like it should be
+      simple for the network to propagate these messages up with the rest of the
+      mail.
+
+    - Any js events can be subscribed to, including rAF. The root coordinator
+      will translate these requests into js event listeners that update the
+      model?
+      - Are we abandoning the notion of stepping forward in time? I don't think
+        that is feasible, because we really need to match rAF and we don't have
+        the temporal fidelity to step by events.
+        - In that case, maybe we should be queing the events, so that they may
+          be processed at the next step.
+
+      - The root coordinator can handle rAF specially. That's totally fine. The
+        root-coordinator should be where the dirty stuff happens. We could add a
+        parameter to indicate what type of event is triggering the update, and
+        rAF drives the whole thing, and if anyone subscribes to that, we can
+        easily accommodate.
+
+**** implementation
+***** network simulator needs to add or remove the route
+***** network simulator needs to propagate the petition to its parent
+***** root coordinator needs to handle the main connection to the real world
+** update RT code / tests.
+** Enforce NIA / improve examples
+**** Update root coordinators to require that timestamps are increasing.
+** update docs
+   - Every state must have positive duration; message delivery is instantaneous.
+   - NIA
+   - A model can emit a message at the same instant it is created if its
+     initial-elapsed-time = time-advance.
+** Consider using an exec for structure changes
+*** Problems w/ current implementation
+     - Structure change messages are mixed with normal, domain messages.
+     - It muddles the semantics of the network.
+       - It makes it seem like a model-level entity, with its own state,
+         distinct from the state of its components, and it can receive
+         messages. On top of all that, none of that is user-configurable,
+         unlike models.
+     - It does not provide any guidance for the user around the issue of
+       competing petitions.
+       - Example: Two models both want to add a new model to the network, but
+         there is a limit that only one can be added.
+       - This example can be implemented in the current system, but it
+         requires more effort than the naive approach, and the system doesn't
+         offer the modeler any help for how to do that, especially because
+         the solution requires dropping into the domain model (to use normal
+         messages).
+
+
+     - I like the idea that the exec is a dummy; it just does structure
+       changes and nothing else, and it is easy to add a default one to a
+       network. And the user can overwrite it when they need to deal with
+       competing events; and it is clear to do this b/c there is a designated
+       object for this.
+
+*** Proposal: Each network may have up to one exec.
+     - The default one handles structure change messages.
+
+     - This is good because it creates a place in the code that is apparent
+       to the modeler, to understand how dynamic structure works, and make is
+       obvious that this is something they might want to override.
+***** Semantics
+      - The exec is updated before other models?
+      - The network structure is directly linked to the exec's state (or it
+        is part of the exec's state). That is how modelers should think of
+        it, at least.
+
+      - Execs can send and receive arbitrary messages?
+        - They def. can receive them, so seems weird to disallow sending.
+
+** Add explicit ports.
+   - Ports can be parameterized (i.e., labeled); only need the name for this.
+     - Might be better to think of this data as identifying something other than
+       the name or id of the port.
+   - Use to fail on mismatches.
+   - Add value validators.
+   - Add functions to inspect the graph.
+     - E.g. which models is model x connected to?
+     - This might be a better way to debug.
+   - Think of this DEVS implementation as a run-time system that supports
+     introspection.
+** Consider removing find-simulator.
+   - If we don't need it, removing would simplify things.
+** Consider adding join and leave methods to simulator.
+** Possible optimization: use transducers for the route fn.
+   - I think I did this originally and I just didn't like the added complexity.
+   - One possible benefit, besides perf, is that it might make the purpose
+     clearer to people who are familiar with Clojure's transducers.
+** Consider whether the simulator or the model should be responsible for constructor/destructor.
+   - Based on the implementation of external RT events, I'm starting to think
+     that the model should be abstract and the simulator handles implementation.
+     - Maybe the simulator is configurable; e.g., a function maps specs to
+       implementations.
+** Consider building a GUI.
+   - Use existing graphics engine.
+     - SVG might be easier to work with, though.
+       - three.js can render as SVG.
+   - We need to add UI, anyway.
+   - I believe we need more information management support than we can get from
+     text alone.
 ** Determine how to specify version in pom.xml.
    - Clojurescript does it in a build script: https://github.com/clojure/clojurescript/search?q=CLOJURESCRIPT_VERSION
-** Fix issue with network structure implementation
-   - We are storing net-msgs already.
-    - We don't have to process them in the transition.
-*** How can we tell which simulators are imminent for structure changes?
-    - It's the same as nonstructural imminence, but yeah, we'd have to iterate
-      2x, and probably only one of those is going to be valid for each case.
-    - We considered how to bubble up other info that could be used; maybe we
-      should bubble up what type of update is required?
-*** Proposal
-**** Add new simulator function: structure-change
-**** Move structure change code under that fn.
-**** Update root coordinators to require that timestamps are increasing.
 ** Add a simple dynamic test.
    - Use a lazy-seq-generator to exercise all the dynamic commands.
    - It can be completely scripted; no need to implement management logic.
@@ -59,10 +305,16 @@
 *** Check that dynamic structure changes are valid.
 *** Add tests for parallelization.
 *** Determine how to validate the TMS example.
-** Document this part of the RT implementation
-   - The time-advance function will be called immediately after every no-op
-     external-update. So, the model has a "response time" less than or equal to
-     the step size.
+** Proposal: Flatten the hierarchy
+   - No longer recursive.
+   - No need to be concerned about passing mail around.
+   - Presumably more efficient.
+   - No need for complicated update algorithms to exploit parallelism.
+*** Consider an algorithm/abstraction for an implicit hierarchy.
+         - Route mail.
+         - Structure changes.
+           - Map from model to network?
+             - How is the network represented?
 ** Consider if network-simulator should throw an exception if transition is called incorrectly
    - I.e., called without any models being imminent or receiving any messages.
    - Technically, a network sim could receive messages that aren't currently
@@ -71,6 +323,16 @@
    - The question is: what would this gain? Maybe it is better for this
      implementation to be robust than throw an error.
 ** Publish.
+** RT optimization: Consider that the RT model could accurately predict the next state
+   - Assuming that a human-in-the-loop (or other RT component) performs no
+     action the overwhelming majority of the steps, we could start computing the
+     next event in advance, so that it is ready to display immediately.
+   - If a user did perform an action, we'd only have to repeat the step one
+     extra time, which may or may not be prohibitively expensive.
+     - An even better solution would be something like Time Warp, where we could
+       determine just what needs to be updated. For example, in our restaurant
+       simulation, a user action should have very little bearing on the next
+       step.
 ** Add tutorial.
 ** Set up cljs example.
 ** Improve robustness.

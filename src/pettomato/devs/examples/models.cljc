@@ -1,15 +1,18 @@
 (ns pettomato.devs.examples.models
   (:require
    [pettomato.devs.models.atomic-model :refer [atomic-model]]
-   [pettomato.devs.lib.number :refer [infinity]]))
+   [pettomato.devs.lib.hyperreal :as h]))
 
 (defn generator
   "A model that periodically emits value on a port labeled :out."
   [period value]
+  (assert (and h/hyperreal? period) (h/pos? period))
   (atomic-model
    :output       (constantly {:out [value]})
    :time-advance (constantly period)))
 
+;; What should happen if initial-elapsed time is greater than the sum of the
+;; first dozen values in this seq?
 (defn lazy-seq-generator
   "A model that emits values according to a (possibly lazy and infinite) seq
   of [sigma mail].
@@ -33,21 +36,24 @@
     ;; of time before each.
     (lazy-seq-generator (for [i (range)]
                           [(rand-int 1000) {:out [(str \"msg-\" i)]}]))"
-  [coll]
-  (atomic-model
-   :initial-state   coll
-   :internal-update next
-   :output          (comp second first)
-   :time-advance    (fn [coll]
-                      (if (seq coll)
-                        (ffirst coll)
-                        infinity))))
+  ([coll]
+   (lazy-seq-generator coll h/zero))
+  ([coll initial-elapsed-time]
+   (atomic-model
+    :initial-state        coll
+    :initial-elapsed-time initial-elapsed-time
+    :internal-update      next
+    :output               (comp second first)
+    :time-advance         (fn [coll]
+                            (if (seq coll)
+                              (ffirst coll)
+                              h/infinity)))))
 
 (defn single-delay
   "A model that receives messages on port :in and sends them back out on port :out
   after duration. Only one message can be delayed at a time. If a new message is
-  received before a previously received message has been sent, the previously
-  received message will be discarded.
+  received before a previously received message has been sent, it will be
+  discarded.
 
   Args:
 
@@ -58,108 +64,76 @@
 
     priority - A keyword: :internal-first or :external-first. Determines the
   behavior when the model receives a new message at exactly the same time that
-  it is scheduled to send a delayed message. If :internal-first, then the older
-  message will be sent before the new message is processed. If :external-first,
-  then the older message will be discarded when the new message is
-  received. Defaults to :internal-first.
+  it is scheduled to send a delayed message. If :internal-first, then the delay
+  is ready to receive a new input. If :external-first, then the delay is not
+  ready to receive a new input. In other words, :internal-first means the delay
+  is busy up until the time it sends output, and :external-first means the delay
+  is busy through the time is sends output. This was added to demonstrate how
+  confluence works.
 
   Returns:
 
   An atomic model."
   [duration & {:keys [priority]
                :or {priority :internal-first}}]
-  ;; This may not be a good example for how to code this behavior. This was
-  ;; originally created to test confluence. I wanted something with obvious
-  ;; behavior that would differ solely based on which state transition function
-  ;; was prioritized. In reality, you probably won't be designing models that
-  ;; expose the confluent function this way, and if you are doing anything
-  ;; interesting with the confluent function, you would probably just code a
-  ;; custom one and avoid the challenge of designing the other state transitions
-  ;; so that they'd work in either order.
-
-  ;; `pettomato.devs-test/confluence-tests` depends on this implementation.
+  (assert (and h/hyperreal? duration) (h/pos? duration))
   (atomic-model
-   :initial-state    {:phase  :passive
-                      :value  nil
-                      :output nil
-                      :sigma  infinity}
+   :initial-state    {:value nil :sigma h/infinity}
    :internal-update  (fn [state]
-                       (case (:phase state)
-                         :intake (assoc state
-                                        :phase :active
-                                        :sigma duration)
-                         :active (assoc state
-                                        :phase  :fire
-                                        :value  nil
-                                        :output (:value state)
-                                        :sigma  0)
-                         :fire   (if (:value state)
-                                   (assoc state
-                                          :phase :active
-                                          :sigma duration)
-                                   (assoc state
-                                          :phase  :passive
-                                          :value  nil
-                                          :output nil
-                                          :sigma  infinity))))
+                       (assoc state :value nil :sigma h/infinity))
    :external-update  (fn [state elapsed-time messages]
-                       (assert (= 1 (count messages))
-                               "A single-delay model received more than one message at the same time. The behavior in that case is undefined, since those messages are unordered.")
-                       (case (:phase state)
-                         :fire (assoc state
-                                      :value (first (:in messages)))
-                         (assoc state
-                                :phase :intake
-                                :value (first (:in messages))
-                                :sigma 0)))
+                       (assert (not (next messages)) "single-delay doesn't know how to handle multiple simultaneous inputs")
+                       (if (nil? (:value state))
+                         (assoc state :value (first (:in messages)) :sigma duration)
+                         (update state :sigma h/- elapsed-time)))
    :confluent-update priority
-   :output           (fn [state]
-                       (case (:phase state)
-                         :fire {:out [(:output state)]}
-                         nil))
+   :output           (fn [state] {:out [(:value state)]})
    :time-advance     :sigma))
 
 (defn fixed-delay
   "A model that receives messages on port :in and sends them back out on port :out
   after duration. Multiple messages may be delayed simultaneously."
   [duration]
+  (assert (and h/hyperreal? duration) (h/pos? duration))
   (atomic-model
-   :initial-state   {:queue (sorted-map)
-                     :delta 0}
+   :initial-state   {:queue (sorted-map-by h/comparator)
+                     :delta h/zero}
    :internal-update (fn [state]
                       (-> state
                           (update :queue dissoc (ffirst (:queue state)))
                           (assoc :delta (ffirst (:queue state)))))
    :external-update (fn [state elapsed-time messages]
-                      (let [delta (+ (:delta state) elapsed-time)
-                            t     (+ delta duration)]
+                      (let [delta (h/+ (:delta state) elapsed-time)
+                            t     (h/+ delta duration)]
                         (-> state
                             (update-in [:queue t] into (:in messages))
                             (assoc :delta delta))))
+   :confluent-update :internal-first
    :output          (fn [state]
                       {:out (second (first (:queue state)))})
    :time-advance    (fn [state]
                       (if (empty? (:queue state))
-                        infinity
-                        (- (ffirst (:queue state))
-                           (:delta state))))))
+                        h/infinity
+                        (h/- (ffirst (:queue state))
+                             (:delta state))))))
 
 (defn variable-delay
   "A model that receives messages of the form [duration value] on port :in,
-  and sends value back otu on port :out after duration. Multiple messages may be
+  and sends value back out on port :out after duration. Multiple messages may be
   delayed simultaneously."
   []
   (atomic-model
-   :initial-state   {:queue (sorted-map)
-                     :delta 0}
+   :initial-state   {:queue (sorted-map-by h/comparator)
+                     :delta h/zero}
    :internal-update (fn [state]
                       (-> state
                           (update :queue dissoc (ffirst (:queue state)))
                           (assoc :delta (ffirst (:queue state)))))
    :external-update (fn [state elapsed-time messages]
-                      (let [delta (+ (:delta state) elapsed-time)]
+                      (let [delta (h/+ (:delta state) elapsed-time)]
                         (reduce (fn [state [duration value]]
-                                  (let [t (+ delta duration)]
+                                  (assert (and h/hyperreal? duration) (h/pos? duration))
+                                  (let [t (h/+ delta duration)]
                                     (update-in state [:queue t] conj value)))
                                 (assoc state :delta delta)
                                 (:in messages))))
@@ -167,6 +141,6 @@
                       {:out (second (first (:queue state)))})
    :time-advance    (fn [state]
                       (if (empty? (:queue state))
-                        infinity
-                        (- (ffirst (:queue state))
-                           (:delta state))))))
+                        h/infinity
+                        (h/- (ffirst (:queue state))
+                             (:delta state))))))

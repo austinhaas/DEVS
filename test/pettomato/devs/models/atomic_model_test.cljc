@@ -34,12 +34,6 @@
 
   (is (thrown-with-msg? #?(:clj clojure.lang.ExceptionInfo
                            :cljs ExceptionInfo)
-                        #":output must implement IFn; value: 100"
-                        (atomic-model
-                         :output 100)))
-
-  (is (thrown-with-msg? #?(:clj clojure.lang.ExceptionInfo
-                           :cljs ExceptionInfo)
                         #":time-advance must implement IFn; value: 100"
                         (atomic-model
                          :time-advance 100)))

@@ -1,6 +1,6 @@
 (ns pettomato.devs.root-coordinators.afap-root-coordinator
   (:require
-   [pettomato.devs.lib.number :refer [infinity]]
+   [pettomato.devs.lib.hyperreal :as h]
    [pettomato.devs.root-coordinators.step-root-coordinator
     :refer [step-root-coordinator step-through]]))
 
@@ -11,7 +11,7 @@
     sim - A simulator.
 
   Optional keyword args:
-    start - Simulation start time (inclusive). Default: 0.
+    start - Simulation start time (inclusive). Default: zero, in a hyperreal structure.
     end - Simulation end time (inclusive, unless infinity). Default: infinity.
 
   Returns:
@@ -25,8 +25,8 @@
 
     - Fujimoto. Parallel and Distributed Simulation Systems. 2000. p. 7."
   [sim & {:keys [start end]
-          :or   {start 0
-                 end   infinity}}]
+          :or   {start h/zero
+                 end   h/infinity}}]
   (let [[sim event-log] (-> (step-root-coordinator sim :start start)
                             (step-through end))]
     event-log))

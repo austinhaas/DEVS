@@ -1,7 +1,9 @@
 (ns pettomato.devs.lib.clock
   "A simulation clock based on wall time. Some functions take the current wall
   time as an argument, which must be nondecreasing. Use a consistent and
-  reliable source for supplying wall time, such as `(.getTime (java.util.Date.))`.")
+  reliable source for supplying wall time, such as `(.getTime (java.util.Date.))`."
+  (:require
+   [pettomato.devs.lib.hyperreal :as h :refer [H]]))
 
 ;; Most of the complexity in this implementation is due to the fact that
 ;; scale-factor can change over time, which necessitates checkpointing wall-time
@@ -14,7 +16,7 @@
 
     wall-time - Current wall-time. A number.
 
-    sim-time - Initial sim-time. A number.
+    sim-time - Initial sim-time. A hyperreal number.
 
   Keyword args:
 
@@ -27,6 +29,7 @@
   will cause sim-time to advance towards negative infinity; i.e., in reverse."
   [wall-time sim-time & {:keys [scale-factor]
                          :or   {scale-factor 1.0}}]
+  (assert (h/hyperreal? sim-time))
   {:wall-time    wall-time
    :sim-time     sim-time
    :scale-factor scale-factor})
@@ -46,9 +49,9 @@
       (= curr-wall-time
          prev-wall-time) clock
       :else              (let [wall-time-delta (- curr-wall-time prev-wall-time)
-                               sim-time-delta  (* wall-time-delta (:scale-factor clock))
+                               sim-time-delta  (H (* wall-time-delta (:scale-factor clock)))
                                prev-sim-time   (:sim-time clock)
-                               curr-sim-time   (long (+ prev-sim-time sim-time-delta))]
+                               curr-sim-time   (h/+ prev-sim-time sim-time-delta)]
                            (assoc clock
                                   :wall-time curr-wall-time
                                   :sim-time  curr-sim-time)))))

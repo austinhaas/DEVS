@@ -49,8 +49,9 @@
       sp - The sender's port.
       rk - The receiver's name.
       rp - The receiver's port.
-      f  - (Optional) A function to apply to every message that traverses
-           this route before it is delivered to the receiver.
+       f - (Optional) A function to apply to every message that traverses this
+           route. The function should return a suitable new value that will be
+           delivered to the receiver in place of the original message.
 
   Returns:
 

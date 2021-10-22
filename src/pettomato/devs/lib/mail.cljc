@@ -52,10 +52,10 @@
 
 (defn sort-mail
   "Groups inbound mail into three disjoint collections:
-  [int-mail ext-mail net-msgs]."
+  [int-mail ext-mail petitions]."
   [mail]
   (let [int-mail (dissoc mail :network)
         ext-mail (get mail :network)
-        net-msgs (get ext-mail :structure)
-        ext-mail (dissoc ext-mail :structure)]
-    [int-mail ext-mail net-msgs]))
+        petitions (get ext-mail :petition)
+        ext-mail (dissoc ext-mail :petition)]
+    [int-mail ext-mail petitions]))

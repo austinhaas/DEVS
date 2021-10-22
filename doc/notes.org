@@ -165,6 +165,13 @@
    sim time to real-time components. A consequence is that every real-time
    sim/model must handle "no-op" transitions, where the mail bag is empty.
 
+   Note that the fixed time step doesn't mean that the resolution of RT events
+   is limited to the resolution of the time step. After stepping forward in real
+   time, but before advancing sim time, the simulator will query every RT
+   component for its time-of-next-event, so RT models have an opportunity to
+   emit an event that occurs since the last update but before the next. (This
+   does seem to be contingent on a way to query for the current sim time.)
+
    A different architecture may be desired. For example, it may be preferred to
    wrap each sim in an atom that could be updated by an external process. The
    sim may be a proxy; the "real" model state might be external. The sim clock

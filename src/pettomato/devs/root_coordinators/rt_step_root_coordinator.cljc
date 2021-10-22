@@ -2,8 +2,8 @@
   (:require
    [pettomato.devs.lib.clock :as clock]
    [pettomato.devs.lib.event-log :refer [pp-event-log]]
+   [pettomato.devs.lib.hyperreal :as h :refer [H]]
    [pettomato.devs.lib.log :as log]
-   [pettomato.devs.lib.number :refer [infinity]]
    [pettomato.devs.root-coordinators.step-root-coordinator :refer [step-through step-root-coordinator]]
    [pettomato.devs.simulator :refer [transition time-of-last-event]]
    [pettomato.devs.vars :refer [*sim-time*]]))
@@ -21,15 +21,16 @@
     wall-time - The current wall-time.
 
   Optional keyword args:
-    start - Simulation start time (inclusive). Default: 0.
+    start - Simulation start time (inclusive). Default: 0 ∈ hyperreal.
 
     scale - The time scale factor. Default: 1.0.
 
   Returns:
     A root-coordinator."
   [sim wall-time & {:keys [start scale-factor]
-                    :or   {start        0
+                    :or   {start        h/zero
                            scale-factor 1.0}}]
+  (assert (h/hyperreal? start))
   {:clock (clock/clock wall-time start :scale-factor scale-factor)
    :sim   (step-root-coordinator sim :start start)})
 
@@ -37,6 +38,7 @@
   "Like step-through, but always invokes a transition at end time, even if the
   simulator is not imminent (presumably, for time synchronization)."
   [sim end]
+  (assert (h/hyperreal? end))
   ;;(log/tracef "rt-step-root-coordinator/step-through-and-transition end: %s" end)
   (let [[sim event-log] (step-through sim end)]
     ;; If there happens to be a scheduled event at end time, then there is no
@@ -44,7 +46,7 @@
     ;; transition will be made, and then the sim will be advanced to the current
     ;; time again, in case the artificial transition caused the sim to become
     ;; imminent.
-    (if (= (time-of-last-event sim) end)
+    (if (h/= (time-of-last-event sim) end)
       [sim event-log]
       ;; No need to collect mail; we know the sim isn't imminent, or the
       ;; previous call to step-through would've caught that.
@@ -66,11 +68,11 @@
   Returns:
     [rc event-log]"
   [rc wall-time & {:keys [max-sim-time]
-                   :or   {max-sim-time infinity}}]
+                   :or   {max-sim-time h/infinity}}]
   ;;(log/tracef "rt-step-root-coordinator/step-through-to-wall-time: %s" wall-time max-sim-time)
   (let [{:keys [clock sim]} rc
         clock    (clock/advance clock wall-time)
-        sim-time (min (clock/get-sim-time clock) max-sim-time)]
+        sim-time (h/min (clock/get-sim-time clock) max-sim-time)]
     (binding [*sim-time* sim-time]
       (let [[sim event-log] (step-through-and-transition sim sim-time)]
         [(assoc rc :clock clock :sim sim) event-log]))))

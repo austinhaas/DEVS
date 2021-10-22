@@ -1,8 +1,9 @@
 (ns pettomato.devs.models.atomic-model
   (:require
    [clojure.set :refer [subset?]]
+   [pettomato.devs.lib.hyperreal :as h]
    [pettomato.devs.lib.log :as log]
-   [pettomato.devs.lib.number :refer [infinity]]))
+   [pettomato.devs.lib.mail :refer [merge-local-mail]]))
 
 (defn atomic-model
   "Creates an atomic model.
@@ -14,38 +15,40 @@
   supplied to this constructor. Default: nil.
 
     initial-elapsed-time - The amount of time that the model has been in its
-  initial state. Default: 0.
+  initial state. Default: zero ∈ hyperreals
 
     internal-update - The internal state transition function. A function that
   takes a state and returns a new state. Invoked when the model is
-  imminent. Default: identity.
+  imminent. Default: `identity`.
 
     external-update - The external state transition function. A function that
-  takes a state, an elapsed time, and a bag of messages, and returns a new
-  state. Invoked when the model has incoming messages. Default: A \"no-op\"
-  function that returns state.
+  takes a state, an elapsed time, and a bag of messages, and returns a new state
+  and a bag of outgoing messages. Invoked when the model has incoming
+  messages. Default: A \"no-op\" function that returns state.
 
     confluent-update - The confluent state transition function. A function (or
   keyword, see below) that takes a state and a bag of messages, and returns a
-  new state. Invoked when the model is imminent and has incoming
-  messages. Default: :internal-first.
+  new state. Invoked when the model is imminent and has incoming messages.
+  Default: :internal-first.
 
       For convenience, instead of a function, special keywords can be supplied,
-      which indicate a function to automatically generate:
+  which indicate a function to automatically generate:
 
       :internal-first - Generates a function that invokes internal-update and
-      then external-update. This is the default if confluent-update is not
-      specified.
+  then external-update. This is the default if confluent-update is not
+  specified. Output messages are combined via (merge-with into
+  interal-update-mail external-update-mail).
 
-      :external-first - Generates a function that invokes external-update and then
-      internal-update.
+      :external-first - Generates a function that invokes external-update and
+  then internal-update. Output messages are combined via (merge-with into
+  exteral-update-mail internal-update-mail).
 
     output - How the model emits messages. A function that takes a state and
   returns a bag of messages. Default: (constantly {}).
 
-    time-advance - A function that takes a state and returns a non-negative
-  number indicating the time until the model is imminent, provided it does not
-  receive any messages before that time. Default: (constantly infinity).
+    time-advance - A function that takes a state and returns a non-zero positive
+  hyperreal number indicating the time until the model is imminent, provided it
+  does not receive any messages before that time. Default: (constantly infinity).
 
   Returns:
 
@@ -70,24 +73,22 @@
              output
              time-advance]
       :or   {initial-state        nil
-             initial-elapsed-time 0
-             internal-update      identity
-             external-update      (fn [state elapsed-time mail] state) ;; no-op
+             initial-elapsed-time h/zero
+             internal-update      (fn no-op-int-update [state] state)
+             external-update      (fn no-op-ext-update [state elapsed-time mail] state)
              confluent-update     :internal-first
              output               (constantly {})
-             time-advance         (constantly infinity)}
+             time-advance         (constantly h/infinity)}
       :as   options}]
   (let [confluent-update (case confluent-update
                            :internal-first (fn [state mail]
                                              (-> (internal-update state)
-                                                 (external-update 0 mail)))
-
+                                                 (external-update h/zero mail)))
                            :external-first (fn [state mail]
                                              (-> (external-update state (time-advance state) mail)
                                                  internal-update))
-
                            confluent-update)]
-    (when-not (number? initial-elapsed-time)
+    (when-not (h/hyperreal? initial-elapsed-time)
       (throw (ex-info (str ":initial-elapsed-time must be a number; value: " initial-elapsed-time)
                       {})))
     (when-not (ifn? internal-update)
@@ -116,6 +117,7 @@
       (when (seq extra-options)
         (throw (ex-info (str "Invalid options supplied to atomic-model: " extra-options)
                         {}))))
+    ;; Consider storing the original model definition, for later reference.
     {:initial-total-state [initial-state initial-elapsed-time]
      :internal-update     internal-update
      :external-update     external-update

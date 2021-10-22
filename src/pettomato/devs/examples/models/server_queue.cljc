@@ -3,8 +3,8 @@
   (:require
    [pettomato.devs.examples.models :refer [variable-delay]]
    [pettomato.devs.lib.coll :refer [queue]]
+   [pettomato.devs.lib.hyperreal :as h :refer [H]]
    [pettomato.devs.lib.log :as log]
-   [pettomato.devs.lib.number :refer [infinity]]
    [pettomato.devs.models.atomic-model :refer [atomic-model]]
    [pettomato.devs.vars :refer [*sim-time*]]))
 
@@ -24,17 +24,17 @@
 
 (defn- add-worker [state k model]
   (log/tracef "add-worker: %s" k)
-  (update-in state [:output :structure] conj
+  (update-in state [:output :petition] conj
              [:add-model k model]
-             [:connect [(:id state) [:out k] k :in identity]]
-             [:connect [k :out (:id state) [:in k] identity]]))
+             [:connect [(:id state) [:out k] k :in]]
+             [:connect [k :out (:id state) [:in k]]]))
 
 (defn- rem-worker [state k]
   (log/tracef "rem-worker: %s" k)
-  (update-in state [:output :structure] conj
+  (update-in state [:output :petition] conj
              [:rem-model k]
-             [:disconnect [(:id state) [:out k] k :in identity]]
-             [:disconnect [k :out (:id state) [:in k] identity]]))
+             [:disconnect [(:id state) [:out k] k :in]]
+             [:disconnect [k :out (:id state) [:in k]]]))
 
 (defn- maybe-grow [state]
   (log/trace "maybe-grow")
@@ -70,7 +70,7 @@
           (update :output assoc [:out worker] [[(:effort job) (assoc job :worker worker :start-time *sim-time*)]])
           (update :queue pop)
           (update :workers pop)
-          (assoc  :sigma 0)))))
+          (assoc  :sigma h/epsilon)))))
 
 (defn- import-jobs [state jobs]
   (->> jobs
@@ -95,9 +95,9 @@
                      :workers  queue ;; A FIFO of available workers.
                      :capacity 0
                      :output   {}
-                     :sigma    infinity}
+                     :sigma    h/infinity}
    :internal-update (fn [state]
-                      (-> (assoc state :output {} :sigma infinity)
+                      (-> (assoc state :output {} :sigma h/infinity)
                           distribute-work))
    :external-update (fn [state elapsed messages]
                       (reduce-kv (fn [state port vs]
@@ -110,7 +110,7 @@
                                      :else        (-> state
                                                       (export-jobs (second port) vs)
                                                       maybe-shrink)))
-                                 (assoc state :sigma 0)
+                                 (assoc state :sigma h/epsilon)
                                  messages))
    :output          :output
    :time-advance    :sigma))
