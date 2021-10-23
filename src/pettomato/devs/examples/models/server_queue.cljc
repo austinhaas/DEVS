@@ -3,7 +3,7 @@
   (:require
    [pettomato.devs.examples.models :refer [variable-delay]]
    [pettomato.devs.lib.coll :refer [queue]]
-   [pettomato.devs.lib.hyperreal :as h :refer [H]]
+   [pettomato.devs.lib.hyperreal :as h :refer [*R]]
    [pettomato.devs.lib.log :as log]
    [pettomato.devs.models.atomic-model :refer [atomic-model]]
    [pettomato.devs.vars :refer [*sim-time*]]))

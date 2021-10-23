@@ -52,7 +52,7 @@
 
   Returns [sim event-log]."
   [sim end]
-  (if (h/infinity? end)
+  (if (h/infinite? end)
     (step-while sim end :compare h/<)
     (step-while sim end :compare h/<=)))
 

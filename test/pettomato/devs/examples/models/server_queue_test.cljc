@@ -6,7 +6,7 @@
       [cljs.test :refer-macros [deftest is testing]])
    [pettomato.devs.examples.models :refer [lazy-seq-generator]]
    [pettomato.devs.examples.models.server-queue :refer [reset-next-id! server]]
-   [pettomato.devs.lib.hyperreal :as h :refer [H]]
+   [pettomato.devs.lib.hyperreal :as h :refer [*R]]
    [pettomato.devs.lib.random :as rand]
    [pettomato.devs.models.network-model :refer [network-model]]
    [pettomato.devs.root-coordinators.afap-root-coordinator :refer [afap-root-coordinator]]
@@ -35,8 +35,8 @@
          (let [gen (lazy-seq-generator
                     (take 100
                           (for [i (range)]
-                            [(H (+ 1 (rand/rand-int 10))) {:out [{:id     (str "job-" i)
-                                                                  :effort (H (+ 1 (rand/rand-int 100)))}]}])))
+                            [(*R (+ 1 (rand/rand-int 10))) {:out [{:id     (str "job-" i)
+                                                                   :effort (*R (+ 1 (rand/rand-int 100)))}]}])))
                srv (server :server)
                net (network-model
                     {:gen    gen
@@ -47,5 +47,5 @@
                      [:server :petition :network :petition]])]
            (reset-next-id!)
            (rand/with-random-seed 0
-             (-> (afap-root-coordinator (network-simulator net) :start (H 0) :end (H 1000))
+             (-> (afap-root-coordinator (network-simulator net) :start (*R 0) :end (*R 1000))
                  report))))))

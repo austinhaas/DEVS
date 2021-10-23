@@ -1,7 +1,7 @@
 (ns pettomato.devs.examples.models.digital-circuit
   (:require
    [pettomato.devs.examples.models :refer [lazy-seq-generator]]
-   [pettomato.devs.lib.hyperreal :as h :refer [H]]
+   [pettomato.devs.lib.hyperreal :as h :refer [*R]]
    [pettomato.devs.models.atomic-model :refer [atomic-model]]
    [pettomato.devs.models.network-model :refer [network-model]]
    [pettomato.devs.root-coordinators.afap-root-coordinator :refer [afap-root-coordinator]]
@@ -143,9 +143,9 @@
   least significant bit, while SICP appears to be using 1 as the index of the
   most significant bit."
   [n-bits inverter-delay and-gate-delay or-gate-delay]
-  (let [key-fn #(keyword (str "fa-" %))
-        models (into {} (for [i (range n-bits)]
-                          [(key-fn i) (full-adder inverter-delay and-gate-delay or-gate-delay)]))
+  (let [key-fn   #(keyword (str "fa-" %))
+        models   (into {} (for [i (range n-bits)]
+                            [(key-fn i) (full-adder inverter-delay and-gate-delay or-gate-delay)]))
         ;; Connect them to the network. We don't connect an external carry
         ;; input.
         routes-1 (apply concat
@@ -187,21 +187,21 @@
 (defn ripple-carry-add
   "Adds two numbers using a ripple adder."
   [n-bits a b & {:keys [inverter-delay and-gate-delay or-gate-delay]
-                                :or   {inverter-delay (H 2)
-                                       and-gate-delay (H 3)
-                                       or-gate-delay  (H 5)}}]
-  (-> (network-model {:gen (lazy-seq-generator [[(H 1000) (merge (encode n-bits a :a)
-                                                                 (encode n-bits b :b))]])
+                 :or   {inverter-delay (*R 2)
+                        and-gate-delay (*R 3)
+                        or-gate-delay  (*R 5)}}]
+  (-> (network-model {:gen (lazy-seq-generator [[(*R 1000) (merge (encode n-bits a :a)
+                                                                  (encode n-bits b :b))]])
                       :rca (ripple-carry-adder n-bits
                                                inverter-delay
                                                and-gate-delay
                                                or-gate-delay)}
-                    (apply concat
-                           [[:rca :c :network :c]]
-                           (for [i (range n-bits)]
-                             [[:gen [:a i] :rca [:a i]]
-                              [:gen [:b i] :rca [:b i]]
-                              [:rca [:s i] :network [:s i]]])))
-     network-simulator
-     afap-root-coordinator
-     decode))
+                     (apply concat
+                            [[:rca :c :network :c]]
+                            (for [i (range n-bits)]
+                              [[:gen [:a i] :rca [:a i]]
+                               [:gen [:b i] :rca [:b i]]
+                               [:rca [:s i] :network [:s i]]])))
+      network-simulator
+      afap-root-coordinator
+      decode))

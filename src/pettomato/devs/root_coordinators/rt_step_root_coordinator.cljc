@@ -2,7 +2,7 @@
   (:require
    [pettomato.devs.lib.clock :as clock]
    [pettomato.devs.lib.event-log :refer [pp-event-log]]
-   [pettomato.devs.lib.hyperreal :as h :refer [H]]
+   [pettomato.devs.lib.hyperreal :as h]
    [pettomato.devs.lib.log :as log]
    [pettomato.devs.root-coordinators.step-root-coordinator :refer [step-through step-root-coordinator]]
    [pettomato.devs.simulator :refer [transition time-of-last-event]]

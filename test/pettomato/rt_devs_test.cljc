@@ -7,7 +7,7 @@
    [pettomato.devs.examples.models :refer [generator single-delay]]
    [pettomato.devs.lib.date :refer [timestamp]]
    [pettomato.devs.lib.event-log :refer [event-log=]]
-   [pettomato.devs.lib.hyperreal :as h :refer [H]]
+   [pettomato.devs.lib.hyperreal :as h :refer [*R]]
    [pettomato.devs.lib.log :as log]
    [pettomato.devs.lib.logging :refer [log-fn]]
    [pettomato.devs.models.network-model :refer [network-model]]
@@ -19,15 +19,15 @@
 
 (deftest scale-factor-tests
   (let [step-size 100
-        rc        (-> (generator (H 1000) 'tick)
+        rc        (-> (generator (*R 1000) 'tick)
                       atomic-simulator
                       (rt-step-root-coordinator 0 :scale 1.0))
-        expected  [[(H 1000) {:out ['tick]}]
-                   [(H 2000) {:out ['tick]}]
-                   [(H 3000) {:out ['tick]}]
-                   [(H 4000) {:out ['tick]}]
-                   [(H 5000) {:out ['tick]}]
-                   [(H 6000) {:out ['tick]}]]]
+        expected  [[(*R 1000) {:out ['tick]}]
+                   [(*R 2000) {:out ['tick]}]
+                   [(*R 3000) {:out ['tick]}]
+                   [(*R 4000) {:out ['tick]}]
+                   [(*R 5000) {:out ['tick]}]
+                   [(*R 6000) {:out ['tick]}]]]
     (is (= 1.0 (get-clock-scale-factor rc)))
     (let [[rc event-log-1] (step-through-to-wall-time rc 1000)
           rc               (set-clock-scale-factor rc 2000 0.0)

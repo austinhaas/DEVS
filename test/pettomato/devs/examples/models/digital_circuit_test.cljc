@@ -7,7 +7,7 @@
    [pettomato.devs.examples.models :refer [lazy-seq-generator]]
    [pettomato.devs.examples.models.digital-circuit :as circ]
    [pettomato.devs.lib.event-log :refer [event-log=]]
-   [pettomato.devs.lib.hyperreal :as h :refer [H]]
+   [pettomato.devs.lib.hyperreal :as h :refer [*R]]
    [pettomato.devs.lib.random :as rand]
    [pettomato.devs.models.atomic-model :refer [atomic-model]]
    [pettomato.devs.models.network-model :refer [network-model]]
@@ -18,10 +18,10 @@
 
   (testing "inverter"
     (is (event-log=
-         [[(H 0) {:out [false]}]
-          [(H 6) {:out [true]}]]
-         (-> (network-model {:gen (lazy-seq-generator [[(H 1) {:out [false]}]])
-                             :inv (circ/inverter (H 5))}
+         [[(*R 0) {:out [false]}]
+          [(*R 6) {:out [true]}]]
+         (-> (network-model {:gen (lazy-seq-generator [[(*R 1) {:out [false]}]])
+                             :inv (circ/inverter (*R 5))}
                             [[:gen :out :inv :in]
                              [:inv :out :network :out]])
              network-simulator
@@ -29,11 +29,11 @@
 
   (testing "and-gate"
     (is (event-log=
-         [[(H 0) {:out [false]}]
-          [(H 8) {:out [true]}]]
-         (-> (network-model {:gen (lazy-seq-generator [[(H 1) {:out-1 [true]}]
-                                                       [(H 2) {:out-2 [true]}]])
-                             :and (circ/and-gate (H 5))}
+         [[(*R 0) {:out [false]}]
+          [(*R 8) {:out [true]}]]
+         (-> (network-model {:gen (lazy-seq-generator [[(*R 1) {:out-1 [true]}]
+                                                       [(*R 2) {:out-2 [true]}]])
+                             :and (circ/and-gate (*R 5))}
                             [[:gen :out-1 :and :in-1]
                              [:gen :out-2 :and :in-2]
                              [:and :out :network :out]])
@@ -42,11 +42,11 @@
 
   (testing "or-gate"
     (is (event-log=
-         [[(H 0) {:out [false]}]
-          [(H 6) {:out [true]}]]
-         (-> (network-model {:gen (lazy-seq-generator [[(H 1) {:out-1 [true]}]
-                                                       [(H 2) {:out-2 [true]}]])
-                             :and (circ/or-gate (H 5))}
+         [[(*R 0) {:out [false]}]
+          [(*R 6) {:out [true]}]]
+         (-> (network-model {:gen (lazy-seq-generator [[(*R 1) {:out-1 [true]}]
+                                                       [(*R 2) {:out-2 [true]}]])
+                             :and (circ/or-gate (*R 5))}
                             [[:gen :out-1 :and :in-1]
                              [:gen :out-2 :and :in-2]
                              [:and :out :network :out]])
@@ -57,15 +57,15 @@
 
   (testing "SICP, p. 280"
     (is (event-log=
-         [[(H 0)  {:s [false]
-                   :c [false]}]
-          [(H 8)  {:s [true]}]
-          [(H 11) {:c [true]}]
-          [(H 16) {:s [false]}]]
+         [[(*R 0)  {:s [false]
+                    :c [false]}]
+          [(*R 8)  {:s [true]}]
+          [(*R 11) {:c [true]}]
+          [(*R 16) {:s [false]}]]
          (-> (network-model {:gen (lazy-seq-generator [[h/epsilon {:out-1 [true]}]
-                                                       [(H 8) {:out-2 [true]}]]
+                                                       [(*R 8) {:out-2 [true]}]]
                                                       h/epsilon)
-                             :ha  (circ/half-adder (H 2) (H 3) (H 5))}
+                             :ha  (circ/half-adder (*R 2) (*R 3) (*R 5))}
                             [[:gen :out-1 :ha :a identity]
                              [:gen :out-2 :ha :b identity]
                              [:ha :s :network :s identity]
@@ -75,15 +75,15 @@
 
   (testing "full-adder"
     (is (event-log=
-         [[(H 0)  {:s [false]
-                   :c [false]}]
-          [(H 8)  {:s [true]}]
-          [(H 24) {:c [true]
-                   :s [false]}]]
+         [[(*R 0)  {:s [false]
+                    :c [false]}]
+          [(*R 8)  {:s [true]}]
+          [(*R 24) {:c [true]
+                    :s [false]}]]
          (-> (network-model {:gen (lazy-seq-generator [[h/epsilon {:out-1 [true]}]
-                                                       [(H 8) {:out-2 [true]}]]
+                                                       [(*R 8) {:out-2 [true]}]]
                                                       h/epsilon)
-                             :ha  (circ/full-adder (H 2) (H 3) (H 5))}
+                             :ha  (circ/full-adder (*R 2) (*R 3) (*R 5))}
                             [[:gen :out-1 :ha :a identity]
                              [:gen :out-2 :ha :b identity]
                              [:ha :s :network :s identity]

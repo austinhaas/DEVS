@@ -3,7 +3,7 @@
   time as an argument, which must be nondecreasing. Use a consistent and
   reliable source for supplying wall time, such as `(.getTime (java.util.Date.))`."
   (:require
-   [pettomato.devs.lib.hyperreal :as h :refer [H]]))
+   [pettomato.devs.lib.hyperreal :as h :refer [*R]]))
 
 ;; Most of the complexity in this implementation is due to the fact that
 ;; scale-factor can change over time, which necessitates checkpointing wall-time
@@ -49,7 +49,7 @@
       (= curr-wall-time
          prev-wall-time) clock
       :else              (let [wall-time-delta (- curr-wall-time prev-wall-time)
-                               sim-time-delta  (H (* wall-time-delta (:scale-factor clock)))
+                               sim-time-delta  (*R (* wall-time-delta (:scale-factor clock)))
                                prev-sim-time   (:sim-time clock)
                                curr-sim-time   (h/+ prev-sim-time sim-time-delta)]
                            (assoc clock

@@ -7,7 +7,7 @@
    [pettomato.devs.examples.models :refer [lazy-seq-generator]]
    [pettomato.devs.examples.models.tms-example :as tms]
    [pettomato.devs.lib.event-log :refer [pp-event-log]]
-   [pettomato.devs.lib.hyperreal :refer [H]]
+   [pettomato.devs.lib.hyperreal :refer [*R]]
    [pettomato.devs.lib.random :as rand]
    [pettomato.devs.models.network-model :refer [network-model]]
    [pettomato.devs.root-coordinators.afap-root-coordinator :refer [afap-root-coordinator]]
@@ -18,7 +18,7 @@
     (let [gen (lazy-seq-generator
                (take 100
                      (for [i (range)]
-                       (let [dt       (H (+ 1 (rand/rand-int 5)))
+                       (let [dt       (*R (+ 1 (rand/rand-int 5)))
                              ;; A sin function is applied to the random
                              ;; selection of ports, to cause the server to
                              ;; continuously move workers.
@@ -30,7 +30,7 @@
                              port-idx (int (/ (+ (inc x) y) 2))
                              port     (keyword (str "out-" port-idx))
                              id       (str "job-" i)
-                             effort   (H (+ 1 (rand/rand-int 100)))
+                             effort   (*R (+ 1 (rand/rand-int 100)))
                              job      {:id id :effort effort}]
                          [dt {port [job]}]))))
           srv (tms/network-1 8 2)
@@ -44,5 +44,5 @@
       (testing "Runs without errors. Test pp-event-log, too."
         (is (< 0 (count
                   (with-out-str
-                    (-> (afap-root-coordinator (network-simulator net) :start (H 0) :end (H 2000))
+                    (-> (afap-root-coordinator (network-simulator net) :start (*R 0) :end (*R 2000))
                         pp-event-log)))))))))

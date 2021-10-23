@@ -13,11 +13,13 @@
    (def high-performance-timer-available?
      "True if the cljs run-time environment supports the high-performance timer,
   otherwise false."
-     (boolean
-      (and js/window
-           (.-performance js/window)
-           (.-timing (.-performance js/window))
-           (.-navigationStart (.-timing (.-performance js/window)))))))
+     (try
+      (boolean
+       (and js/window
+            (.-performance js/window)
+            (.-timing (.-performance js/window))
+            (.-navigationStart (.-timing (.-performance js/window)))))
+      (catch :default e false))))
 
 (defn timestamp
   "Returns an integer representing the number of milliseconds since

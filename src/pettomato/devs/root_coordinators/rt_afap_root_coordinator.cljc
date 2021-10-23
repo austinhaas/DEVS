@@ -1,6 +1,6 @@
 (ns pettomato.devs.root-coordinators.rt-afap-root-coordinator
   (:require
-   [pettomato.devs.lib.hyperreal :as h :refer [H]]
+   [pettomato.devs.lib.hyperreal :as h]
    [pettomato.devs.root-coordinators.rt-step-root-coordinator
     :refer [rt-step-root-coordinator step-through-to-wall-time get-sim-time]]))
 
