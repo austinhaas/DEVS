@@ -2,35 +2,44 @@
   "An implementation of hyperreal numbers.
 
   The hyperreal numbers are the real numbers extended with infinitesimal (ε) and
-  infinity.
+  infinity (ω).
 
-  Hyperreal numbers are represented as records with three fields:
+  Hyperreal numbers are represented as the sum of three components:
+  Aω+r+Bε. They are implemented as a record with three fields:
 
   - `infinity` is an integer coefficient indicating the number of infinity
-  components in the number
+  units in the number (i.e., A in Aω+r+Bε).
 
-  - `standard` is a real number
+  - `standard` is a real number (i.e., r in Aω+r+Bε).
 
   - `infinitesimal` is an integer coefficient indicating the number of
-  infinitesimal components in the number
+  infinitesimal units in the number (i.e., B in Aω+r+Bε).
 
-  For example, (*R 1 2 3) = 1∞+2+3ε, and (*R 0 5 0) = 5.
+  For example, with constructor *R, (*R 1 2 3) = 1ω+2+3ε, and (*R 0 5.2 0) =
+  0ω+5.2+0ε = 5.2.
 
-  (*R 0 0 1) is the smallest positive hyperreal number. There is no largest
-  hyperreal number; infinity is taken to be an unknown value that is larger than
-  all real numbers, but is less than infinity + 1 and infinity * 2.
+  (*R 0 0 1), meaning ε, or `epsilon`, is the smallest positive hyperreal
+  number. There is no largest hyperreal number; `infinity` is taken to be an
+  unknown quantity that is larger than all real numbers, but less than
+  infinity+1 and infinity*2.
 
   Hyperreal numbers may be printed as *ℝ<infinity standard infinitesimal>.
 
   The component number types are not enforced, but users should respect
-  them. Importantly, do not use special numeric values (other than what is
-  provided here) like Double/POSITIVE_INFINITY and (.-POSITIVE_INFINITY
-  js/Number), because that will produce erroneous results and it would
-  unjustifiably complicate the code to support it.
+  them. Importantly, do not use special numeric values like
+  Double/POSITIVE_INFINITY and (.-POSITIVE_INFINITY js/Number), because that
+  will produce erroneous results and it would unjustifiably complicate the code
+  to support it.
+
+  Also note that the real number implementation is based on the host platform,
+  so the real numbers are represented as floating-point numbers with all their
+  associated deficiencies.
+
+  Reference:
 
   Barros, Fernando J. \"On the representation of time in modeling & simulation.\" 2016 winter simulation conference (WSC). IEEE, 2016.
   http://simulation.su/uploads/files/default/2016-barros-1.pdf"
-  (:refer-clojure :exclude [= + - < <= comparator min max pos?])
+  (:refer-clojure :exclude [= + - < <= comparator min max pos? #?(:cljs infinite?)])
   (:require
    [clojure.core :as clj]))
 
@@ -39,28 +48,37 @@
   (toString [this] (str "*ℝ<" infinity " " standard " " infinitesimal ">")))
 
 #?(:clj
-   (defmethod print-method Hyperreal [h, w]
-     (.write w (format "*ℝ<%s %s %s>" (.infinity h) (.standard h) (.infinitesimal h)))))
+   (defmethod print-method Hyperreal [x w]
+     (.write w (format "*ℝ<%s %s %s>" (.infinity x) (.standard x) (.infinitesimal x)))))
 
 (defn *R
   "Construct a hyperreal number from its components."
-  ([a]     (Hyperreal. 0 a 0))
-  ([a z]   (Hyperreal. 0 a z))
-  ([i a z] (Hyperreal. i a z)))
+  ([standard]                        (Hyperreal.        0 standard             0))
+  ([standard infinitesimal]          (Hyperreal.        0 standard infinitesimal))
+  ([infinity standard infinitesimal] (Hyperreal. infinity standard infinitesimal)))
 
-(defn standard [x] (:standard x))
+(defn hyperreal? [x] (instance? Hyperreal x))
+
+(defn standard
+  "Returns the closest standard real number to hyperreal number x,
+  where real number means floating point number in the host platform."
+  [x]
+  (cond
+    (clj/zero? (:infinity x)) (:standard x)
+    (clj/pos?  (:infinity x)) #?(:clj  Double/POSITIVE_INFINITY
+                                 :cljs (.-POSITIVE_INFINITY js/Number))
+    (clj/neg?  (:infinity x)) #?(:clj  Double/NEGATIVE_INFINITY
+                                 :cljs (.-NEGATIVE_INFINITY js/Number))))
 
 (def zero     (*R 0 0 0))
 (def epsilon  (*R 0 0 1))
 (def infinity (*R 1 0 0))
 
-(defn hyperreal? [x] (instance? Hyperreal x))
-
 (defn =
   ([x] true)
   ([x y]
-   (and (clj/== (:infinity x) (:infinity y))
-        (clj/== (:standard x) (:standard y))
+   (and (clj/== (:infinity      x) (:infinity      y))
+        (clj/== (:standard      x) (:standard      y))
         (clj/== (:infinitesimal x) (:infinitesimal y))))
   ([x y & more]
    (if (= x y)
@@ -73,23 +91,20 @@
   ([] zero)
   ([x] x)
   ([x y]
-   (*R (clj/+ (:infinity x) (:infinity y))
-       (clj/+ (:standard x) (:standard y))
+   (*R (clj/+ (:infinity      x) (:infinity      y))
+       (clj/+ (:standard      x) (:standard      y))
        (clj/+ (:infinitesimal x) (:infinitesimal y))))
   ([x y & more]
-   ;; If more was sufficiently long, it might make sense to stop processing as
-   ;; soon as any value is infinity. But, I don't think that will be the case in
-   ;; this project. In fact, I don't think this arity is even used at all.
    (reduce + (+ x y) more)))
 
 (defn -
   ([x]
-   (*R (clj/- (:infinity x))
-       (clj/- (:standard x))
+   (*R (clj/- (:infinity      x))
+       (clj/- (:standard      x))
        (clj/- (:infinitesimal x))))
   ([x y]
-   (*R (clj/- (:infinity x) (:infinity y))
-       (clj/- (:standard x) (:standard y))
+   (*R (clj/- (:infinity      x) (:infinity      y))
+       (clj/- (:standard      x) (:standard      y))
        (clj/- (:infinitesimal x) (:infinitesimal y))))
   ([x y & more]
    (reduce - (- x y) more)))
@@ -98,10 +113,10 @@
   ([x] true)
   ([x y]
    (cond
-     (clj/< (:infinity x) (:infinity y))           true
-     (clj/< (:infinity y) (:infinity x))           false
-     (clj/< (:standard x) (:standard y))           true
-     (clj/< (:standard y) (:standard x))           false
+     (clj/< (:infinity      x) (:infinity      y)) true
+     (clj/< (:infinity      y) (:infinity      x)) false
+     (clj/< (:standard      x) (:standard      y)) true
+     (clj/< (:standard      y) (:standard      x)) false
      (clj/< (:infinitesimal x) (:infinitesimal y)) true
      (clj/< (:infinitesimal y) (:infinitesimal x)) false
      :else                                         false))
@@ -126,9 +141,9 @@
 
 (defn comparator [x y]
   (cond
-    (= x y) 0
+    (= x y)  0
     (< x y) -1
-    (< y x) 1))
+    (< y x)  1))
 
 (defn min
   ([x] x)
@@ -146,5 +161,5 @@
   (< zero x))
 
 (defn infinite?
-  "Returns true if the infinity component of x is greater than 0."
-  [x] (clj/pos? (:infinity x)))
+  "Returns true if the infinity component of x is not 0."
+  [x] (not (clj/zero? (:infinity x))))
