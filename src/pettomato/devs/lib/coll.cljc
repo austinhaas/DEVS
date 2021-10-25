@@ -19,3 +19,16 @@
 #?(:clj
    (defmethod print-method clojure.lang.PersistentQueue [q, w]
      (.write w (format "#queue%s" (vec q)))))
+
+(defn collect-by
+  "Example:
+
+  (collect-by (juxt first second) [[:a 0] [:b 1]])
+  => ([:a :b] [0 1])"
+  [f xs]
+  (reduce (fn [acc x]
+            (map conj
+                 (concat acc (repeat []))
+                 (f x)))
+          []
+          xs))

@@ -1,14 +1,15 @@
 (ns pettomato.devs.simulators.network-simulator
-  "A network simulator."
+  "A simulator for network models."
   (:require
-   [pettomato.devs.lib.coll :refer [prune]]
+   [pettomato.devs.lib.coll :refer [prune collect-by]]
    [pettomato.devs.lib.hyperreal :as h]
    [pettomato.devs.lib.log :as log]
    [pettomato.devs.lib.mail :refer [merge-mail route-mail sort-mail]]
    [pettomato.devs.lib.priority-queue :as pq]
    [pettomato.devs.models.atomic-model :refer [atomic-model?]]
    [pettomato.devs.models.network-model :refer [network-model?]]
-   [pettomato.devs.simulator :refer [Simulator initialize collect-mail transition time-of-last-event time-of-next-event]]
+   [pettomato.devs.simulator
+    :refer [Simulator initialize collect-mail transition time-of-last-event time-of-next-event]]
    [pettomato.devs.simulators.atomic-simulator :refer [atomic-simulator]]
    [pettomato.devs.vars :refer [*path*]]))
 
@@ -107,7 +108,9 @@
     ;; Assuming initialize will only be called once.
     (as-> sim sim
       ;; Add models.
-      (reduce-kv #(add-model find-simulator %1 %2 t %3) sim (:models model))
+      (reduce-kv #(add-model find-simulator %1 %2 t %3)
+                 sim
+                 (:models model))
       ;; Add routes.
       (reduce connect sim (:routes model))
       ;; Cache tl.
@@ -115,19 +118,24 @@
                                          (binding [*path* (conj *path* k)]
                                            (time-of-last-event sim)))
                                        (:k->sim sim))))
-      (assoc sim :tn (or (pq/peek-key (:queue sim)) h/infinity))))
+      ;; Cache tn.
+      (assoc sim :tn (or (pq/peek-key (:queue sim))
+                         h/infinity))))
   (collect-mail [sim t]
     (log/trace "--- collect-mail ---")
     (assert (h/= t tn) (str "synchronization error: (not (= " t " " tn "))"))
     (let [imminent      (pq/peek queue)
           _             (log/tracef "imminent: %s" (vec imminent)) ;; TODO: Don't convert to vector here; do it in the log fn.
+          ;; Get mail and updated sims.
           ;; This could be parallelized.
-          sim-mail      (map (fn [k]
-                               (binding [*path* (conj *path* k)]
-                                 (collect-mail (k->sim k) t))) ; recursive step
-                             imminent)
-          k->sim'       (zipmap imminent (map first  sim-mail))
-          outbound-mail (zipmap imminent (map second sim-mail))
+          [sims mail]   (->> imminent
+                             (map (fn [k]
+                                    (binding [*path* (conj *path* k)]
+                                      ;; recursive step
+                                      (collect-mail (k->sim k) t))))
+                             (collect-by (juxt first second)))
+          k->sim'       (zipmap imminent sims)
+          outbound-mail (zipmap imminent mail)
           _             (log/tracef "outbound-mail: %s" outbound-mail)
           inbound-mail  (route-mail routes outbound-mail)
           _             (log/tracef " inbound-mail: %s" inbound-mail)
@@ -147,7 +155,7 @@
           ;; The transitions are "mail-driven", so the members of the imminent
           ;; set are primed with an empty bag.
           imm-mail (zipmap imminent (repeat {}))
-          ext-mail (route-mail routes {:network ext-mail})    ; Assumption: There are no routes from :network to :network.
+          ext-mail (route-mail routes {:network ext-mail}) ; Assumption: There are no routes from :network to :network.
           _        (log/tracef "ext-mail: %s" ext-mail)
           mail     (merge-mail imm-mail int-mail ext-mail)
           _        (log/tracef "mail: %s" mail)

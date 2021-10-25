@@ -54,8 +54,8 @@
   "Groups inbound mail into three disjoint collections:
   [int-mail ext-mail petitions]."
   [mail]
-  (let [int-mail (dissoc mail :network)
-        ext-mail (get mail :network)
+  (let [int-mail  (dissoc mail :network)
+        ext-mail  (get mail :network)
         petitions (get ext-mail :petition)
-        ext-mail (dissoc ext-mail :petition)]
+        ext-mail  (dissoc ext-mail :petition)]
     [int-mail ext-mail petitions]))
