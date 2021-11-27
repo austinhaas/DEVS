@@ -20,15 +20,19 @@
    (defmethod print-method clojure.lang.PersistentQueue [q, w]
      (.write w (format "#queue%s" (vec q)))))
 
-(defn collect-by
-  "Example:
+(defn transpose
+  "Takes a collection of collections and returns a new collection of
+  collections where the elements are the first items in the input
+  collection, then the second items, and so on.
 
-  (collect-by (juxt first second) [[:a 0] [:b 1]])
-  => ([:a :b] [0 1])"
-  [f xs]
-  (reduce (fn [acc x]
-            (map conj
-                 (concat acc (repeat []))
-                 (f x)))
-          []
-          xs))
+  If you think of the input as a collection of rows, then the output
+  is a collection of columns.
+
+  This is intended to be analogous to a matrix transpose function.
+
+  Example:
+
+  (transpose [[:a 0] [:b 1] [:c 2]])
+  => [[:a :b :c] [0 1 2]]"
+  [coll]
+  (apply mapv vector coll))
