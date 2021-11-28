@@ -18,8 +18,9 @@
   (collect-mail [sim t]
     (log/trace "--- collect-mail ---")
     (assert (h/= t tn) (str "synchronization error: (not (= " t " " tn "))"))
-    (let [mail ((:output model) state)]
-      [sim mail]))
+    (let [mail      ((:output    model) state)
+          petitions ((:petitions model) state)]
+      [sim mail petitions]))
   (transition [sim mail t]
     (log/tracef "--- transition ---")
     (assert (h/<= tl t tn) (str "synchronization error: (not (<= " tl " " t " " tn "))"))

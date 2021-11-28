@@ -4,7 +4,7 @@
   (initialize         [sim t]
     "Initialize sim at current sim-time t. Returns sim.")
   (collect-mail       [sim t] ; Returns sim, b/c sim may update state to store local mail.
-    "Get outgoing mail for sim at current sim-time t. Returns [sim mail],
+    "Get outgoing mail for sim at current sim-time t. Returns [sim mail petitions],
 where mail = p->vs.")
   (transition         [sim mail t]
     "Execute a state transition, where mail = p->vs and t is the current

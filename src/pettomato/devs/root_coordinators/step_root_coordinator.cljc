@@ -9,8 +9,8 @@
   "Advance sim to time t. Returns [sim mail]."
   [sim t]
   (binding [*sim-time* t]
-    (let [[sim out] (collect-mail sim t)
-          sim       (transition sim {} t)]
+    (let [[sim out petitions] (collect-mail sim t)
+          sim                 (transition sim {} t)]
       [sim out])))
 
 (defn step-while

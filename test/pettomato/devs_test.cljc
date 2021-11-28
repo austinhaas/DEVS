@@ -4,7 +4,7 @@
       [clojure.test :refer [deftest is testing]]
       :cljs
       [cljs.test :refer-macros [deftest is testing]])
-   [pettomato.devs.examples.models :refer [generator lazy-seq-generator single-delay fixed-delay]]
+   [pettomato.devs.examples.models :refer [generator lazy-seq-generator lazy-seq-petition-generator single-delay fixed-delay]]
    [pettomato.devs.lib.event-log :refer [event-log=]]
    [pettomato.devs.lib.hyperreal :refer [*R]]
    [pettomato.devs.lib.log :as log]
@@ -154,13 +154,12 @@
                     (-> (network-model
                          {:gen  (generator (*R 5) "x")
                           :del  (fixed-delay (*R 2))
-                          :exec (lazy-seq-generator
-                                 [[(*R 7 -2) {:out [[:disconnect [:gen :out :del     :in]]
-                                                    [:disconnect [:del :out :network :out]]
-                                                    [:rem-model :del]]}]])}
-                         [[:gen  :out :del     :in]
-                          [:del  :out :network :out]
-                          [:exec :out :network :petition]])
+                          :exec (lazy-seq-petition-generator
+                                 [[(*R 7 -2) [[:disconnect [:gen :out :del     :in]]
+                                              [:disconnect [:del :out :network :out]]
+                                              [:rem-model :del]]]])}
+                         [[:gen :out :del     :in]
+                          [:del :out :network :out]])
                         network-simulator
                         (afap-root-coordinator :start (*R 0) :end (*R 20))))))
 
@@ -169,13 +168,12 @@
                     (-> (network-model
                          {:gen  (generator (*R 5) "x")
                           :del  (fixed-delay (*R 2))
-                          :exec (lazy-seq-generator
-                                 [[(*R 7 -1) {:out [[:disconnect [:gen :out :del     :in]]
-                                                    [:disconnect [:del :out :network :out]]
-                                                    [:rem-model :del]]}]])}
-                         [[:gen  :out :del     :in]
-                          [:del  :out :network :out]
-                          [:exec :out :network :petition]])
+                          :exec (lazy-seq-petition-generator
+                                 [[(*R 7 -1) [[:disconnect [:gen :out :del     :in]]
+                                              [:disconnect [:del :out :network :out]]
+                                              [:rem-model :del]]]])}
+                         [[:gen :out :del     :in]
+                          [:del :out :network :out]])
                         network-simulator
                         (afap-root-coordinator :start (*R 0) :end (*R 20))))))
 
@@ -184,19 +182,18 @@
                     (-> (network-model
                          {:gen  (generator (*R 5 0) "x")
                           :del  (fixed-delay (*R 2))
-                          :exec (lazy-seq-generator
+                          :exec (lazy-seq-petition-generator
                                  ;; The first message is sent instantly at 7,
                                  ;; but the structure change won't take effect
                                  ;; until the very start of 7+ε, after
                                  ;; transitions at 7 and before transitions at
-                                 ;; 7+ε. So the model is imminent at 7, and will
+                                 ;; 7+ε. :del is imminent at 7, and will
                                  ;; be removed at 7+ε.
-                                 [[(*R 7) {:out [[:disconnect [:gen :out :del     :in]]
-                                                 [:disconnect [:del :out :network :out]]
-                                                 [:rem-model :del]]}]])}
-                         [[:gen  :out :del     :in]
-                          [:del  :out :network :out]
-                          [:exec :out :network :petition]])
+                                 [[(*R 7) [[:disconnect [:gen :out :del     :in]]
+                                           [:disconnect [:del :out :network :out]]
+                                           [:rem-model :del]]]])}
+                         [[:gen :out :del     :in]
+                          [:del :out :network :out]])
                         network-simulator
                         (afap-root-coordinator :start (*R 0) :end (*R 20))))))
 
@@ -205,16 +202,18 @@
                      [(*R 12) {:out ["x"]}]]
                     (-> (network-model
                          {:gen  (generator (*R 5) "x")
-                          :exec (lazy-seq-generator
-                                 [[(*R 5 -1) {:out (shuffle
-                                                    [[:add-model :del (fixed-delay (*R 2))]
-                                                     [:connect [:gen  :out :del     :in]]
-                                                     [:connect [:del  :out :network :out]]])}]
-                                  [(*R 10 -1) {:out (shuffle
-                                                     [[:disconnect [:gen :out :del     :in]]
-                                                      [:disconnect [:del :out :network :out]]
-                                                      [:rem-model :del]])}]])}
-                         [[:exec :out :network :petition]])
+                          :exec (lazy-seq-petition-generator
+                                 ;; Note that these times are deltas.
+                                 [[(*R 5 -1) (shuffle
+                                              [[:add-model :del (fixed-delay (*R 2))]
+                                               [:connect [:gen :out :del     :in]]
+                                               [:connect [:del :out :network :out]]])]
+                                  ;; Occurs at (*R 15 -1).
+                                  [(*R 10 0) (shuffle
+                                              [[:disconnect [:gen :out :del     :in]]
+                                               [:disconnect [:del :out :network :out]]
+                                               [:rem-model :del]])]])}
+                         [])
                         network-simulator
                         (afap-root-coordinator :start (*R 0 0) :end (*R 20 0))))))
 
@@ -228,16 +227,15 @@
                                               [[:network :in :del :in]
                                                [:del :out :network :out]
                                                [:gen2 :out :network :out]])
-                          exec (lazy-seq-generator
-                                [[(*R 8) {:out [[:disconnect [:gen :out :del :in]]
-                                                [:disconnect [:del :out :network :out]]
-                                                [:rem-model :del]]}]])
+                          exec (lazy-seq-petition-generator
+                                [[(*R 8) [[:disconnect [:gen :out :del :in]]
+                                          [:disconnect [:del :out :network :out]]
+                                          [:rem-model :del]]]])
                           net  (network-model {:gen  gen
                                                :del  del
                                                :exec exec}
                                               [[:gen :out :del :in]
-                                               [:del :out :network :out]
-                                               [:exec :out :network :petition]])]
+                                               [:del :out :network :out]])]
                       (-> (network-simulator net)
                           afap-root-coordinator)))))
 
@@ -267,25 +265,24 @@
                     (let [gen   (lazy-seq-generator (for [i (range)] [(*R 1) {:out [(str "msg-" (inc i))]}]))
                           del-1 (fixed-delay (*R 1))
                           del-2 (fixed-delay (*R 2))
-                          exec  (lazy-seq-generator
-                                 (cycle [[(*R 5 -1) {:out [[:disconnect [:gen :out :del-1 :in]]
-                                                           [:disconnect [:del-1 :out :network :del-1-out]]
-                                                           [:rem-model :del-1 del-1]
-                                                           [:add-model :del-2 del-2]
-                                                           [:connect [:gen :out :del-2 :in]]
-                                                           [:connect [:del-2 :out :network :del-2-out]]]}]
-                                         [(*R 5 -1) {:out [[:disconnect [:gen :out :del-2 :in]]
-                                                           [:disconnect [:del-2 :out :network :del-2-out]]
-                                                           [:rem-model :del-2 del-2]
-                                                           [:add-model :del-1 del-1]
-                                                           [:connect [:gen :out :del-1 :in]]
-                                                           [:connect [:del-1 :out :network :del-1-out]]]}]]))
+                          exec  (lazy-seq-petition-generator
+                                 (cycle [[(*R 5 -1) [[:disconnect [:gen :out :del-1 :in]]
+                                                     [:disconnect [:del-1 :out :network :del-1-out]]
+                                                     [:rem-model :del-1 del-1]
+                                                     [:add-model :del-2 del-2]
+                                                     [:connect [:gen :out :del-2 :in]]
+                                                     [:connect [:del-2 :out :network :del-2-out]]]]
+                                         [(*R 5 -1) [[:disconnect [:gen :out :del-2 :in]]
+                                                     [:disconnect [:del-2 :out :network :del-2-out]]
+                                                     [:rem-model :del-2 del-2]
+                                                     [:add-model :del-1 del-1]
+                                                     [:connect [:gen :out :del-1 :in]]
+                                                     [:connect [:del-1 :out :network :del-1-out]]]]]))
                           net   (network-model {:gen   gen
                                                 :del-1 del-1
                                                 :exec  exec}
                                                [[:gen :out :del-1 :in]
                                                 [:gen :out :network :gen-out]
-                                                [:del-1 :out :network :del-1-out]
-                                                [:exec :out :network :petition]])]
+                                                [:del-1 :out :network :del-1-out]])]
                       (-> (network-simulator net)
                           (afap-root-coordinator :start (*R 0) :end (*R 20))))))))

@@ -1,7 +1,7 @@
 (ns pettomato.devs.simulators.network-simulator
   "A simulator for network models."
   (:require
-   [pettomato.devs.lib.coll :refer [prune collect-by]]
+   [pettomato.devs.lib.coll :refer [prune transpose]]
    [pettomato.devs.lib.hyperreal :as h]
    [pettomato.devs.lib.log :as log]
    [pettomato.devs.lib.mail :refer [merge-mail route-mail sort-mail]]
@@ -128,20 +128,22 @@
           _             (log/tracef "imminent: %s" (vec imminent)) ;; TODO: Don't convert to vector here; do it in the log fn.
           ;; Get mail and updated sims.
           ;; This could be parallelized.
-          [sims mail]   (->> imminent
+          [sims
+           mail
+           petitions]   (->> imminent
                              (map (fn [k]
                                     (binding [*path* (conj *path* k)]
                                       ;; recursive step
                                       (collect-mail (k->sim k) t))))
-                             (collect-by (juxt first second)))
+                             transpose)
+          petitions     (apply concat petitions)
           k->sim'       (zipmap imminent sims)
           outbound-mail (zipmap imminent mail)
           _             (log/tracef "outbound-mail: %s" outbound-mail)
           inbound-mail  (route-mail routes outbound-mail)
           _             (log/tracef " inbound-mail: %s" inbound-mail)
           [int-mail
-           ext-mail
-           petitions]   (sort-mail inbound-mail)
+           ext-mail]    (sort-mail inbound-mail)
           sim           (-> sim
                             (update :k->sim merge k->sim')
                             (assoc :int-mail  int-mail
@@ -155,7 +157,7 @@
           ;; The transitions are "mail-driven", so the members of the imminent
           ;; set are primed with an empty bag.
           imm-mail (zipmap imminent (repeat {}))
-          ext-mail (route-mail routes {:network ext-mail}) ; Assumption: There are no routes from :network to :network.
+          ext-mail (route-mail routes {:network ext-mail})    ; Assumption: There are no routes from :network to :network.
           _        (log/tracef "ext-mail: %s" ext-mail)
           mail     (merge-mail imm-mail int-mail ext-mail)
           _        (log/tracef "mail: %s" mail)

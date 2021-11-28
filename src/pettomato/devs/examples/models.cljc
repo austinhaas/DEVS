@@ -49,6 +49,42 @@
                               (ffirst coll)
                               h/infinity)))))
 
+(defn lazy-seq-petition-generator
+  "A model that emits values according to a (possibly lazy and infinite) seq
+  of [sigma mail].
+
+  coll - A collection of [sigma mail] pairs.
+
+  sigma - A number. The delay, in milliseconds, before the associated mail
+  should be output.
+
+  mail - A map from output ports to sequences of messages.
+
+  Be careful not to print models containing lazy seqs!
+
+  Example:
+    ;; Outputs 3 messages on port :out, with a 100ms delay before each one.
+    (lazy-seq-generator [[100 {:out ['first]}]
+                         [100 {:out ['second]}]
+                         [100 {:out ['third]}]])
+
+    ;; Outputs an infinite number of messages on port :out, with a random amount
+    ;; of time before each.
+    (lazy-seq-generator (for [i (range)]
+                          [(rand-int 1000) {:out [(str \"msg-\" i)]}]))"
+  ([coll]
+   (lazy-seq-petition-generator coll h/zero))
+  ([coll initial-elapsed-time]
+   (atomic-model
+    :initial-state        coll
+    :initial-elapsed-time initial-elapsed-time
+    :internal-update      next
+    :petitions            (comp second first)
+    :time-advance         (fn [coll]
+                            (if (seq coll)
+                              (ffirst coll)
+                              h/infinity)))))
+
 (defn single-delay
   "A model that receives messages on port :in and sends them back out on port :out
   after duration. Only one message can be delayed at a time. If a new message is

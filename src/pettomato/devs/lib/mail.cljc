@@ -51,11 +51,9 @@
             [rk rp (map f vs)])))
 
 (defn sort-mail
-  "Groups inbound mail into three disjoint collections:
-  [int-mail ext-mail petitions]."
+  "Groups inbound mail into two disjoint collections:
+  [int-mail ext-mail]."
   [mail]
-  (let [int-mail  (dissoc mail     :network)
-        ext-mail  (get    mail     :network)
-        petitions (get    ext-mail :petition)
-        ext-mail  (dissoc ext-mail :petition)]
-    [int-mail ext-mail petitions]))
+  (let [int-mail (dissoc mail :network)
+        ext-mail (get    mail :network)]
+    [int-mail ext-mail]))

@@ -43,8 +43,11 @@
   then internal-update. Output messages are combined via (merge-with into
   exteral-update-mail internal-update-mail).
 
-    output - How the model emits messages. A function that takes a state and
-  returns a bag of messages. Default: (constantly {}).
+    output - How the model emits messages. A function that takes a
+  state and returns a bag of messages. Default: (constantly {}).
+
+    petitions - How the model emits petitions. A function that takes a
+  state and returns a collection of petitions. Default: (constantly []).
 
     time-advance - A function that takes a state and returns a non-zero positive
   hyperreal number indicating the time until the model is imminent, provided it
@@ -71,6 +74,7 @@
              external-update
              confluent-update
              output
+             petitions
              time-advance]
       :or   {initial-state        nil
              initial-elapsed-time h/zero
@@ -78,6 +82,7 @@
              external-update      (fn no-op-ext-update [state elapsed-time mail] state)
              confluent-update     :internal-first
              output               (constantly {})
+             petitions            (constantly {})
              time-advance         (constantly h/infinity)}
       :as   options}]
   (let [confluent-update (case confluent-update
@@ -103,6 +108,9 @@
     (when-not (ifn? output)
       (throw (ex-info (str ":output must implement IFn; value: " output)
                       {})))
+    (when-not (ifn? petitions)
+      (throw (ex-info (str ":petitions must implement IFn; value: " petitions)
+                      {})))
     (when-not (ifn? time-advance)
       (throw (ex-info (str ":time-advance must implement IFn; value: " time-advance)
                       {})))
@@ -113,6 +121,7 @@
                                 :external-update
                                 :confluent-update
                                 :output
+                                :petitions
                                 :time-advance)]
       (when (seq extra-options)
         (throw (ex-info (str "Invalid options supplied to atomic-model: " extra-options)
@@ -123,6 +132,7 @@
      :external-update     external-update
      :confluent-update    confluent-update
      :output              output
+     :petitions           petitions
      :time-advance        time-advance}))
 
 (defn atomic-model?
@@ -134,5 +144,6 @@
                   :external-update
                   :confluent-update
                   :output
+                  :petitions
                   :time-advance}
                 (set (keys model)))))
