@@ -47,9 +47,22 @@
   Object
   (toString [this] (str "*ℝ<" infinity " " standard " " infinitesimal ">")))
 
+(defn format-hyperreal [x]
+  (format "*ℝ<%s %s %s>" (.infinity x) (.standard x) (.infinitesimal x)))
+
+#?(:clj
+   (defn pretty-print-hyperreal [x w]
+     (.write w (format-hyperreal x))))
+
 #?(:clj
    (defmethod print-method Hyperreal [x w]
-     (.write w (format "*ℝ<%s %s %s>" (.infinity x) (.standard x) (.infinitesimal x)))))
+     (pretty-print-hyperreal x w)))
+
+#?(:clj
+   (. clojure.pprint/simple-dispatch
+      addMethod
+      Hyperreal
+      #(pretty-print-hyperreal %1 *out*)))
 
 (defn *R
   "Construct a hyperreal number from its components."
