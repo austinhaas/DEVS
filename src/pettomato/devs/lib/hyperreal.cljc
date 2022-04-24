@@ -170,6 +170,9 @@
   ([x y & more]
    (reduce max (max x y) more)))
 
+(defn zero? [x]
+  (= zero x))
+
 (defn pos? [x]
   (< zero x))
 
