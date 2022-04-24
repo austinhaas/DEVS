@@ -1,10 +1,7 @@
 (ns pettomato.devs.lib.event-log
-  "An event log is a seq of [timestamp outbound-mail], where timestamps are
-  nondecreasing and outbound-mail is a \"local\" mail data structure (i.e., just
-  port -> vals)."
-
-  ;; TODO: Replace nondecreasing with increasing, given the NIA?
-
+  "An event log is a seq of [timestamp outbound-mail], where timestamps
+  are strictly increasing and outbound-mail is a \"local\" mail data
+  structure (i.e., just port -> vals)."
   (:require
    [pettomato.devs.lib.hyperreal :as h]
    [pettomato.devs.lib.string :refer [pad-left]]

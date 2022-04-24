@@ -5,15 +5,15 @@
 
   Items with the same priority belong to a set.
 
-  This implementation is intended for cases where efficient delete and update
-  are needed, and many values map to the same key.
+  This implementation supports efficient delete and update, and
+  assumes that many values map to the same key.
 
-  This implementaton was motivated by a particular discrete-event simulation,
-  where the priority queue's keys are time-of-next-update and the values are
-  simulation models. Delete was needed to update entries that had not yet
-  reached the top of the queue. Many events mapped to a small number of keys,
-  because, for aesthetic reasons, many models shared the same general update
-  cycle."
+  This implementaton was motivated by a particular discrete-event
+  simulation, where the priority queue's keys represent the time of
+  the next update and the values are simulation models. Delete is
+  needed to update entries that had not yet reached the top of the
+  queue. And many events map to a small number of keys, because many
+  simulation models are on the same update cycle."
   (:refer-clojure :exclude [empty? peek pop]))
 
 (declare insert)
