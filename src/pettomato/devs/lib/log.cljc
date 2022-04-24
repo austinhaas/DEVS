@@ -45,8 +45,7 @@
       add-date
       format-date
       default-formatter
-      print-fn
-      log-level-filter)))
+      print-fn)))
 
 (defn log
   "Calls *log-function* on context."
