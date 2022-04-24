@@ -1,6 +1,6 @@
-{:deps    {org.clojure/clojure       {:mvn/version "1.10.3"}
-           org.clojure/clojurescript {:mvn/version "1.10.893"}
-           org.clojure/test.check    {:mvn/version "1.1.0"}}
+{:deps    {org.clojure/clojure       {:mvn/version "1.11.1"}
+           org.clojure/clojurescript {:mvn/version "1.11.4"}
+           org.clojure/test.check    {:mvn/version "1.1.1"}}
  :aliases {:test                     {:extra-paths ["test"]}
            :clj-runner               {:extra-deps {com.cognitect/test-runner {:git/url "https://github.com/cognitect-labs/test-runner.git"
                                                                               :sha     "209b64504cb3bd3b99ecfec7937b358a879f55c1"}}
