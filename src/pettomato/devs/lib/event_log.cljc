@@ -27,18 +27,6 @@
        (event-log= el2 (first more)))
      false)))
 
-#_
-(defn pp-event-log [event-log & {:keys [key-sort-fn
-                                        time-width]
-                                 :or   {key-sort-fn (fn [a b] (compare (str a) (str b)))
-                                        time-width  6}}]
-  (doseq [[t m] event-log]
-    (println (pad-left time-width \  (str t)))
-    (println (pad-left time-width \- "-")) ;; At least 1, even if time-width is less.
-    (doseq [[k vs] (sort-by first key-sort-fn m)]
-      (println k "=>" (vec vs)))
-    (newline)))
-
 (defn pp-event-log
   "Pretty-print an event log."
   [event-log & {:keys [key-sort-fn
