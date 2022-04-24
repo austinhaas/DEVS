@@ -39,7 +39,7 @@
 
   Barros, Fernando J. \"On the representation of time in modeling & simulation.\" 2016 winter simulation conference (WSC). IEEE, 2016.
   http://simulation.su/uploads/files/default/2016-barros-1.pdf"
-  (:refer-clojure :exclude [= + - < <= comparator min max pos? #?(:cljs infinite?)])
+  (:refer-clojure :exclude [= + - < <= comparator min max zero? pos? infinite?])
   (:require
    [clojure.core :as clj]))
 
