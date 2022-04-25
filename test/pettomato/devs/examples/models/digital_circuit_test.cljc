@@ -4,91 +4,111 @@
       [clojure.test :refer [deftest is testing]]
       :cljs
       [cljs.test :refer-macros [deftest is testing]])
-   [pettomato.devs.examples.models :refer [lazy-seq-generator]]
+   [pettomato.devs.examples.models :as m]
    [pettomato.devs.examples.models.digital-circuit :as circ]
    [pettomato.devs.lib.event-log :refer [event-log=]]
-   [pettomato.devs.lib.hyperreal :as h :refer [*R]]
+   [pettomato.devs.lib.hyperreal :as h]
    [pettomato.devs.lib.random :as rand]
-   [pettomato.devs.models.atomic-model :refer [atomic-model]]
-   [pettomato.devs.models.network-model :refer [network-model]]
+   [pettomato.devs.models.coupled-model :refer [coupled-model]]
    [pettomato.devs.root-coordinators.afap-root-coordinator :refer [afap-root-coordinator]]
-   [pettomato.devs.simulators.network-simulator :refer [network-simulator]]))
+   [pettomato.devs.simulators.coupled-simulator :refer [coupled-simulator]]))
 
 (deftest primitive-function-box-tests
 
   (testing "inverter"
     (is (event-log=
-         [[(*R 0) {:out [false]}]
-          [(*R 6) {:out [true]}]]
-         (-> (network-model {:gen (lazy-seq-generator [[(*R 1) {:out [false]}]])
-                             :inv (circ/inverter (*R 5))}
-                            [[:gen :out :inv :in]
+         [[(h/*R 0 5) {:out [true]}]
+          [(h/*R 5 5) {:out [false]}]]
+         (-> (coupled-model {:gen [(m/generator [[(h/*R 1) {:pwr [true]}]
+                                                 [(h/*R 5) {:out [true]}]])
+                                   (h/*R 1)]
+                             :inv [(circ/inverter (h/*R 0 5))
+                                   h/zero]}
+                            [[:gen :pwr :inv :pwr]
+                             [:gen :out :inv :in]
                              [:inv :out :network :out]])
-             network-simulator
+             coupled-simulator
              afap-root-coordinator))))
 
   (testing "and-gate"
     (is (event-log=
-         [[(*R 0) {:out [false]}]
-          [(*R 8) {:out [true]}]]
-         (-> (network-model {:gen (lazy-seq-generator [[(*R 1) {:out-1 [true]}]
-                                                       [(*R 2) {:out-2 [true]}]])
-                             :and (circ/and-gate (*R 5))}
-                            [[:gen :out-1 :and :in-1]
+         [[(h/*R 0 5) {:out [false]}]
+          [(h/*R 3 5) {:out [true]}]]
+         (-> (coupled-model {:gen [(m/generator [[(h/*R 1) {:pwr [true]}]
+                                                 [(h/*R 1) {:out-1 [true]}]
+                                                 [(h/*R 2) {:out-2 [true]}]])
+                                   (h/*R 1)]
+                             :and [(circ/and-gate (h/*R 0 5))
+                                   h/zero]}
+                            [[:gen :pwr :and :pwr]
+                             [:gen :out-1 :and :in-1]
                              [:gen :out-2 :and :in-2]
                              [:and :out :network :out]])
-             network-simulator
+             coupled-simulator
              afap-root-coordinator))))
 
   (testing "or-gate"
     (is (event-log=
-         [[(*R 0) {:out [false]}]
-          [(*R 6) {:out [true]}]]
-         (-> (network-model {:gen (lazy-seq-generator [[(*R 1) {:out-1 [true]}]
-                                                       [(*R 2) {:out-2 [true]}]])
-                             :and (circ/or-gate (*R 5))}
-                            [[:gen :out-1 :and :in-1]
-                             [:gen :out-2 :and :in-2]
-                             [:and :out :network :out]])
-             network-simulator
+         [[(h/*R 0 5) {:out [false]}]
+          [(h/*R 1 5) {:out [true]}]
+          [(h/*R 7 5) {:out [false]}]]
+         (-> (coupled-model {:gen [(m/generator [[(h/*R 1) {:pwr [true]}]
+                                                 [(h/*R 1) {:out-1 [true]}]
+                                                 [(h/*R 2) {:out-2 [true]}]
+                                                 [(h/*R 2) {:out-1 [false]}]
+                                                 [(h/*R 2) {:out-2 [false]}]])
+                                   (h/*R 1)]
+                             :or  [(circ/or-gate (h/*R 0 5))
+                                   h/zero]}
+                            [[:gen :pwr :or :pwr]
+                             [:gen :out-1 :or :in-1]
+                             [:gen :out-2 :or :in-2]
+                             [:or :out :network :out]])
+             coupled-simulator
              afap-root-coordinator)))))
 
 (deftest composite-function-box-tests
 
   (testing "SICP, p. 280"
     (is (event-log=
-         [[(*R 0)  {:s [false]
-                    :c [false]}]
-          [(*R 8)  {:s [true]}]
-          [(*R 11) {:c [true]}]
-          [(*R 16) {:s [false]}]]
-         (-> (network-model {:gen (lazy-seq-generator [[h/epsilon {:out-1 [true]}]
-                                                       [(*R 8) {:out-2 [true]}]]
-                                                      h/epsilon)
-                             :ha  (circ/half-adder (*R 2) (*R 3) (*R 5))}
-                            [[:gen :out-1 :ha :a identity]
-                             [:gen :out-2 :ha :b identity]
-                             [:ha :s :network :s identity]
-                             [:ha :c :network :c identity]])
-             network-simulator
+         [[(h/*R 0 3) {:c [false]}]
+          [(h/*R 0 5) {:s [false]}]
+          [(h/*R 1 8) {:s [true]}]
+          [(h/*R 9 3) {:c [true]}]
+          [(h/*R 9 8) {:s [false]}]]
+         (-> (coupled-model {:gen [(m/generator [[(h/*R 1) {:pwr [true]}]
+                                                 [(h/*R 1) {:out-1 [true]}]
+                                                 [(h/*R 8) {:out-2 [true]}]])
+                                   (h/*R 1)]
+                             :ha  [(circ/half-adder (h/*R 0 2) (h/*R 0 3) (h/*R 0 5))
+                                   h/zero]}
+                            [[:gen :pwr :ha :pwr]
+                             [:gen :out-1 :ha :a]
+                             [:gen :out-2 :ha :b]
+                             [:ha :s :network :s]
+                             [:ha :c :network :c]])
+             coupled-simulator
              afap-root-coordinator))))
 
   (testing "full-adder"
     (is (event-log=
-         [[(*R 0)  {:s [false]
-                    :c [false]}]
-          [(*R 8)  {:s [true]}]
-          [(*R 24) {:c [true]
-                    :s [false]}]]
-         (-> (network-model {:gen (lazy-seq-generator [[h/epsilon {:out-1 [true]}]
-                                                       [(*R 8) {:out-2 [true]}]]
-                                                      h/epsilon)
-                             :ha  (circ/full-adder (*R 2) (*R 3) (*R 5))}
-                            [[:gen :out-1 :ha :a identity]
-                             [:gen :out-2 :ha :b identity]
-                             [:ha :s :network :s identity]
-                             [:ha :c :network :c identity]])
-             network-simulator
+         [[(h/*R 0 5)  {:s [false]}]
+          [(h/*R 0 8)  {:c [false]}]
+          [(h/*R 1 8)  {:s [true]}]
+          [(h/*R 9 16) {:c [true]
+                        :s [false]}]]
+         (-> (coupled-model {:gen [(m/generator [[(h/*R 1) {:pwr [true]}]
+                                                 [(h/*R 1) {:out-1 [true]}]
+                                                 [(h/*R 8) {:out-2 [true]}]])
+                                   (h/*R 1)]
+                             :ha  [(circ/full-adder (h/*R 0 2) (h/*R 0 3) (h/*R 0 5))
+                                   h/zero]}
+                            [[:gen :pwr :ha :pwr]
+                             [:gen :out-1 :ha :a]
+                             [:gen :out-2 :ha :b]
+                             [:ha :s :network :s]
+                             [:ha :c :network :c]])
+             coupled-simulator
              afap-root-coordinator)))))
 
 (deftest ripple-carry-adder-tests

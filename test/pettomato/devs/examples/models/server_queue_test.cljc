@@ -1,3 +1,4 @@
+#_
 (ns pettomato.devs.examples.models.server-queue-test
   (:require
    #?(:clj
@@ -11,7 +12,7 @@
    [pettomato.devs.models.network-model :refer [network-model]]
    [pettomato.devs.root-coordinators.afap-root-coordinator :refer [afap-root-coordinator]]
    [pettomato.devs.simulators.network-simulator :refer [network-simulator]]))
-
+#_
 (defn report [log]
   (let [log          (->> log
                           (map second)
@@ -23,7 +24,7 @@
      :total-workers (count (distinct (map :worker log)))
      :ave-delay     (/ (reduce + (map h/standard start-delays)) (count start-delays))
      :max-delay     (h/standard (apply h/max start-delays))}))
-
+#_
 (deftest server-queue-test
 
   ;; This is a good demonstration of reproducibility.

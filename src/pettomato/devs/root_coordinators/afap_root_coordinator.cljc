@@ -1,8 +1,8 @@
 (ns pettomato.devs.root-coordinators.afap-root-coordinator
   (:require
    [pettomato.devs.lib.hyperreal :as h]
-   [pettomato.devs.root-coordinators.step-root-coordinator
-    :refer [step-root-coordinator step-through]]))
+   [pettomato.devs.lib.log :as log]
+   [pettomato.devs.simulator :refer [initialize collect-mail transition time-of-next-event]]))
 
 (defn afap-root-coordinator
   "Run a simulation \"as fast as possible\".
@@ -15,7 +15,7 @@
     end - Simulation end time (inclusive, unless infinity). Default: infinity.
 
   Returns:
-    A seq of [timestamp mail], containing all messages sent to the root network.
+    A lazy seq of [time mail], containing all messages sent to the root network.
 
   \"Analytic simulations typically execute 'as-fast-as-possible,' meaning that
   the simulation attempts to complete its computations as quickly as it
@@ -27,6 +27,16 @@
   [sim & {:keys [start end]
           :or   {start h/zero
                  end   h/infinity}}]
-  (let [[sim event-log] (-> (step-root-coordinator sim :start start)
-                            (step-through end))]
-    event-log))
+  (letfn [(step [sim t]
+            (lazy-seq
+             (let [tn (time-of-next-event sim)]
+               (log/tracef "tn: %s" tn)
+               (if (or (h/infinite? tn)
+                       (h/< end tn))
+                 nil
+                 (let [mail (collect-mail sim tn)
+                       sim' (transition sim nil tn)]
+                   (if (seq mail)
+                     (cons [tn mail] (step sim' tn))
+                     (step sim' tn)))))))]
+    (step (initialize sim start) start)))

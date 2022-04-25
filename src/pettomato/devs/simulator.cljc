@@ -2,13 +2,13 @@
 
 (defprotocol Simulator
   (initialize         [sim t]
-    "Initialize sim at current sim-time t. Returns sim.")
-  (collect-mail       [sim t] ; Returns sim, b/c sim may update state to store local mail.
-    "Get outgoing mail for sim at current sim-time t. Returns [sim mail petitions],
+    "Initialize sim at sim-time t. Returns a new sim.")
+  (collect-mail       [sim t]
+    "Get outgoing mail for sim at sim-time t. Returns mail,
 where mail = p->vs.")
   (transition         [sim mail t]
-    "Execute a state transition, where mail = p->vs and t is the current
-sim-time. Returns [sim mail], where mail = p->vs.")
+    "Execute a state transition at sim-time t, with mail = p->vs. Returns
+a new sim.")
   (time-of-last-event [sim]
     "Returns the last time sim was updated.")
   (time-of-next-event [sim]

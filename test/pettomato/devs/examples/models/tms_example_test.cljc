@@ -1,3 +1,4 @@
+#_
 (ns pettomato.devs.examples.models.tms-example-test
   (:require
    #?(:clj
@@ -12,7 +13,7 @@
    [pettomato.devs.models.network-model :refer [network-model]]
    [pettomato.devs.root-coordinators.afap-root-coordinator :refer [afap-root-coordinator]]
    [pettomato.devs.simulators.network-simulator :refer [network-simulator]]))
-
+#_
 (deftest tms-example-test
   (rand/with-random-seed 0
     (let [gen (lazy-seq-generator

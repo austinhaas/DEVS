@@ -1,182 +1,82 @@
 (ns pettomato.devs.examples.models
   (:require
-   [pettomato.devs.models.atomic-model :refer [atomic-model]]
-   [pettomato.devs.lib.hyperreal :as h]))
+   [pettomato.devs.models.atomic-model :refer [def-atomic-model internal-update external-update confluent-update output time-advance]]
+   [pettomato.devs.lib.hyperreal :as h]
+   [pettomato.devs.lib.priority-queue :as pq]))
+
+(def-atomic-model Generator [xs]
+  (internal-update [state] (update state :xs next))
+  (output [state] (second (first xs)))
+  (time-advance [state] (or (ffirst xs) h/infinity)))
 
 (defn generator
-  "A model that periodically emits value on a port labeled :out."
-  [period value]
-  (assert (and h/hyperreal? period) (h/pos? period))
-  (atomic-model
-   :output       (constantly {:out [value]})
-   :time-advance (constantly period)))
+  "Creates a generator atomic model from a (possibly lazy) sequence
+  of [delta output] pairs. The model emits each output after
+  delta. Sleeps forever after emitting the last output."
+  [xs]
+  (->Generator xs))
 
-;; What should happen if initial-elapsed time is greater than the sum of the
-;; first dozen values in this seq?
-(defn lazy-seq-generator
-  "A model that emits values according to a (possibly lazy and infinite) seq
-  of [sigma mail].
+(def-atomic-model Buffer [delta buffer sigma]
+  (internal-update [state] (assoc state :buffer nil :sigma h/infinity))
+  (external-update [state elapsed mail]
+    (if buffer
+      (update state :sigma h/- elapsed)
+      (assoc state
+             :buffer (rand-nth (:in mail))
+             :sigma  delta)))
+  (output [state] {:out [buffer]})
+  (time-advance [state] sigma))
 
-  coll - A collection of [sigma mail] pairs.
+(defn buffer [delta]
+  (->Buffer delta nil h/infinity))
 
-  sigma - A number. The delay, in milliseconds, before the associated mail
-  should be output.
+(def-atomic-model Buffer2 [delta buffer sigma]
+  (internal-update [state] (assoc state :buffer nil :sigma h/infinity))
+  (external-update [state elapsed mail]
+    (if buffer
+      (update state :sigma h/- elapsed)
+      (assoc state
+             :buffer (rand-nth (:in mail))
+             :sigma  delta)))
+  (confluent-update [state mail]
+    (-> (external-update state (time-advance state) mail)
+        (internal-update)))
+  (output [state] {:out [buffer]})
+  (time-advance [state] sigma))
 
-  mail - A map from output ports to sequences of messages.
+(defn buffer2
+  "Like `buffer`, but the confluent function prioritizes external
+  updates over internal updates, so if a new input arrives at the same
+  time as the model is imminent, it will be discarded (because the
+  model isn't done processing the previous input)."
+  [delta]
+  (->Buffer2 delta nil h/infinity))
 
-  Be careful not to print models containing lazy seqs!
+(def-atomic-model Buffer+ [total-elapsed queue]
+  (internal-update [state]
+    (-> state
+        (update :total-elapsed h/+ (time-advance state))
+        (update :queue pq/pop)))
+  (external-update [state elapsed mail]
+    (let [total-elapsed (h/+ total-elapsed elapsed)]
+      (reduce (fn [state [delta value]]
+                (assert (and (h/hyperreal? delta)
+                             (h/pos? delta)))
+                (let [t (h/+ total-elapsed delta)]
+                  (update state :queue pq/insert t value)))
+              (assoc state :total-elapsed total-elapsed)
+              (:in mail))))
+  (output [state] {:out (pq/peek queue)})
+  (time-advance [state]
+    (if (pq/empty? queue)
+      h/infinity
+      (h/- (pq/peek-key queue) total-elapsed))))
 
-  Example:
-    ;; Outputs 3 messages on port :out, with a 100ms delay before each one.
-    (lazy-seq-generator [[100 {:out ['first]}]
-                         [100 {:out ['second]}]
-                         [100 {:out ['third]}]])
-
-    ;; Outputs an infinite number of messages on port :out, with a random amount
-    ;; of time before each.
-    (lazy-seq-generator (for [i (range)]
-                          [(rand-int 1000) {:out [(str \"msg-\" i)]}]))"
-  ([coll]
-   (lazy-seq-generator coll h/zero))
-  ([coll initial-elapsed-time]
-   (atomic-model
-    :initial-state        coll
-    :initial-elapsed-time initial-elapsed-time
-    :internal-update      next
-    :output               (comp second first)
-    :time-advance         (fn [coll]
-                            (if (seq coll)
-                              (ffirst coll)
-                              h/infinity)))))
-
-(defn lazy-seq-petition-generator
-  "A model that emits values according to a (possibly lazy and infinite) seq
-  of [sigma mail].
-
-  coll - A collection of [sigma mail] pairs.
-
-  sigma - A number. The delay, in milliseconds, before the associated mail
-  should be output.
-
-  mail - A map from output ports to sequences of messages.
-
-  Be careful not to print models containing lazy seqs!
-
-  Example:
-    ;; Outputs 3 messages on port :out, with a 100ms delay before each one.
-    (lazy-seq-generator [[100 {:out ['first]}]
-                         [100 {:out ['second]}]
-                         [100 {:out ['third]}]])
-
-    ;; Outputs an infinite number of messages on port :out, with a random amount
-    ;; of time before each.
-    (lazy-seq-generator (for [i (range)]
-                          [(rand-int 1000) {:out [(str \"msg-\" i)]}]))"
-  ([coll]
-   (lazy-seq-petition-generator coll h/zero))
-  ([coll initial-elapsed-time]
-   (atomic-model
-    :initial-state        coll
-    :initial-elapsed-time initial-elapsed-time
-    :internal-update      next
-    :petitions            (comp second first)
-    :time-advance         (fn [coll]
-                            (if (seq coll)
-                              (ffirst coll)
-                              h/infinity)))))
-
-(defn single-delay
-  "A model that receives messages on port :in and sends them back out on port :out
-  after duration. Only one message can be delayed at a time. If a new message is
-  received before a previously received message has been sent, it will be
-  discarded.
-
-  Args:
-
-    duration - A number. The amount of time to wait, in milliseconds, between
-  receiving a message and resending it.
-
-  Optional keyword args:
-
-    priority - A keyword: :internal-first or :external-first. Determines the
-  behavior when the model receives a new message at exactly the same time that
-  it is scheduled to send a delayed message. If :internal-first, then the delay
-  is ready to receive a new input. If :external-first, then the delay is not
-  ready to receive a new input. In other words, :internal-first means the delay
-  is busy up until the time it sends output, and :external-first means the delay
-  is busy through the time is sends output. This was added to demonstrate how
-  confluence works.
-
-  Returns:
-
-  An atomic model."
-  [duration & {:keys [priority]
-               :or {priority :internal-first}}]
-  (assert (and h/hyperreal? duration) (h/pos? duration))
-  (atomic-model
-   :initial-state    {:value nil :sigma h/infinity}
-   :internal-update  (fn [state]
-                       (assoc state :value nil :sigma h/infinity))
-   :external-update  (fn [state elapsed-time messages]
-                       (assert (not (next messages)) "single-delay doesn't know how to handle multiple simultaneous inputs")
-                       (if (nil? (:value state))
-                         (assoc state :value (first (:in messages)) :sigma duration)
-                         (update state :sigma h/- elapsed-time)))
-   :confluent-update priority
-   :output           (fn [state] {:out [(:value state)]})
-   :time-advance     :sigma))
-
-(defn fixed-delay
-  "A model that receives messages on port :in and sends them back out on port :out
-  after duration. Multiple messages may be delayed simultaneously."
-  [duration]
-  (assert (and h/hyperreal? duration) (h/pos? duration))
-  (atomic-model
-   :initial-state   {:queue (sorted-map-by h/comparator)
-                     :delta h/zero}
-   :internal-update (fn [state]
-                      (-> state
-                          (update :queue dissoc (ffirst (:queue state)))
-                          (assoc :delta (ffirst (:queue state)))))
-   :external-update (fn [state elapsed-time messages]
-                      (let [delta (h/+ (:delta state) elapsed-time)
-                            t     (h/+ delta duration)]
-                        (-> state
-                            (update-in [:queue t] into (:in messages))
-                            (assoc :delta delta))))
-   :confluent-update :internal-first
-   :output          (fn [state]
-                      {:out (second (first (:queue state)))})
-   :time-advance    (fn [state]
-                      (if (empty? (:queue state))
-                        h/infinity
-                        (h/- (ffirst (:queue state))
-                             (:delta state))))))
-
-(defn variable-delay
-  "A model that receives messages of the form [duration value] on port :in,
-  and sends value back out on port :out after duration. Multiple messages may be
-  delayed simultaneously."
+(defn buffer+
+  "Creates a delay atomic model, which receives messages in the
+  form [delta value] on port :in, waits for delta, and then emits
+  value on port :out. Multiple messages may be delayed
+  simultaneously."
   []
-  (atomic-model
-   :initial-state   {:queue (sorted-map-by h/comparator)
-                     :delta h/zero}
-   :internal-update (fn [state]
-                      (-> state
-                          (update :queue dissoc (ffirst (:queue state)))
-                          (assoc :delta (ffirst (:queue state)))))
-   :external-update (fn [state elapsed-time messages]
-                      (let [delta (h/+ (:delta state) elapsed-time)]
-                        (reduce (fn [state [duration value]]
-                                  (assert (and h/hyperreal? duration) (h/pos? duration))
-                                  (let [t (h/+ delta duration)]
-                                    (update-in state [:queue t] conj value)))
-                                (assoc state :delta delta)
-                                (:in messages))))
-   :output          (fn [state]
-                      {:out (second (first (:queue state)))})
-   :time-advance    (fn [state]
-                      (if (empty? (:queue state))
-                        h/infinity
-                        (h/- (ffirst (:queue state))
-                             (:delta state))))))
+  (map->Buffer+ {:total-elapsed h/zero
+                 :queue         (pq/priority-queue h/comparator)}))
