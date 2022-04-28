@@ -1,6 +1,8 @@
 (ns pettomato.devs.simulators.atomic-simulator
   "A simulator for atomic models."
   (:require
+   #?(:cljs [goog.string :as gstring :refer [format]])
+   #?(:cljs [goog.string.format])
    [pettomato.devs.models.atomic-model :refer [internal-update
                                                external-update
                                                confluent-update
@@ -52,8 +54,10 @@
   (time-of-next-event [sim] tn))
 
 (defn format-atomic-simulator [x]
-  (format "#pettomato.devs.AtomicSimulator<0x%x>{}"
-          (System/identityHashCode x)))
+  #?(:clj  (format "#pettomato.devs.AtomicSimulator<0x%x>{}"
+                   (System/identityHashCode x))
+     :cljs (format "#pettomato.devs.AtomicSimulator<%s>{}"
+                   (.toString (hash x) 16))))
 
 #?(:clj
    (defn print-atomic-simulator [x w]

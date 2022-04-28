@@ -1,4 +1,5 @@
 (ns pettomato.devs.models.atomic-model
+  #?(:cljs (:require-macros pettomato.devs.models.atomic-model))
   (:require
    [pettomato.devs.lib.hyperreal :as h]))
 
@@ -52,8 +53,8 @@ receive any messages before that time."))
         ;; confluent-update update depends on internal-update and external-update.
         specs (cond-> specs
                 (not (contains? syms 'confluent-update)) (conj '(confluent-update [state mail]
-                                                                                  (-> (internal-update state)
-                                                                                      (external-update h/zero mail)))))]
+                                                                  (-> (internal-update state)
+                                                                      (external-update h/zero mail)))))]
    `(defrecord ~name [~@fields]
       AtomicModel
       ~@specs)))

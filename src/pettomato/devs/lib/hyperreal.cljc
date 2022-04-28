@@ -41,14 +41,16 @@
   http://simulation.su/uploads/files/default/2016-barros-1.pdf"
   (:refer-clojure :exclude [= + - < <= comparator min max zero? pos? infinite?])
   (:require
-   [clojure.core :as clj]))
+   [clojure.core :as clj]
+   #?(:cljs [goog.string :as gstring :refer [format]])
+   #?(:cljs [goog.string.format])))
 
 (defrecord Hyperreal [infinity standard infinitesimal]
   Object
   (toString [this] (str "*ℝ<" infinity " " standard " " infinitesimal ">")))
 
 (defn format-hyperreal [x]
-  (format "*ℝ<%s %s %s>" (.infinity x) (.standard x) (.infinitesimal x)))
+  (format "*ℝ<%s %s %s>" (:infinity x) (:standard x) (:infinitesimal x)))
 
 #?(:clj
    (defn pretty-print-hyperreal [x w]
