@@ -27,9 +27,11 @@
   [sim & {:keys [start end]
           :or   {start h/zero
                  end   h/infinity}}]
-  (letfn [(step [sim t]
+  (letfn [(step [sim t tl]
             (lazy-seq
              (let [tn (time-of-next-event sim)]
+               (when (and tl (h/<= tn tl))
+                 (throw (ex-info "NIA violation." {:tn tn :tl tl})))
                (log/tracef "tn: %s" tn)
                (if (or (h/infinite? tn)
                        (h/< end tn))
@@ -37,6 +39,6 @@
                  (let [mail (collect-mail sim tn)
                        sim' (transition sim nil tn)]
                    (if (seq mail)
-                     (cons [tn mail] (step sim' tn))
-                     (step sim' tn)))))))]
-    (step (initialize sim start) start)))
+                     (cons [tn mail] (step sim' tn t))
+                     (step sim' tn t)))))))]
+    (step (initialize sim start) start nil)))
