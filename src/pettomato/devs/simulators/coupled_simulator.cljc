@@ -137,6 +137,12 @@
   (transition [sim mail t]
     (log/tracef "--- transition --- %s" t)
     (assert (h/<= tl t tn) (str "synchronization error: (not (<= " tl " " t " " tn "))"))
+    (when (and (h/< t tn) (empty? mail))
+      (throw (ex-info "Illegal state for transition; sim is not imminent nor receiving mail."
+                      {:tl         tl
+                       :t          t
+                       :tn         tn
+                       :mail-count (count mail)})))
     (let [imminent     (if (h/= t tn) (pq/peek queue) [])
           imm-mail     (zipmap imminent (repeat {})) ; Transitions are "mail-driven"; imminent sims are primed with an empty bag.
           ;; There could be redundancy here, if a component routes
