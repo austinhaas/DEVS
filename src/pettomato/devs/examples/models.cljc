@@ -2,6 +2,7 @@
   (:require
    [pettomato.devs.models.atomic-model :refer [def-atomic-model internal-update external-update confluent-update output time-advance]]
    [pettomato.devs.models.network-executive-model :refer [def-network-executive-model structure-changes]]
+   [pettomato.devs.models.network-model :refer [network-model]]
    [pettomato.devs.lib.hyperreal :as h]
    [pettomato.devs.lib.priority-queue :as pq]))
 
@@ -101,3 +102,13 @@
                                                 []
                                                 routes)))]
      (->SimpleExec structure-changes))))
+
+(defn simple-network-model
+  ([executive-id]
+   (simple-network-model executive-id [] []))
+  ([executive-id models routes]
+   (let [exec    (simple-network-executive models routes)
+         elapsed (if (or (seq models) (seq routes))
+                   h/epsilon
+                   h/zero)]
+     (network-model executive-id [exec elapsed]))))
