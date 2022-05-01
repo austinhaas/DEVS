@@ -1,5 +1,5 @@
-(ns pettomato.devs.simulators.coupled-simulator
-  "A simulator for coupled models. Aka, coordinator."
+(ns pettomato.devs.simulators.network-simulator
+  "A simulator for dynamic structure network models."
   (:require
    [clojure.set :as set]
    [pettomato.devs.lib.coll :refer [prune]]
@@ -7,21 +7,27 @@
    [pettomato.devs.lib.log :as log]
    [pettomato.devs.lib.mail :as mail]
    [pettomato.devs.lib.priority-queue :as pq]
-   [pettomato.devs.simulator :refer [Simulator initialize collect-mail transition time-of-last-event time-of-next-event]]
    [pettomato.devs.models.atomic-model :refer [atomic-model?]]
    [pettomato.devs.models.coupled-model :refer [coupled-model?]]
-   [pettomato.devs.simulators.atomic-simulator :refer [atomic-simulator]]))
+   [pettomato.devs.models.network-executive-model :refer [executive-model?]]
+   [pettomato.devs.models.network-model :refer [network-model?]]
+   [pettomato.devs.simulator :refer [Simulator initialize collect-mail transition time-of-last-event time-of-next-event]]
+   [pettomato.devs.simulators.atomic-simulator :refer [atomic-simulator]]
+   [pettomato.devs.simulators.coupled-simulator :refer [coupled-simulator]]
+   [pettomato.devs.simulators.network-executive-simulator :refer [network-executive-simulator get-structure-changes]]))
 
-(declare coupled-simulator)
+(declare network-simulator)
 
 (defn find-simulator
   "A function that takes two args: an id and a model, and returns an
   appropriate simulator for that model."
   [id model]
   (cond
-    (atomic-model?  model) atomic-simulator
-    (coupled-model? model) coupled-simulator
-    :else                  (throw (ex-info "Unknown model type." {}))))
+    (executive-model? model) network-executive-simulator
+    (atomic-model?  model)   atomic-simulator
+    (coupled-model? model)   coupled-simulator
+    (network-model? model)   network-simulator
+    :else                    (throw (ex-info "Unknown model type." {}))))
 
 (defn- add-model [parent-sim id [model elapsed] t]
   (log/tracef "add-model: %s" id)
@@ -29,19 +35,34 @@
           (str "parent-sim already contains a model with id: " id))
   (let [simulator (find-simulator id model)
         sim       (-> model (simulator :elapsed elapsed) (initialize t))
-        tn        (time-of-next-event sim)]
-    (-> parent-sim
-        (update :id->sim assoc id sim)
-        (update :queue pq/insert tn id))))
+        tl        (time-of-last-event sim)
+        tn        (time-of-next-event sim)
+        id->sim   (assoc (:id->sim parent-sim) id sim)
+        queue     (pq/insert (:queue parent-sim) tn id)
+        parent-tl (if (:tl parent-sim)
+                    (h/max (:tl parent-sim) tl)
+                    tl)
+        parent-tn (or (pq/peek-key queue) h/infinity)]
+    (assoc parent-sim
+           :id->sim id->sim
+           :queue queue
+           :tl parent-tl
+           :tn parent-tn)))
 
 (defn- rem-model [parent-sim id]
   (log/tracef "rem-model: %s" id)
-  (let [sim (get-in parent-sim [:id->sim id])
-        _   (assert sim (str "parent-sim does not contain a model with id: " id))
-        tn  (time-of-next-event sim)]
-    (-> parent-sim
-        (update :id->sim dissoc id)
-        (update :queue pq/delete tn id))))
+  (let [sim       (get-in parent-sim [:id->sim id])
+        _         (assert sim (str "parent-sim does not contain a model with id: " id))
+        tn        (time-of-next-event sim)
+        id->sim   (dissoc (:id->sim parent-sim) id)
+        queue     (pq/delete (:queue parent-sim) tn id)
+        parent-tl (apply h/max (map time-of-last-event (vals id->sim)))
+        parent-tn (or (pq/peek-key queue) h/infinity)]
+    (assoc parent-sim
+           :id->sim id->sim
+           :queue   queue
+           :tl      parent-tl
+           :tn      parent-tn)))
 
 (defn- connect
   "Add a route to the routing table.
@@ -116,21 +137,36 @@
              parent-sim
              mail))
 
-(defrecord CoupledSimulator [model id->sim local-routes network-input-routes network-output-routes queue tl tn]
+(defn- apply-network-structure-changes [parent-sim t xs]
+  ;; Network structure messages are grouped and processed in a specific order.
+  ;; Himmelspach, Jan, and Adelinde M. Uhrmacher. "Processing dynamic PDEVS models."
+  ;; The IEEE Computer Society's 12th Annual International Symposium on Modeling, Analysis, and Simulation of Computer and Telecommunications Systems, 2004.
+  ;; Section 3.2
+  ;; http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.302.3385&rep=rep1&type=pdf
+  (let [xs         (group-by first xs)
+        add-model  (fn [sim [_ id [model elapsed]]] (add-model sim id [model elapsed] t))
+        rem-model  (fn [sim [_ id]] (rem-model sim id))
+        connect    (fn [sim [_ route]] (connect sim route))
+        disconnect (fn [sim [_ route]] (disconnect sim route))]
+    (as-> parent-sim parent-sim
+      (reduce disconnect parent-sim (:disconnect xs))
+      (reduce rem-model  parent-sim (:rem-model  xs))
+      (reduce add-model  parent-sim (:add-model  xs))
+      (reduce connect    parent-sim (:connect    xs)))))
+
+(defrecord NetworkSimulator [model id->sim local-routes network-input-routes network-output-routes queue tl tn]
   Simulator
   (initialize [sim t]
     (log/trace "--- initialize ---")
-    (let [sim (assoc sim
-                     :id->sim               {}
-                     :local-routes          {}
-                     :network-input-routes  {}
-                     :network-output-routes {}
-                     :queue                 (pq/priority-queue h/comparator))]
-     (as-> sim sim
-       (reduce-kv #(add-model %1 %2 %3 t) sim (:models model)) ; Add models.
-       (reduce connect sim (:routes model)) ; Add routes.
-       (assoc sim :tl (apply h/max (map time-of-last-event (vals (:id->sim sim))))) ; Cache tl.
-       (assoc sim :tn (or (pq/peek-key (:queue sim)) h/infinity)))))                 ; Cache tn.
+    (let [sim        (assoc sim
+                            :id->sim               {}
+                            :local-routes          {}
+                            :network-input-routes  {}
+                            :network-output-routes {}
+                            :queue                 (pq/priority-queue h/comparator))
+          exec-id    (:executive-id model)
+          exec-model (:executive-model model)]
+      (add-model sim exec-id exec-model t)))
   (collect-mail [sim t]
     (log/trace "--- collect-mail ---")
     (assert (h/= t tn) (str "synchronization error: (not (= " t " " tn "))"))
@@ -159,22 +195,26 @@
                             (mail/route-mail local-routes))
           network-mail (mail/route-mail network-input-routes {:network mail})
           all-mail     (mail/merge-mail imm-mail local-mail network-mail)
+          sc*          (if (contains? imminent (:executive-id model))
+                         (get-structure-changes (get (:id->sim sim) (:executive-id model)))
+                         [])
           sim          (apply-transitions sim t all-mail)
+          sim          (apply-network-structure-changes sim t sc*)
           tn           (or (pq/peek-key (:queue sim))
                            h/infinity)]
       (assoc sim :tl t :tn tn)))
   (time-of-last-event [sim] tl)
   (time-of-next-event [sim] tn))
 
-(defn coupled-simulator
-  "Wrap a coupled model in a CoupledSimulator.
+(defn network-simulator
+  "Wrap a network model in a NetworkSimulator.
 
   Args:
-    model - A coupled model.
+    model - A network model.
 
   Returns:
-    A CoupledSimulator."
+    A NetworkSimulator."
   [model & {:keys [elapsed]
             :or   {elapsed h/zero}}]
-  (log/infof "Ignoring elapsed input to coupled-simulator.")
-  (map->CoupledSimulator {:model model}))
+  (log/infof "Ignoring elapsed input to network-simulator.")
+  (map->NetworkSimulator {:model model}))

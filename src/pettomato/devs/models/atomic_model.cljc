@@ -33,9 +33,7 @@ receive any messages before that time."))
 (defmacro def-atomic-model
   "A convenience macro that creates a record that implements AtomicModel
   from a possibly incomplete specification. Missing methods are given
-  default implementations.
-
-  Default return values:
+  default implementations with the following return values:
 
      internal-update: state
      external-update: state

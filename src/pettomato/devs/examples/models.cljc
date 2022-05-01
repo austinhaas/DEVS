@@ -1,6 +1,7 @@
 (ns pettomato.devs.examples.models
   (:require
    [pettomato.devs.models.atomic-model :refer [def-atomic-model internal-update external-update confluent-update output time-advance]]
+   [pettomato.devs.models.network-executive-model :refer [def-network-executive-model structure-changes]]
    [pettomato.devs.lib.hyperreal :as h]
    [pettomato.devs.lib.priority-queue :as pq]))
 
@@ -80,3 +81,23 @@
   []
   (map->Buffer+ {:total-elapsed h/zero
                  :queue         (pq/priority-queue h/comparator)}))
+
+(def-network-executive-model SimpleExec [structure-changes]
+  (internal-update [state] (update state :structure-changes empty))
+  (external-update [state elapsed mail] (update state :structure-changes into (:in mail)))
+  (time-advance [state] (if (seq structure-changes) h/epsilon h/infinity))
+  (structure-changes [state] structure-changes))
+
+(defn simple-network-executive
+  ([]
+   (->SimpleExec []))
+  ([models routes]
+   (let [structure-changes (vec (concat (reduce-kv (fn [acc id [model elapsed]]
+                                                     (conj acc [:add-model id [model elapsed]]))
+                                                   []
+                                                   models)
+                                        (reduce (fn [acc route]
+                                                  (conj acc [:connect route]))
+                                                []
+                                                routes)))]
+     (->SimpleExec structure-changes))))

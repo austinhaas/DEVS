@@ -1,5 +1,5 @@
-(ns pettomato.devs.simulators.atomic-simulator
-  "A simulator for atomic models."
+(ns pettomato.devs.simulators.network-executive-simulator
+  "A simulator for network executive models."
   (:require
    #?(:cljs [goog.string :as gstring :refer [format]])
    #?(:cljs [goog.string.format])
@@ -8,11 +8,15 @@
                                                confluent-update
                                                output
                                                time-advance]]
+   [pettomato.devs.models.network-executive-model :refer [structure-changes]]
    [pettomato.devs.lib.hyperreal :as h]
    [pettomato.devs.lib.log :as log]
    [pettomato.devs.simulator :refer [Simulator]]))
 
-(defrecord AtomicSimulator [initial-state initial-elapsed state tl tn]
+(defprotocol INetworkExecutiveSimulator
+  (get-structure-changes [sim]))
+
+(defrecord NetworkExecutiveSimulator [initial-state initial-elapsed state tl tn]
   Simulator
   (initialize [sim t]
     (log/trace "--- initialize ---")
@@ -44,37 +48,40 @@
       (assert (h/pos? ta) "time-advance must be positive")
       (assoc sim :state state :tl t :tn tn)))
   (time-of-last-event [sim] tl)
-  (time-of-next-event [sim] tn))
+  (time-of-next-event [sim] tn)
+  INetworkExecutiveSimulator
+  (get-structure-changes [sim]
+    (structure-changes state)))
 
-(defn format-atomic-simulator [x]
-  #?(:clj  (format "#pettomato.devs.simulators.AtomicSimulator<0x%x>{}"
+(defn format-network-exec-simulator [x]
+  #?(:clj  (format "#pettomato.devs.simulators.NetworkExecutiveSimulator<0x%x>{}"
                    (System/identityHashCode x))
-     :cljs (format "#pettomato.devs.simulators.AtomicSimulator<%s>{}"
+     :cljs (format "#pettomato.devs.simulators.NetworkExecutiveSimulator<%s>{}"
                    (.toString (hash x) 16))))
 
 #?(:clj
-   (defn print-atomic-simulator [x w]
-     (.write w (format-atomic-simulator x))))
+   (defn print-network-exec-simulator [x w]
+     (.write w (format-network-exec-simulator x))))
 
 #?(:clj
-   (defmethod print-method AtomicSimulator [x w]
-     (print-atomic-simulator x w)))
+   (defmethod print-method NetworkExecutiveSimulator [x w]
+     (print-network-exec-simulator x w)))
 
 #?(:clj
    (. clojure.pprint/simple-dispatch
       addMethod
-      AtomicSimulator
-      #(print-atomic-simulator % *out*)))
+      NetworkExecutiveSimulator
+      #(print-network-exec-simulator % *out*)))
 
-(defn atomic-simulator
-  "Wrap an atomic model in an atomic simulator.
+(defn network-executive-simulator
+  "Wrap a network executive model in a network executive simulator.
 
   Args:
-    model - An atomic model.
+    model - A network executive model.
 
   Returns:
     A simulator."
   [model & {:keys [elapsed]
             :or   {elapsed h/zero}}]
-  (map->AtomicSimulator {:initial-state   model
-                         :initial-elapsed elapsed}))
+  (map->NetworkExecutiveSimulator {:initial-state   model
+                                   :initial-elapsed elapsed}))

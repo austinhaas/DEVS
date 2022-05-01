@@ -37,19 +37,12 @@
                         model)))))
   nil)
 
-(defprotocol CoupledModel
-  (models [this])
-  (routes [this]))
-
-(defrecord BasicCoupledModel [models routes]
-  CoupledModel
-  (models [this] models)
-  (routes [this] routes))
+(defrecord CoupledModel [models routes])
 
 (defn coupled-model
   [models routes]
-  (let [model (->BasicCoupledModel models routes)]
+  (let [model (->CoupledModel models routes)]
     (validate-coupled-model! model)
     model))
 
-(defn coupled-model? [x] (satisfies? CoupledModel x))
+(defn coupled-model? [x] (instance? CoupledModel x))

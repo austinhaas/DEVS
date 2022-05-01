@@ -10,9 +10,11 @@
    [pettomato.devs.lib.log :as log]
    [pettomato.devs.models.atomic-model :refer [def-atomic-model]]
    [pettomato.devs.models.coupled-model :refer [coupled-model]]
+   [pettomato.devs.models.network-model :refer [network-model]]
    [pettomato.devs.root-coordinators.afap-root-coordinator :refer [afap-root-coordinator]]
    [pettomato.devs.simulators.atomic-simulator :refer [atomic-simulator]]
-   [pettomato.devs.simulators.coupled-simulator :refer [coupled-simulator]]))
+   [pettomato.devs.simulators.coupled-simulator :refer [coupled-simulator]]
+   [pettomato.devs.simulators.network-simulator :refer [network-simulator]]))
 
 (deftest basic-tests
 
@@ -123,57 +125,78 @@
                                                 [:buf :out :network :out]])]
                         (-> (coupled-simulator net)
                             (afap-root-coordinator :end (h/*R 10)))))))))
-#_
-(deftest structure-change-tests
+
+(deftest dynamic-network-tests
+
+  (testing "Same behavior as a coupled simulator."
+    (is (event-log= [[(h/*R 15 0) {:out ["x"]}]
+                     [(h/*R 25 0) {:out ["y"]}]]
+                    (let [gen (m/generator [[(h/*R 10) {:out ["x"]}]
+                                            [(h/*R 10) {:out ["y"]}]])
+                          buf (m/buffer (h/*R 5))
+                          exe (m/simple-network-executive {:gen [gen h/zero]
+                                                           :buf [buf h/zero]}
+                                                          [[:gen :out :buf :in]
+                                                           [:buf :out :network :out]])
+                          net (network-model :exec [exe h/epsilon])]
+                      (-> (network-simulator net)
+                          afap-root-coordinator
+                          doall)))))
+
+  (testing "Dynamic behavior."
+    (is (event-log= [[(h/*R 7 1) {:out ["x"]}]]
+                    (let [gen (m/generator [[(h/*R 5) {:out [[:add-model :gen-1 [(m/generator [[(h/*R 2) {:out ["x"]}]])
+                                                                                 h/zero]]
+                                                             [:connect [:gen-1 :out :network :out]]]}]])
+                          exe (m/simple-network-executive {:gen [gen h/zero]}
+                                                          [[:gen :out :exec :in]])
+                          net (network-model :exec [exe h/epsilon])]
+                      (-> (network-simulator net)
+                          afap-root-coordinator
+                          doall)))))
 
   (testing "Remove an atomic model before it is imminent."
     (is (event-log= []
-                    (-> (network-model
-                         {:gen  (m/generator (h/*R 5) "x")
-                          :del  (fixed-delay (h/*R 2))
-                          :exec (lazy-seq-petition-generator
-                                 [[(h/*R 7 -2) [[:disconnect [:gen :out :del     :in]]
-                                              [:disconnect [:del :out :network :out]]
-                                              [:rem-model :del]]]])}
-                         [[:gen :out :del     :in]
-                          [:del :out :network :out]])
-                        network-simulator
-                        (afap-root-coordinator :start (h/*R 0) :end (h/*R 20))))))
+                    (let [sc-gen (m/generator [[(h/*R 10 -3) {:out [[:disconnect [:gen :out :network :out]]
+                                                                    [:rem-model :gen]]}]])
+                          exe    (m/simple-network-executive {:sc-gen [sc-gen h/zero]
+                                                              :gen    [(m/generator [[(h/*R 10) {:out ["x"]}]])
+                                                                       h/zero]}
+                                                             [[:sc-gen :out :exec :in]
+                                                              [:gen :out :network :out]])
+                          net    (network-model :exec [exe h/epsilon])]
+                      (-> (network-simulator net)
+                          afap-root-coordinator
+                          doall)))))
 
   (testing "Remove an atomic model when it is imminent."
     (is (event-log= []
-                    (-> (network-model
-                         {:gen  (m/generator (h/*R 5) "x")
-                          :del  (fixed-delay (h/*R 2))
-                          :exec (lazy-seq-petition-generator
-                                 [[(h/*R 7 -1) [[:disconnect [:gen :out :del     :in]]
-                                              [:disconnect [:del :out :network :out]]
-                                              [:rem-model :del]]]])}
-                         [[:gen :out :del     :in]
-                          [:del :out :network :out]])
-                        network-simulator
-                        (afap-root-coordinator :start (h/*R 0) :end (h/*R 20))))))
+                    (let [sc-gen (m/generator [[(h/*R 10 -2) {:out [[:disconnect [:gen :out :network :out]]
+                                                                    [:rem-model :gen]]}]])
+                          exe    (m/simple-network-executive {:sc-gen [sc-gen h/zero]
+                                                              :gen    [(m/generator [[(h/*R 10) {:out ["x"]}]])
+                                                                       h/zero]}
+                                                             [[:sc-gen :out :exec :in]
+                                                              [:gen :out :network :out]])
+                          net    (network-model :exec [exe h/epsilon])]
+                      (-> (network-simulator net)
+                          afap-root-coordinator
+                          doall)))))
 
   (testing "Remove an atomic model after it is imminent."
-    (is (event-log= [[(h/*R 7) {:out ["x"]}]]
-                    (-> (network-model
-                         {:gen  (m/generator (h/*R 5 0) "x")
-                          :del  (fixed-delay (h/*R 2))
-                          :exec (lazy-seq-petition-generator
-                                 ;; The first message is sent instantly at 7,
-                                 ;; but the structure change won't take effect
-                                 ;; until the very start of 7+ε, after
-                                 ;; transitions at 7 and before transitions at
-                                 ;; 7+ε. :del is imminent at 7, and will
-                                 ;; be removed at 7+ε.
-                                 [[(h/*R 7) [[:disconnect [:gen :out :del     :in]]
-                                           [:disconnect [:del :out :network :out]]
-                                           [:rem-model :del]]]])}
-                         [[:gen :out :del     :in]
-                          [:del :out :network :out]])
-                        network-simulator
-                        (afap-root-coordinator :start (h/*R 0) :end (h/*R 20))))))
-
+    (is (event-log= [[(h/*R 10) {:out ["x"]}]]
+                    (let [sc-gen (m/generator [[(h/*R 10 -1) {:out [[:disconnect [:gen :out :network :out]]
+                                                                    [:rem-model :gen]]}]])
+                          exe    (m/simple-network-executive {:sc-gen [sc-gen h/zero]
+                                                              :gen    [(m/generator [[(h/*R 10) {:out ["x"]}]])
+                                                                       h/zero]}
+                                                             [[:sc-gen :out :exec :in]
+                                                              [:gen :out :network :out]])
+                          net    (network-model :exec [exe h/epsilon])]
+                      (-> (network-simulator net)
+                          afap-root-coordinator
+                          doall)))))
+  #_
   (testing "Adding an atomic model when it should receive input, removing it before its last output, and testing that order of structure change messages doesn't matter."
     (is (event-log= [[(h/*R 7) {:out ["x"]}]
                      [(h/*R 12) {:out ["x"]}]]
@@ -182,32 +205,32 @@
                           :exec (lazy-seq-petition-generator
                                  ;; Note that these times are deltas.
                                  [[(h/*R 5 -1) (shuffle
-                                              [[:add-model :del (fixed-delay (h/*R 2))]
-                                               [:connect [:gen :out :del     :in]]
-                                               [:connect [:del :out :network :out]]])]
+                                                [[:add-model :del (fixed-delay (h/*R 2))]
+                                                 [:connect [:gen :out :del     :in]]
+                                                 [:connect [:del :out :network :out]]])]
                                   ;; Occurs at (h/*R 15 -1).
                                   [(h/*R 10 0) (shuffle
-                                              [[:disconnect [:gen :out :del     :in]]
-                                               [:disconnect [:del :out :network :out]]
-                                               [:rem-model :del]])]])}
+                                                [[:disconnect [:gen :out :del     :in]]
+                                                 [:disconnect [:del :out :network :out]]
+                                                 [:rem-model :del]])]])}
                          [])
                         network-simulator
                         (afap-root-coordinator :start (h/*R 0 0) :end (h/*R 20 0))))))
-
+  #_
   (testing "Remove a network model"
     (is (event-log= [[(h/*R 7) {:out ["msg 1" "Good"]}]]
                     (let [gen  (m/generator [[(h/*R 5) {:out ["msg 1"]}]
-                                                    [(h/*R 10) {:out ["msg 2"]}]])
+                                             [(h/*R 10) {:out ["msg 2"]}]])
                           del  (network-model {:del  (fixed-delay (h/*R 2))
                                                :gen2 (m/generator [[(h/*R 7) {:out ["Good"]}]
-                                                                          [(h/*R 8) {:out ["Bad"]}]])}
+                                                                   [(h/*R 8) {:out ["Bad"]}]])}
                                               [[:network :in :del :in]
                                                [:del :out :network :out]
                                                [:gen2 :out :network :out]])
                           exec (lazy-seq-petition-generator
                                 [[(h/*R 8) [[:disconnect [:gen :out :del :in]]
-                                          [:disconnect [:del :out :network :out]]
-                                          [:rem-model :del]]]])
+                                            [:disconnect [:del :out :network :out]]
+                                            [:rem-model :del]]]])
                           net  (network-model {:gen  gen
                                                :del  del
                                                :exec exec}
@@ -215,7 +238,7 @@
                                                [:del :out :network :out]])]
                       (-> (network-simulator net)
                           afap-root-coordinator)))))
-
+  #_
   (testing "ad-hoc network structure change test"
     ;; Note that messages get dropped when they have been delivered to a delay,
     ;; but the delay is removed in a structure change.
@@ -244,17 +267,17 @@
                           del-2 (fixed-delay (h/*R 2))
                           exec  (lazy-seq-petition-generator
                                  (cycle [[(h/*R 5 -1) [[:disconnect [:gen :out :del-1 :in]]
-                                                     [:disconnect [:del-1 :out :network :del-1-out]]
-                                                     [:rem-model :del-1 del-1]
-                                                     [:add-model :del-2 del-2]
-                                                     [:connect [:gen :out :del-2 :in]]
-                                                     [:connect [:del-2 :out :network :del-2-out]]]]
+                                                       [:disconnect [:del-1 :out :network :del-1-out]]
+                                                       [:rem-model :del-1 del-1]
+                                                       [:add-model :del-2 del-2]
+                                                       [:connect [:gen :out :del-2 :in]]
+                                                       [:connect [:del-2 :out :network :del-2-out]]]]
                                          [(h/*R 5 -1) [[:disconnect [:gen :out :del-2 :in]]
-                                                     [:disconnect [:del-2 :out :network :del-2-out]]
-                                                     [:rem-model :del-2 del-2]
-                                                     [:add-model :del-1 del-1]
-                                                     [:connect [:gen :out :del-1 :in]]
-                                                     [:connect [:del-1 :out :network :del-1-out]]]]]))
+                                                       [:disconnect [:del-2 :out :network :del-2-out]]
+                                                       [:rem-model :del-2 del-2]
+                                                       [:add-model :del-1 del-1]
+                                                       [:connect [:gen :out :del-1 :in]]
+                                                       [:connect [:del-1 :out :network :del-1-out]]]]]))
                           net   (network-model {:gen   gen
                                                 :del-1 del-1
                                                 :exec  exec}
