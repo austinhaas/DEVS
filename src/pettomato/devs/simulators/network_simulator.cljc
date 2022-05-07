@@ -8,13 +8,11 @@
    [pettomato.devs.lib.mail :as mail]
    [pettomato.devs.lib.priority-queue :as pq]
    [pettomato.devs.models.atomic-model :refer [atomic-model?]]
-   [pettomato.devs.models.coupled-model :refer [coupled-model?]]
-   [pettomato.devs.models.network-executive-model :refer [executive-model?]]
+   [pettomato.devs.models.executive-model :refer [executive-model?]]
    [pettomato.devs.models.network-model :refer [network-model?]]
    [pettomato.devs.simulator :refer [Simulator initialize collect-mail transition time-of-last-event time-of-next-event]]
    [pettomato.devs.simulators.atomic-simulator :refer [atomic-simulator]]
-   [pettomato.devs.simulators.coupled-simulator :refer [coupled-simulator]]
-   [pettomato.devs.simulators.network-executive-simulator :refer [network-executive-simulator get-structure-changes]]))
+   [pettomato.devs.simulators.executive-simulator :refer [executive-simulator get-structure-changes]]))
 
 (declare network-simulator)
 
@@ -23,14 +21,13 @@
   appropriate simulator for that model."
   [id model]
   (cond
-    (executive-model? model) network-executive-simulator
+    (executive-model? model) executive-simulator
     (atomic-model?  model)   atomic-simulator
-    (coupled-model? model)   coupled-simulator
     (network-model? model)   network-simulator
     :else                    (throw (ex-info "Unknown model type." {:id id }))))
 
 (defn- add-model [parent-sim id [model elapsed] t]
-  (log/tracef "add-model: %s" id)
+  (log/tracef "add-model: %s %s" [id elapsed] t)
   (assert (not (contains? (:id->sim parent-sim) id))
           (str "parent-sim already contains a model with id: " id))
   (let [simulator (find-simulator id model)
@@ -43,6 +40,11 @@
                     (h/max (:tl parent-sim) tl)
                     tl)
         parent-tn (or (pq/peek-key queue) h/infinity)]
+    ;; (log/infof "[%s]         t: %s" id t)
+    ;; (log/infof "[%s]   elapsed: %s" id elapsed)
+    ;; (log/infof "[%s]        tn: %s" id tn)
+    ;; (log/infof "[%s] parent-tn: %s" id parent-tn)
+    (assert (h/<= t parent-tn))
     (assoc parent-sim
            :id->sim id->sim
            :queue queue
@@ -154,7 +156,10 @@
       (reduce add-model  parent-sim (:add-model  xs))
       (reduce connect    parent-sim (:connect    xs)))))
 
-(defrecord NetworkSimulator [model id->sim local-routes network-input-routes network-output-routes queue tl tn]
+(defrecord NetworkSimulator [model initial-elapsed
+                             id->sim queue
+                             local-routes network-input-routes network-output-routes
+                             tl tn]
   Simulator
   (initialize [sim t]
     (log/trace "--- initialize ---")
@@ -165,8 +170,14 @@
                             :network-output-routes {}
                             :queue                 (pq/priority-queue h/comparator))
           exec-id    (:executive-id model)
-          exec-model (:executive-model model)]
-      (add-model sim exec-id exec-model t)))
+          exec-model (:executive-model model)
+          t'         (h/- t initial-elapsed)]
+      (as-> sim sim
+        (add-model sim exec-id exec-model t')
+        (reduce-kv #(add-model %1 %2 %3 t') sim (:models model))
+        (reduce connect sim (:routes model))
+        (assoc sim :tl (apply h/max (map time-of-last-event (vals (:id->sim sim)))))
+        (assoc sim :tn (or (pq/peek-key (:queue sim)) h/infinity)))))
   (collect-mail [sim t]
     (log/trace "--- collect-mail ---")
     (assert (h/= t tn) (str "synchronization error: (not (= " t " " tn "))"))
@@ -176,7 +187,7 @@
          (mail/route-mail network-output-routes)
          :network))
   (transition [sim mail t]
-    (log/tracef "--- transition --- %s" t)
+    (log/trace "--- transition ---")
     (assert (h/<= tl t tn) (str "synchronization error: (not (<= " tl " " t " " tn "))"))
     (when (and (h/< t tn) (empty? mail))
       (throw (ex-info "Illegal state for transition; sim is not imminent nor receiving mail."
@@ -216,5 +227,4 @@
     A NetworkSimulator."
   [model & {:keys [elapsed]
             :or   {elapsed h/zero}}]
-  (log/infof "Ignoring elapsed input to network-simulator.")
-  (map->NetworkSimulator {:model model}))
+  (map->NetworkSimulator {:model model :initial-elapsed elapsed}))

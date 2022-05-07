@@ -32,6 +32,11 @@
              (let [tn (time-of-next-event sim)]
                (when (and tl (h/<= tn tl))
                  (throw (ex-info "NIA violation." {:tn tn :tl tl})))
+               (when (h/< t start)
+                 (throw (ex-info "t can't be before start." {:tn tn
+                                                             :tl tl
+                                                             :t  t
+                                                             :start start})))
                (log/tracef "tn: %s" tn)
                (if (or (h/infinite? tn)
                        (h/< end tn))

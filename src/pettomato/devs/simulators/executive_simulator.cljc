@@ -1,4 +1,4 @@
-(ns pettomato.devs.simulators.network-executive-simulator
+(ns pettomato.devs.simulators.executive-simulator
   "A simulator for network executive models."
   (:require
    #?(:cljs [goog.string :as gstring :refer [format]])
@@ -8,15 +8,15 @@
                                                confluent-update
                                                output
                                                time-advance]]
-   [pettomato.devs.models.network-executive-model :refer [structure-changes]]
+   [pettomato.devs.models.executive-model :refer [executive-model? structure-changes]]
    [pettomato.devs.lib.hyperreal :as h]
    [pettomato.devs.lib.log :as log]
    [pettomato.devs.simulator :refer [Simulator]]))
 
-(defprotocol INetworkExecutiveSimulator
+(defprotocol IExecutiveSimulator
   (get-structure-changes [sim]))
 
-(defrecord NetworkExecutiveSimulator [initial-state initial-elapsed state tl tn]
+(defrecord ExecutiveSimulator [initial-state initial-elapsed state tl tn]
   Simulator
   (initialize [sim t]
     (log/trace "--- initialize ---")
@@ -49,14 +49,14 @@
       (assoc sim :state state :tl t :tn tn)))
   (time-of-last-event [sim] tl)
   (time-of-next-event [sim] tn)
-  INetworkExecutiveSimulator
+  IExecutiveSimulator
   (get-structure-changes [sim]
     (structure-changes state)))
 
 (defn format-network-exec-simulator [x]
-  #?(:clj  (format "#pettomato.devs.simulators.NetworkExecutiveSimulator<0x%x>{}"
+  #?(:clj  (format "#pettomato.devs.simulators.ExecutiveSimulator<0x%x>{}"
                    (System/identityHashCode x))
-     :cljs (format "#pettomato.devs.simulators.NetworkExecutiveSimulator<%s>{}"
+     :cljs (format "#pettomato.devs.simulators.ExecutiveSimulator<%s>{}"
                    (.toString (hash x) 16))))
 
 #?(:clj
@@ -64,16 +64,16 @@
      (.write w (format-network-exec-simulator x))))
 
 #?(:clj
-   (defmethod print-method NetworkExecutiveSimulator [x w]
+   (defmethod print-method ExecutiveSimulator [x w]
      (print-network-exec-simulator x w)))
 
 #?(:clj
    (. clojure.pprint/simple-dispatch
       addMethod
-      NetworkExecutiveSimulator
+      ExecutiveSimulator
       #(print-network-exec-simulator % *out*)))
 
-(defn network-executive-simulator
+(defn executive-simulator
   "Wrap a network executive model in a network executive simulator.
 
   Args:
@@ -83,5 +83,6 @@
     A simulator."
   [model & {:keys [elapsed]
             :or   {elapsed h/zero}}]
-  (map->NetworkExecutiveSimulator {:initial-state   model
-                                   :initial-elapsed elapsed}))
+  (assert (executive-model? model))
+  (map->ExecutiveSimulator {:initial-state   model
+                            :initial-elapsed elapsed}))

@@ -9,11 +9,9 @@
    [pettomato.devs.lib.hyperreal :as h]
    [pettomato.devs.lib.log :as log]
    [pettomato.devs.models.atomic-model :refer [def-atomic-model]]
-   [pettomato.devs.models.coupled-model :refer [coupled-model]]
    [pettomato.devs.models.network-model :refer [network-model]]
    [pettomato.devs.root-coordinators.afap-root-coordinator :refer [afap-root-coordinator]]
    [pettomato.devs.simulators.atomic-simulator :refer [atomic-simulator]]
-   [pettomato.devs.simulators.coupled-simulator :refer [coupled-simulator]]
    [pettomato.devs.simulators.network-simulator :refer [network-simulator]]))
 
 (deftest basic-tests
@@ -41,26 +39,72 @@
                     (let [gen (m/generator [[(h/*R 10) {:out ["x"]}]
                                             [(h/*R 10) {:out ["y"]}]])
                           buf (m/buffer (h/*R 5))
-                          net (coupled-model {:gen [gen h/zero]
-                                              :buf [buf h/zero]}
-                                             [[:gen :out :buf :in]
-                                              [:buf :out :network :out]])]
-                      (-> (coupled-simulator net)
+                          net (m/simple-network-model
+                               :exec
+                               {:gen [gen h/zero]
+                                :buf [buf h/zero]}
+                               [[:gen :out :buf :in]
+                                [:buf :out :network :out]])]
+                      (-> (network-simulator net)
                           afap-root-coordinator))))))
 
-(deftest initial-elapsed-time-test
+(deftest initial-elapsed-test
 
-  (is (event-log= [[(h/*R 13 0) {:out ["x"]}]
-                   [(h/*R 23 0) {:out ["y"]}]]
-                  (let [gen (m/generator [[(h/*R 10) {:out ["x"]}]
-                                          [(h/*R 10) {:out ["y"]}]])
-                        buf (m/buffer (h/*R 5))
-                        net (coupled-model {:gen [gen (h/*R 2)]
-                                            :buf [buf h/zero]}
-                                           [[:gen :out :buf :in]
-                                            [:buf :out :network :out]])]
-                    (-> (coupled-simulator net)
-                        afap-root-coordinator)))))
+  (testing "An atomic simulation. #1"
+    (is (event-log= [[(h/*R 5)  {:out ["x"]}]
+                     [(h/*R 15) {:out ["y"]}]]
+                    (let [gen (m/generator [[(h/*R 10) {:out ["x"]}]
+                                            [(h/*R 10) {:out ["y"]}]])]
+                      (-> (atomic-simulator gen :elapsed (h/*R 5))
+                          afap-root-coordinator)))))
+
+  (testing "An atomic simulation. #2"
+    (is (event-log= [[(h/*R 0)  {:out ["x"]}]
+                     [(h/*R 10) {:out ["y"]}]]
+                    (let [gen (m/generator [[(h/*R 10) {:out ["x"]}]
+                                            [(h/*R 10) {:out ["y"]}]])]
+                      (-> (atomic-simulator gen :elapsed (h/*R 10))
+                          afap-root-coordinator)))))
+
+  (testing "A network simulation. #1"
+    (is (event-log= [[(h/*R 13 0) {:out ["x"]}]
+                     [(h/*R 23 0) {:out ["y"]}]]
+                    (let [gen (m/generator [[(h/*R 10) {:out ["x"]}]
+                                            [(h/*R 10) {:out ["y"]}]])
+                          buf (m/buffer (h/*R 5))
+                          net (m/simple-network-model
+                               :exec
+                               {:gen [gen h/zero]
+                                :buf [buf h/zero]}
+                               [[:gen :out :buf :in]
+                                [:buf :out :network :out]])]
+                      (-> (network-simulator net :elapsed (h/*R 2))
+                          afap-root-coordinator)))))
+
+  (testing "A network simulation. #2"
+    (is (event-log= [[(h/*R 0) {:out ["x"]}]]
+                    (let [gen (m/generator [[(h/*R 10) {:out ["x"]}]])
+                          net (m/simple-network-model
+                               :exec
+                               {:gen [gen h/zero]}
+                               [[:gen :out :network :out]])]
+                      (-> (network-simulator net :elapsed (h/*R 10))
+                          afap-root-coordinator)))))
+
+  (testing "An atomic model within a network simulation."
+    (is (event-log= [[(h/*R 13 0) {:out ["x"]}]
+                     [(h/*R 23 0) {:out ["y"]}]]
+                    (let [gen (m/generator [[(h/*R 10) {:out ["x"]}]
+                                            [(h/*R 10) {:out ["y"]}]])
+                          buf (m/buffer (h/*R 5))
+                          net (m/simple-network-model
+                               :exec
+                               {:gen [gen (h/*R 2)]
+                                :buf [buf h/zero]}
+                               [[:gen :out :buf :in]
+                                [:buf :out :network :out]])]
+                      (-> (network-simulator net)
+                          afap-root-coordinator))))))
 
 (deftest route-function-tests
 
@@ -68,13 +112,15 @@
     (is (event-log= [[(h/*R 15 0) {:out [["x"]]}]
                      [(h/*R 25 0) {:out [["y"]]}]]
                     (let [gen (m/generator [[(h/*R 10) {:out ["x"]}]
-                                          [(h/*R 10) {:out ["y"]}]])
+                                            [(h/*R 10) {:out ["y"]}]])
                           buf (m/buffer+)
-                          net (coupled-model {:gen [gen h/zero]
-                                              :buf [buf h/zero]}
-                                             [[:gen :out :buf :in (fn [x] [(h/*R 5) x])]
-                                              [:buf :out :network :out vector]])]
-                      (-> (coupled-simulator net)
+                          net (m/simple-network-model
+                               :exec
+                               {:gen [gen h/zero]
+                                :buf [buf h/zero]}
+                               [[:gen :out :buf :in (fn [x] [(h/*R 5) x])]
+                                [:buf :out :network :out vector]])]
+                      (-> (network-simulator net)
                           afap-root-coordinator))))))
 
 (deftest confluence-tests
@@ -85,55 +131,6 @@
                     (let [gen (m/generator [[(h/*R 10) {:out ["x"]}]
                                             [(h/*R 10) {:out ["y"]}]])
                           buf (m/buffer (h/*R 10))
-                          net (coupled-model {:gen [gen h/zero]
-                                              :buf [buf h/zero]}
-                                             [[:gen :out :buf :in]
-                                              [:buf :out :network :out]])]
-                      (-> (coupled-simulator net)
-                          afap-root-coordinator)))))
-
-  (testing "External before internal."
-    (is (event-log= [[(h/*R 20 0) {:out ["x"]}]]
-                    (let [gen (m/generator [[(h/*R 10) {:out ["x"]}]
-                                            [(h/*R 10) {:out ["y"]}]])
-                          buf (m/buffer2 (h/*R 10))
-                          net (coupled-model {:gen [gen h/zero]
-                                              :buf [buf h/zero]}
-                                             [[:gen :out :buf :in]
-                                              [:buf :out :network :out]])]
-                      (-> (coupled-simulator net)
-                          afap-root-coordinator))))))
-
-(deftest deeply-nested-structure
-
-  (testing "A trivial deeply nested structure."
-    (let [coupled-constructor
-          (fn [buf] (coupled-model {:buf [buf h/zero]}
-                                   [[:network :in :buf :in]
-                                    [:buf :out :network :out]]))]
-      (is (event-log= [[(h/*R 5) {:out [0]}]
-                       [(h/*R 9) {:out [2]}]]
-                      (let [gen (m/generator (for [i (range)] [(h/*R 2) {:out [i]}]))
-                            buf (-> (m/buffer (h/*R 3))
-                                    coupled-constructor
-                                    coupled-constructor
-                                    coupled-constructor
-                                    coupled-constructor)
-                            net (coupled-model {:gen [gen h/zero]
-                                                :buf [buf h/zero]}
-                                               [[:gen :out :buf :in]
-                                                [:buf :out :network :out]])]
-                        (-> (coupled-simulator net)
-                            (afap-root-coordinator :end (h/*R 10)))))))))
-
-(deftest dynamic-network-tests
-
-  (testing "Same behavior as a coupled simulator."
-    (is (event-log= [[(h/*R 15 0) {:out ["x"]}]
-                     [(h/*R 25 0) {:out ["y"]}]]
-                    (let [gen (m/generator [[(h/*R 10) {:out ["x"]}]
-                                            [(h/*R 10) {:out ["y"]}]])
-                          buf (m/buffer (h/*R 5))
                           net (m/simple-network-model
                                :exec
                                {:gen [gen h/zero]
@@ -141,15 +138,54 @@
                                [[:gen :out :buf :in]
                                 [:buf :out :network :out]])]
                       (-> (network-simulator net)
-                          afap-root-coordinator
-                          doall)))))
+                          afap-root-coordinator)))))
+
+  (testing "External before internal."
+    (is (event-log= [[(h/*R 20 0) {:out ["x"]}]]
+                    (let [gen (m/generator [[(h/*R 10) {:out ["x"]}]
+                                            [(h/*R 10) {:out ["y"]}]])
+                          buf (m/buffer2 (h/*R 10))
+                          net (m/simple-network-model
+                               :exec
+                               {:gen [gen h/zero]
+                                :buf [buf h/zero]}
+                               [[:gen :out :buf :in]
+                                [:buf :out :network :out]])]
+                      (-> (network-simulator net)
+                          afap-root-coordinator))))))
+
+(deftest deeply-nested-structure
+
+  (testing "A trivial deeply nested structure."
+    (is (event-log=
+         [[(h/*R 5) {:out [[:buf-1 [:buf-2 [:buf-3 0]]]]}]
+          [(h/*R 9) {:out [[:buf-1 [:buf-2 [:buf-3 2]]]]}]]
+         (let [f   (fn [buf i]
+                     (let [id (keyword (str "buf-" i))]
+                       (m/simple-network-model
+                        :exec
+                        {id [buf h/zero]}
+                        [[:network :in id :in (fn [x] [id x])]
+                         [id :out :network :out]])))
+               gen (m/generator (for [i (range)] [(h/*R 2) {:out [i]}]))
+               buf (-> (m/buffer (h/*R 3)) (f 1) (f 2) (f 3))
+               net (m/simple-network-model
+                    :exec
+                    {:gen   [gen h/zero]
+                     :buf-0 [buf h/zero]}
+                    [[:gen :out :buf-0 :in]
+                     [:buf-0 :out :network :out]])]
+           (-> (network-simulator net)
+               (afap-root-coordinator :end (h/*R 10))))))))
+
+(deftest dynamic-network-tests
 
   (testing "Dynamic behavior."
     (is (event-log=
          [[(h/*R 7 1) {:out [0]}]
           [(h/*R 9 1) {:out [1]}]]
          (let [gen (m/generator [[(h/*R 5) {:out [[:add-model :gen-1 [(m/generator
-                                                                       (for [i (range)] [(h/*R 2) {:out [i]}]))
+                                                                       (take 5 (for [i (range)] [(h/*R 2) {:out [i]}])))
                                                                       h/zero]]
                                                   [:connect [:gen-1 :out :network :out]]]}]
                                  [(h/*R 5) {:out [[:disconnect [:gen-1 :out :network :out]]
@@ -159,8 +195,7 @@
                     {:gen [gen h/zero]}
                     [[:gen :out :exec :in]])]
            (-> (network-simulator net)
-               afap-root-coordinator
-               doall)))))
+               afap-root-coordinator)))))
 
   (testing "Dynamic behavior; order doesn't matter."
     (is (event-log=
@@ -177,8 +212,7 @@
                     {:gen [gen h/zero]}
                     [[:gen :out :exec :in]])]
            (-> (network-simulator net)
-               afap-root-coordinator
-               doall)))))
+               afap-root-coordinator)))))
 
   (testing "Remove an atomic model before it is imminent."
     (is (event-log= []
@@ -192,8 +226,7 @@
                                   [[:sc-gen :out :exec :in]
                                    [:gen :out :network :out]])]
                       (-> (network-simulator net)
-                          afap-root-coordinator
-                          doall)))))
+                          afap-root-coordinator)))))
 
   (testing "Remove an atomic model when it is imminent."
     (is (event-log= []
@@ -207,8 +240,7 @@
                                   [[:sc-gen :out :exec :in]
                                    [:gen :out :network :out]])]
                       (-> (network-simulator net)
-                          afap-root-coordinator
-                          doall)))))
+                          afap-root-coordinator)))))
 
   (testing "Remove an atomic model after it is imminent."
     (is (event-log= [[(h/*R 10) {:out ["x"]}]]
@@ -222,8 +254,7 @@
                                   [[:sc-gen :out :exec :in]
                                    [:gen :out :network :out]])]
                       (-> (network-simulator net)
-                          afap-root-coordinator
-                          doall)))))
+                          afap-root-coordinator)))))
 
   (testing "Add and remove a NETWORK model."
     (is (event-log=
@@ -250,8 +281,7 @@
                         :gen    [gen    h/zero]}
                        [[:sc-gen :out :exec :in]])]
            (-> (network-simulator net)
-               (afap-root-coordinator :end (h/*R 30))
-               doall)))))
+               (afap-root-coordinator :end (h/*R 30)))))))
 
   (testing "ad-hoc network structure change test"
     ;; Note that messages get dropped when they have been delivered to a delay,

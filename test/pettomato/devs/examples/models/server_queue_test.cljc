@@ -1,18 +1,17 @@
-#_
-(ns pettomato.devs.examples.models.server-queue-test
+#_#_#_(ns pettomato.devs.examples.models.server-queue-test
   (:require
    #?(:clj
       [clojure.test :refer [deftest is testing]]
       :cljs
       [cljs.test :refer-macros [deftest is testing]])
-   [pettomato.devs.examples.models :refer [lazy-seq-generator]]
+   [pettomato.devs.examples.models :as m]
    [pettomato.devs.examples.models.server-queue :refer [reset-next-id! server]]
-   [pettomato.devs.lib.hyperreal :as h :refer [*R]]
+   [pettomato.devs.lib.hyperreal :as h]
    [pettomato.devs.lib.random :as rand]
-   [pettomato.devs.models.network-model :refer [network-model]]
+   [pettomato.devs.models.coupled-model :refer [coupled-model]]
    [pettomato.devs.root-coordinators.afap-root-coordinator :refer [afap-root-coordinator]]
-   [pettomato.devs.simulators.network-simulator :refer [network-simulator]]))
-#_
+   [pettomato.devs.simulators.coupled-simulator :refer [coupled-simulator]]))
+
 (defn report [log]
   (let [log          (->> log
                           (map second)
@@ -24,7 +23,7 @@
      :total-workers (count (distinct (map :worker log)))
      :ave-delay     (/ (reduce + (map h/standard start-delays)) (count start-delays))
      :max-delay     (h/standard (apply h/max start-delays))}))
-#_
+
 (deftest server-queue-test
 
   ;; This is a good demonstration of reproducibility.
@@ -33,20 +32,21 @@
           :total-workers 10
           :ave-delay     (/ 2489 100)
           :max-delay     48}
-         (let [gen (lazy-seq-generator
+         (let [gen (m/generator
                     (take 100
                           (for [i (range)]
-                            [(*R (+ 1 (rand/rand-int 10))) {:out [{:id     (str "job-" i)
-                                                                   :effort (*R (+ 1 (rand/rand-int 100)))}]}])))
+                            [(h/*R (+ 1 (rand/rand-int 10)))
+                             {:out [{:id     (str "job-" i)
+                                     :effort (h/*R (+ 1 (rand/rand-int 100)))}]}])))
                srv (server :server)
-               net (network-model
-                    {:gen    gen
-                     :server srv}
+               net (coupled-model
+                    {:gen    [gen h/zero]
+                     :server [srv h/zero]}
                     [[:gen :out :server :in]
                      [:gen :out :network :gen-out]
-                     [:server :out :network :out]
-                     [:server :petition :network :petition]])]
+                     [:server :out :network :out]])]
            (reset-next-id!)
            (rand/with-random-seed 0
-             (-> (afap-root-coordinator (network-simulator net) :start (*R 0) :end (*R 1000))
+             (-> (coupled-simulator net)
+                 (afap-root-coordinator :start (h/*R 0) :end (h/*R 1000))
                  report))))))

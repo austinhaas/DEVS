@@ -1,12 +1,13 @@
 (ns pettomato.devs.examples.models.server-queue
   "A dynamic structure example."
   (:require
-   [pettomato.devs.examples.models :refer [variable-delay]]
+   [pettomato.devs.examples.models :as m]
    [pettomato.devs.lib.coll :refer [queue]]
-   [pettomato.devs.lib.hyperreal :as h :refer [*R]]
+   [pettomato.devs.lib.hyperreal :as h]
    [pettomato.devs.lib.log :as log]
-   [pettomato.devs.models.atomic-model :refer [atomic-model]]
-   [pettomato.devs.vars :refer [*sim-time*]]))
+   [pettomato.devs.models.atomic-model :refer [internal-update external-update output time-advance]]
+   [pettomato.devs.models.network-executive-model :refer [def-network-executive-model]]
+   [pettomato.devs.models.network-model :refer [network-model]]))
 
 ;;; id
 
@@ -18,30 +19,30 @@
 
 ;;; worker
 
-(def ^:private worker variable-delay)
+(def ^:private worker m/buffer)
 
 ;;; server
 
-(defn- add-worker [state k model]
-  (log/tracef "add-worker: %s" k)
-  (update-in state [:output :petition] conj
-             [:add-model k model]
-             [:connect [(:id state) [:out k] k :in]]
-             [:connect [k :out (:id state) [:in k]]]))
+(defn- add-worker [state id [model elapsed]]
+  (log/tracef "add-worker: %s" id)
+  (update state :structure-changes conj
+          [:add-model id [model elapsed]]
+          [:connect [(:id state) [:out id] id :in]]
+          [:connect [id :out (:id state) [:in id]]]))
 
-(defn- rem-worker [state k]
-  (log/tracef "rem-worker: %s" k)
-  (update-in state [:output :petition] conj
-             [:rem-model k]
-             [:disconnect [(:id state) [:out k] k :in]]
-             [:disconnect [k :out (:id state) [:in k]]]))
+(defn- rem-worker [state id]
+  (log/tracef "rem-worker: %s" id)
+  (update state :structure-changes conj
+          [:rem-model id]
+          [:disconnect [(:id state) [:out id] id :in]]
+          [:disconnect [id :out (:id state) [:in id]]]))
 
 (defn- maybe-grow [state]
   (log/trace "maybe-grow")
   (if (< (:capacity state) (count (:queue state)))
     (let [k (symbol (str "w" (next-id)))]
       (-> state
-          (add-worker k (worker))
+          (add-worker k [(worker) h/zero])
           (update :workers conj k)
           (update :capacity inc)
           recur))
@@ -58,7 +59,7 @@
         recur)
     state))
 
-(defn- distribute-work [state]
+(defn- distribute-work [state t]
   (log/tracef "distribute-work")
   (if (or (empty? (:queue state))
           (empty? (:workers state)))
@@ -67,50 +68,63 @@
           worker (peek (:workers state))]
       (log/tracef "Assigning %s to %s" job worker)
       (-> state
-          (update :output assoc [:out worker] [[(:effort job) (assoc job :worker worker :start-time *sim-time*)]])
+          (update :output assoc [:out worker] [[(:effort job) (assoc job :worker worker :start-time t)]])
           (update :queue pop)
           (update :workers pop)
           (assoc  :sigma h/epsilon)))))
 
-(defn- import-jobs [state jobs]
+(defn- import-jobs [state jobs t]
   (->> jobs
-       (map #(assoc % :arrival-time *sim-time*))
+       (map #(assoc % :arrival-time t))
        (update state :queue into)))
 
-(defn- export-jobs [state worker jobs]
+(defn- export-jobs [state worker jobs t]
   (let [state (-> state
                   (update :workers conj worker))]
     (->> jobs
-         (map #(assoc % :departure-time *sim-time*))
+         (map #(assoc % :departure-time t))
          (update-in state [:output :out] into))))
 
+(def-network-executive-model Server [id queue workers capacity output sigma structure-changes total-elapsed]
+  (internal-update [state]
+    (let [t (h/+ total-elapsed (time-advance state))]
+      (-> (assoc state
+                 :output {}
+                 :structure-changes []
+                 :sigma h/infinity
+                 :total-elapsed t)
+          (distribute-work t))))
+  (external-update [state elapsed mail]
+    (let [t (h/+ total-elapsed elapsed)]
+      (reduce-kv (fn [state port vs]
+                   (cond
+                     ;; incoming jobs
+                     (= port :in) (-> state
+                                      (import-jobs vs t)
+                                      maybe-grow)
+                     ;; completed jobs
+                     :else        (-> state
+                                      (export-jobs (second port) vs t)
+                                      maybe-shrink)))
+                 (assoc state :sigma h/epsilon :total-elapsed t)
+                 mail)))
+  (output [state] output)
+  (time-advance [state] sigma)
+  (structure-changes [state] structure-changes))
+
 (defn server
-  "An atomic model that processes jobs by delegating them to a dynamic pool of
-  workers. Assumes that the containing network supports network structure
-  messages."
+  "An model that processes jobs by delegating them to a dynamic pool of
+  workers."
   [id]
-  (atomic-model
-   :initial-state   {:id       id
-                     :queue    queue ;; A FIFO of jobs.
-                     :workers  queue ;; A FIFO of available workers.
-                     :capacity 0
-                     :output   {}
-                     :sigma    h/infinity}
-   :internal-update (fn [state]
-                      (-> (assoc state :output {} :sigma h/infinity)
-                          distribute-work))
-   :external-update (fn [state elapsed messages]
-                      (reduce-kv (fn [state port vs]
-                                   (cond
-                                     ;; incoming jobs
-                                     (= port :in) (-> state
-                                                      (import-jobs vs)
-                                                      maybe-grow)
-                                     ;; completed jobs
-                                     :else        (-> state
-                                                      (export-jobs (second port) vs)
-                                                      maybe-shrink)))
-                                 (assoc state :sigma h/epsilon)
-                                 messages))
-   :output          :output
-   :time-advance    :sigma))
+
+  ;; How to compose network models?
+
+  (network-model :exec [(map->Server {:id                id
+                                      :queue             queue ;; A FIFO of jobs.
+                                      :workers           queue ;; A FIFO of available workers.
+                                      :capacity          0
+                                      :output            {}
+                                      :sigma             h/infinity
+                                      :structure-changes []
+                                      :total-elapsed     h/zero})
+                        h/zero]))

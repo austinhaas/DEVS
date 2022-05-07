@@ -2,7 +2,6 @@
   "This is loosely based on SICP, Ch. 3.3.4."
   (:require
    [pettomato.devs.examples.models :as m]
-   [pettomato.devs.examples.models :as m]
    [pettomato.devs.lib.hyperreal :as h]
    [pettomato.devs.lib.log :as log]
    [pettomato.devs.models.atomic-model :refer [def-atomic-model
@@ -10,9 +9,8 @@
                                                external-update
                                                output
                                                time-advance]]
-   [pettomato.devs.models.coupled-model :refer [coupled-model]]
    [pettomato.devs.root-coordinators.afap-root-coordinator :refer [afap-root-coordinator]]
-   [pettomato.devs.simulators.coupled-simulator :refer [coupled-simulator]]))
+   [pettomato.devs.simulators.network-simulator :refer [network-simulator]]))
 
 ;; This is supposed to be physically accurate in the sense that it takes time
 ;; for signals to propagate. There will be an initial period of "settling".
@@ -41,7 +39,7 @@
           input      (if (contains? mail :in)  (rand-nth (:in  mail)) input)
           output     (not input)]
       (assoc state
-             :sigma      delay
+             :sigma      (h/- delay h/epsilon) ;; Subtract epsilon b/c NIA.
              :has-power? has-power?
              :input      input
              :output     output)))
@@ -70,7 +68,7 @@
           input-2    (if (contains? mail :in-2) (rand-nth (:in-2 mail)) input-2)
           output     (and input-1 input-2)]
       (assoc state
-             :sigma      delay
+             :sigma      (h/- delay h/epsilon) ;; Subtract epsilon b/c NIA.
              :has-power? has-power?
              :input-1    input-1
              :input-2    input-2
@@ -100,7 +98,7 @@
           input-2    (if (contains? mail :in-2) (rand-nth (:in-2 mail)) input-2)
           output     (or input-1 input-2)]
       (assoc state
-             :sigma      delay
+             :sigma      (h/- delay h/epsilon) ;; Subtract epsilon b/c NIA.
              :has-power? has-power?
              :input-1    input-1
              :input-2    input-2
@@ -126,7 +124,8 @@
   "S will become 1 whenever precisely one of A and B is 1, and C will become 1
   whenever A and B are both 1. - SICP, p. 274"
   [inverter-delay and-gate-delay or-gate-delay]
-  (coupled-model
+  (m/simple-network-model
+   :exec
    {:or    [(or-gate  or-gate-delay)  h/zero]
     :and-1 [(and-gate and-gate-delay) h/zero]
     :and-2 [(and-gate and-gate-delay) h/zero]
@@ -146,7 +145,8 @@
     [:and-2   :out :network :s   ]]))
 
 (defn full-adder [inverter-delay and-gate-delay or-gate-delay]
-  (coupled-model
+  (m/simple-network-model
+   :exec
    {:ha-1 [(half-adder inverter-delay and-gate-delay or-gate-delay)
            h/zero]
     :ha-2 [(half-adder inverter-delay and-gate-delay or-gate-delay)
@@ -194,7 +194,7 @@
                       (range n-bits)
                       (range 1 n-bits))
         routes   (concat routes-1 routes-2)]
-    (coupled-model models routes)))
+    (m/simple-network-model :exec models routes)))
 
 (defn encode
   "Converts an number into mail."
@@ -224,22 +224,24 @@
                  :or   {inverter-delay (h/*R 0 2)
                         and-gate-delay (h/*R 0 3)
                         or-gate-delay  (h/*R 0 5)}}]
-  (-> (coupled-model {:gen [(m/generator [[(h/*R 1) {:pwr [true]}]
-                                          [(h/*R 1000) (merge (encode n-bits a :a)
-                                                              (encode n-bits b :b))]])
-                            (h/*R 1)]
-                      :rca [(ripple-carry-adder n-bits
-                                                inverter-delay
-                                                and-gate-delay
-                                                or-gate-delay)
-                            h/zero]}
-                     (apply concat
-                            [[:gen :pwr :rca :pwr]
-                             [:rca :c :network :c]]
-                            (for [i (range n-bits)]
-                              [[:gen [:a i] :rca [:a i]]
-                               [:gen [:b i] :rca [:b i]]
-                               [:rca [:s i] :network [:s i]]])))
-      coupled-simulator
+  (-> (m/simple-network-model
+       :exec
+       {:gen [(m/generator [[(h/*R 1) {:pwr [true]}]
+                            [(h/*R 1000) (merge (encode n-bits a :a)
+                                                (encode n-bits b :b))]])
+              (h/*R 1)]
+        :rca [(ripple-carry-adder n-bits
+                                  inverter-delay
+                                  and-gate-delay
+                                  or-gate-delay)
+              h/zero]}
+       (apply concat
+              [[:gen :pwr :rca :pwr]
+               [:rca :c :network :c]]
+              (for [i (range n-bits)]
+                [[:gen [:a i] :rca [:a i]]
+                 [:gen [:b i] :rca [:b i]]
+                 [:rca [:s i] :network [:s i]]])))
+      network-simulator
       afap-root-coordinator
       decode))

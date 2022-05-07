@@ -1,19 +1,19 @@
-(ns pettomato.devs.models.network-executive-model
-  #?(:cljs (:require-macros pettomato.devs.models.network-executive-model))
+(ns pettomato.devs.models.executive-model
+  #?(:cljs (:require-macros pettomato.devs.models.executive-model))
   (:require
    [pettomato.devs.lib.hyperreal :as h]
    [pettomato.devs.models.atomic-model :refer [AtomicModel]]))
 
-(defprotocol NetworkExecutiveModel
+(defprotocol ExecutiveModel
   "A protocol for network executive models."
   (structure-changes [state]
     "Returns a seq of network structure changes."))
 
-(defmacro def-network-executive-model
+(defmacro def-executive-model
   "A convenience macro that creates a record that implements AtomicModel
-  and NetworkExecutiveModel from a possibly incomplete
-  specification. Missing methods are given default implementations
-  with the following return values:
+  and ExecutiveModel from a possibly incomplete specification. Missing
+  methods are given default implementations with the following return
+  values:
 
      internal-update: state
      external-update: state
@@ -43,7 +43,7 @@
    `(defrecord ~name [~@fields]
       AtomicModel
       ~@atomic-specs
-      NetworkExecutiveModel
+      ExecutiveModel
       ~@exec-specs)))
 
-(defn executive-model? [x] (satisfies? NetworkExecutiveModel x))
+(defn executive-model? [x] (satisfies? ExecutiveModel x))

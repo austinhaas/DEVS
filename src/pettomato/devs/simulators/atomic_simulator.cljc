@@ -7,7 +7,8 @@
                                                external-update
                                                confluent-update
                                                output
-                                               time-advance]]
+                                               time-advance
+                                               atomic-model?]]
    [pettomato.devs.lib.hyperreal :as h]
    [pettomato.devs.lib.log :as log]
    [pettomato.devs.simulator :refer [Simulator]]))
@@ -20,8 +21,7 @@
     (let [tl (h/- t initial-elapsed)
           ta (time-advance initial-state)
           tn (h/+ tl ta)]
-      (assert (h/pos? ta) "time-advance must be positive")
-      (assert (h/< tl tn) "tl must be < tn")
+         (assert (h/< tl tn) "tl must be < tn")
       (assoc sim :state initial-state :tl tl :tn tn)))
   (collect-mail [sim t]
     (log/trace "--- collect-mail ---")
@@ -40,9 +40,8 @@
                                                                   :tn         tn
                                                                   :mail-count (count mail)})))
           ta    (time-advance state)
-          tn    (h/+ t ta)]
-      (assert (h/pos? ta) "time-advance must be positive")
-      (assoc sim :state state :tl t :tn tn)))
+          tn    (h/+ t h/epsilon ta)]
+         (assoc sim :state state :tl t :tn tn)))
   (time-of-last-event [sim] tl)
   (time-of-next-event [sim] tn))
 
@@ -76,5 +75,6 @@
     A simulator."
   [model & {:keys [elapsed]
             :or   {elapsed h/zero}}]
+  (assert (atomic-model? model))
   (map->AtomicSimulator {:initial-state   model
                          :initial-elapsed elapsed}))
