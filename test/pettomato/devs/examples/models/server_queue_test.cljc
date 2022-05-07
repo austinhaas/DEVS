@@ -47,7 +47,6 @@
                     [[:gen :out :server :in]
                      [:gen :out :network :gen-out]
                      [:server :out :network :out]])]
-           (reset-next-id!)
            (rand/with-random-seed 0
              (-> (network-simulator net)
                  (afap-root-coordinator :start (h/*R 0) :end (h/*R 1000))

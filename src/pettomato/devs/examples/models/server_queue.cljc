@@ -9,14 +9,6 @@
    [pettomato.devs.models.executive-model :refer [def-executive-model]]
    [pettomato.devs.models.network-model :refer [network-model]]))
 
-;;; id
-
-(def ^:private next-id-atom (atom 0))
-
-(defn- next-id [] (swap! next-id-atom inc))
-
-(defn reset-next-id! [] (reset! next-id-atom 0))
-
 ;;; worker
 
 (def ^:private worker m/buffer+)
@@ -40,11 +32,12 @@
 (defn- maybe-grow [state]
   (log/trace "maybe-grow")
   (if (< (:capacity state) (count (:queue state)))
-    (let [k (symbol (str "w" (next-id)))]
+    (let [id (symbol (str "w" (:id-counter state)))]
       (-> state
-          (add-worker k [(worker) h/zero])
-          (update :workers conj k)
+          (add-worker id [(worker) h/zero])
+          (update :workers conj id)
           (update :capacity inc)
+          (update :id-counter inc)
           recur))
     state))
 
@@ -125,7 +118,8 @@
                   :output            {}
                   :sigma             h/infinity
                   :structure-changes []
-                  :total-elapsed     h/zero})
+                  :total-elapsed     h/zero
+                  :id-counter        0})
     h/zero]
    {}
    [[:network :in id :in]
