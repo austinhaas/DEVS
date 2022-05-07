@@ -43,16 +43,16 @@ receive any messages before that time."))
   [name [& fields] & specs]
   (let [syms  (set (map first specs))
         specs (cond-> specs
-                (not (contains? syms 'internal-update)) (conj '(internal-update [state] state))
-                (not (contains? syms 'external-update)) (conj '(external-update [state elapsed mail] state))
-                (not (contains? syms 'output))          (conj '(output [state] {}))
+                (not (contains? syms 'internal-update)) (conj `(internal-update [state#] state#))
+                (not (contains? syms 'external-update)) (conj `(external-update [state# elapsed# mail#] state#))
+                (not (contains? syms 'output))          (conj `(output [state#] {}))
                 ;; TODO: How to ensure h is loaded?
-                (not (contains? syms 'time-advance))    (conj '(time-advance [state] h/infinity)))
+                (not (contains? syms 'time-advance))    (conj `(time-advance [state#] h/infinity)))
         ;; confluent-update update depends on internal-update and external-update.
         specs (cond-> specs
-                (not (contains? syms 'confluent-update)) (conj '(confluent-update [state mail]
-                                                                  (-> (internal-update state)
-                                                                      (external-update h/zero mail)))))]
+                (not (contains? syms 'confluent-update)) (conj `(confluent-update [state# mail#]
+                                                                  (-> (internal-update state#)
+                                                                      (external-update h/zero mail#)))))]
    `(defrecord ~name [~@fields]
       AtomicModel
       ~@specs)))

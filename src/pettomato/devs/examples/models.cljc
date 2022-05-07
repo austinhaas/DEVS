@@ -1,6 +1,6 @@
 (ns pettomato.devs.examples.models
   (:require
-   [pettomato.devs.models.atomic-model :refer [def-atomic-model internal-update external-update confluent-update output time-advance]]
+   [pettomato.devs.models.atomic-model :refer [def-atomic-model internal-update external-update time-advance]]
    [pettomato.devs.models.executive-model :refer [def-executive-model structure-changes]]
    [pettomato.devs.models.network-model :refer [network-model]]
    [pettomato.devs.lib.hyperreal :as h]

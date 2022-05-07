@@ -5,7 +5,7 @@
    [pettomato.devs.lib.coll :refer [queue]]
    [pettomato.devs.lib.hyperreal :as h]
    [pettomato.devs.lib.log :as log]
-   [pettomato.devs.models.atomic-model :refer [internal-update external-update output time-advance]]
+   [pettomato.devs.models.atomic-model :refer [time-advance]]
    [pettomato.devs.models.executive-model :refer [def-executive-model]]
    [pettomato.devs.models.network-model :refer [network-model]]))
 
