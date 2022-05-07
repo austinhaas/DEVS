@@ -6,7 +6,7 @@
    [pettomato.devs.lib.hyperreal :as h]
    [pettomato.devs.lib.log :as log]
    [pettomato.devs.models.atomic-model :refer [internal-update external-update output time-advance]]
-   [pettomato.devs.models.network-executive-model :refer [def-network-executive-model]]
+   [pettomato.devs.models.executive-model :refer [def-executive-model]]
    [pettomato.devs.models.network-model :refer [network-model]]))
 
 ;;; id
@@ -19,7 +19,7 @@
 
 ;;; worker
 
-(def ^:private worker m/buffer)
+(def ^:private worker m/buffer+)
 
 ;;; server
 
@@ -85,7 +85,7 @@
          (map #(assoc % :departure-time t))
          (update-in state [:output :out] into))))
 
-(def-network-executive-model Server [id queue workers capacity output sigma structure-changes total-elapsed]
+(def-executive-model Server [id queue workers capacity output sigma structure-changes total-elapsed]
   (internal-update [state]
     (let [t (h/+ total-elapsed (time-advance state))]
       (-> (assoc state
@@ -116,15 +116,17 @@
   "An model that processes jobs by delegating them to a dynamic pool of
   workers."
   [id]
-
-  ;; How to compose network models?
-
-  (network-model :exec [(map->Server {:id                id
-                                      :queue             queue ;; A FIFO of jobs.
-                                      :workers           queue ;; A FIFO of available workers.
-                                      :capacity          0
-                                      :output            {}
-                                      :sigma             h/infinity
-                                      :structure-changes []
-                                      :total-elapsed     h/zero})
-                        h/zero]))
+  (network-model
+   id
+   [(map->Server {:id                id
+                  :queue             queue ;; A FIFO of jobs.
+                  :workers           queue ;; A FIFO of available workers.
+                  :capacity          0
+                  :output            {}
+                  :sigma             h/infinity
+                  :structure-changes []
+                  :total-elapsed     h/zero})
+    h/zero]
+   {}
+   [[:network :in id :in]
+    [id :out :network :out]]))

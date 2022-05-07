@@ -27,7 +27,7 @@
     :else                    (throw (ex-info "Unknown model type." {:id id }))))
 
 (defn- add-model [parent-sim id [model elapsed] t]
-  (log/tracef "add-model: %s %s" [id elapsed] t)
+  (log/tracef "add-model: %s" [id elapsed])
   (assert (not (contains? (:id->sim parent-sim) id))
           (str "parent-sim already contains a model with id: " id))
   (let [simulator (find-simulator id model)

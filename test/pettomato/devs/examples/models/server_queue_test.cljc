@@ -1,4 +1,4 @@
-#_#_#_(ns pettomato.devs.examples.models.server-queue-test
+(ns pettomato.devs.examples.models.server-queue-test
   (:require
    #?(:clj
       [clojure.test :refer [deftest is testing]]
@@ -7,10 +7,11 @@
    [pettomato.devs.examples.models :as m]
    [pettomato.devs.examples.models.server-queue :refer [reset-next-id! server]]
    [pettomato.devs.lib.hyperreal :as h]
+   [pettomato.devs.lib.log :as log]
    [pettomato.devs.lib.random :as rand]
-   [pettomato.devs.models.coupled-model :refer [coupled-model]]
+   [pettomato.devs.models.network-model :refer [network-model]]
    [pettomato.devs.root-coordinators.afap-root-coordinator :refer [afap-root-coordinator]]
-   [pettomato.devs.simulators.coupled-simulator :refer [coupled-simulator]]))
+   [pettomato.devs.simulators.network-simulator :refer [network-simulator]]))
 
 (defn report [log]
   (let [log          (->> log
@@ -39,7 +40,8 @@
                              {:out [{:id     (str "job-" i)
                                      :effort (h/*R (+ 1 (rand/rand-int 100)))}]}])))
                srv (server :server)
-               net (coupled-model
+               net (m/simple-network-model
+                    :exec
                     {:gen    [gen h/zero]
                      :server [srv h/zero]}
                     [[:gen :out :server :in]
@@ -47,6 +49,6 @@
                      [:server :out :network :out]])]
            (reset-next-id!)
            (rand/with-random-seed 0
-             (-> (coupled-simulator net)
+             (-> (network-simulator net)
                  (afap-root-coordinator :start (h/*R 0) :end (h/*R 1000))
                  report))))))
