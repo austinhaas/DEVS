@@ -5,7 +5,7 @@
       :cljs
       [cljs.test :refer-macros [deftest is testing]])
    [pettomato.devs.examples.models :as m]
-   [pettomato.devs.examples.models.server-queue :refer [reset-next-id! server]]
+   [pettomato.devs.examples.models.server-queue :refer [server]]
    [pettomato.devs.lib.hyperreal :as h]
    [pettomato.devs.lib.log :as log]
    [pettomato.devs.lib.random :as rand]

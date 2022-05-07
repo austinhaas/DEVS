@@ -93,7 +93,7 @@
 (def-executive-model SimpleExec [structure-changes]
   (internal-update [state] (update state :structure-changes empty))
   (external-update [state elapsed mail] (update state :structure-changes into (:in mail)))
-  (time-advance [state] (if (seq structure-changes) h/epsilon h/infinity))
+  (time-advance [state] (if (seq structure-changes) h/zero h/infinity))
   (structure-changes [state] structure-changes))
 
 (defn simple-executive

@@ -64,7 +64,7 @@
           (update-in [:output [:out worker]] conj [(:effort job) (assoc job :worker worker :start-time t)])
           (update :queue pop)
           (update :workers pop)
-          (assoc :sigma h/epsilon)))))
+          (assoc :sigma h/zero)))))
 
 (defn- import-jobs [state jobs t]
   (let [jobs (map #(assoc % :arrival-time t) jobs)]
@@ -97,7 +97,7 @@
                      :else        (-> state
                                       (export-jobs (second port) vs t)
                                       maybe-shrink)))
-                 (assoc state :sigma h/epsilon :total-elapsed t)
+                 (assoc state :sigma h/zero :total-elapsed t)
                  mail)))
   (output [state] output)
   (time-advance [state] sigma)
