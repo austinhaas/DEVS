@@ -40,10 +40,6 @@
                     (h/max (:tl parent-sim) tl)
                     tl)
         parent-tn (or (pq/peek-key queue) h/infinity)]
-    ;; (log/infof "[%s]         t: %s" id t)
-    ;; (log/infof "[%s]   elapsed: %s" id elapsed)
-    ;; (log/infof "[%s]        tn: %s" id tn)
-    ;; (log/infof "[%s] parent-tn: %s" id parent-tn)
     (assert (h/<= t parent-tn))
     (assoc parent-sim
            :id->sim id->sim
