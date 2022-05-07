@@ -61,22 +61,20 @@
           worker (peek (:workers state))]
       (log/tracef "Assigning %s to %s" job worker)
       (-> state
-          (update :output assoc [:out worker] [[(:effort job) (assoc job :worker worker :start-time t)]])
+          (update-in [:output [:out worker]] conj [(:effort job) (assoc job :worker worker :start-time t)])
           (update :queue pop)
           (update :workers pop)
-          (assoc  :sigma h/epsilon)))))
+          (assoc :sigma h/epsilon)))))
 
 (defn- import-jobs [state jobs t]
-  (->> jobs
-       (map #(assoc % :arrival-time t))
-       (update state :queue into)))
+  (let [jobs (map #(assoc % :arrival-time t) jobs)]
+    (update state :queue into jobs)))
 
 (defn- export-jobs [state worker jobs t]
-  (let [state (-> state
-                  (update :workers conj worker))]
-    (->> jobs
-         (map #(assoc % :departure-time t))
-         (update-in state [:output :out] into))))
+  (let [jobs (map #(assoc % :departure-time t) jobs)]
+    (-> state
+        (update :workers conj worker)
+        (update-in [:output :out] into jobs))))
 
 (def-executive-model Server [id queue workers capacity output sigma structure-changes total-elapsed]
   (internal-update [state]
