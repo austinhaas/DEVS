@@ -1,138 +1,182 @@
 (ns pettomato.devs.examples.models.tms-example
-  "A dynamic structure example from Theory of Modeling and Simulation, 2nd Ed., pp. 237-240.
+  "A dynamic structure example from Theory of Modeling and Simulation,
+  2nd Ed., pp. 237-240.
 
-  This server moves workers to where the work is, but it doesn't scale up or
-  down otherwise."
+  This server moves workers from a static pool of workers to where the
+  work is."
   (:require
-   [pettomato.devs.examples.models :refer [variable-delay]]
-   [pettomato.devs.lib.hyperreal :as h :refer [*R]]
+   [pettomato.devs.examples.models :as m]
+   [pettomato.devs.lib.hyperreal :as h]
    [pettomato.devs.lib.log :as log]
-   [pettomato.devs.models.atomic-model :refer [atomic-model]]
-   [pettomato.devs.models.network-model :refer [network-model]]
-   [pettomato.devs.vars :refer [*sim-time*]]))
+   [pettomato.devs.models.atomic-model :refer [def-atomic-model time-advance]]
+   [pettomato.devs.models.executive-model :refer [def-executive-model]]
+   [pettomato.devs.models.network-model :refer [network-model]]))
 
-(def server variable-delay)
+(def ^:private server m/buffer+)
 
-(defn queue [k n-servers]
-  (letfn [(add-server [s k']
-            (log/tracef "add-server: %s" k')
-            (update-in s [:output :petition] (fnil conj [])
-                       [:add-model k' (server)]
-                       [:connect [k [:out k'] k' :in]]
-                       [:connect [k' :out k [:in k']]]))
-          (rem-server [s k']
-            (log/tracef "rem-server: %s" k')
-            (update-in s [:output :petition] (fnil conj [])
-                       [:rem-model k']
-                       [:disconnect [k [:out k'] k' :in]]
-                       [:disconnect [k' :out k [:in k']]]))
-          (idle [s k']
-            (log/tracef "idle: %s" k')
-            (update s :idle conj k'))
-          (maybe-process-next [s]
-            (log/trace "maybe-process-next")
-            (if (and (seq (:idle s)) (seq (:queue s)))
-              (let [w (first (:idle s))
-                    v (first (:queue s))]
-                (-> s
-                    (update :queue rest)
-                    (update :idle rest)
-                    (update-in [:output [:out w]] conj [(:effort v) (assoc v :worker w)])))
-              s))
-          (enqueue [s v]
-            (log/tracef "enqueue: %s" v)
-            (update s :queue conj (assoc v :arrival-time *sim-time*)))
-          (send [s v]
-            (log/tracef "send: %s" v)
-            (update-in s [:output :out] conj (assoc v :departure-time *sim-time*)))
-          (dispatch [s ev]
-            (let [[port v] ev]
-              (case port
-                :add    (-> s (add-server v) (idle v) maybe-process-next)
-                :remove (-> s (rem-server (first (:idle s))) (update :idle rest)
-                            (update-in [:output :send] conj (first (:idle s))))
-                :in     (-> s (enqueue v) maybe-process-next)
-                (case (first port)
-                  :in (-> s (send v) (idle (second port)) maybe-process-next)))))]
-    (let [server-ks (for [i (range n-servers)] (keyword (str "worker-" (gensym))))]
-      (atomic-model
-       :initial-state   (let [queue []
-                              state {:idle   server-ks
-                                     :queue  queue
-                                     :sigma  h/epsilon
-                                     :output {:init [[(count queue) (count server-ks)]]}}]
-                          (reduce add-server state server-ks))
-       :internal-update (fn [s]
-                          (log/trace "int-update")
-                          (assoc s :sigma h/infinity :output {}))
-       :external-update (fn [s e x]
-                          (log/tracef "ext-update: %s" x)
-                          (let [s' (-> (reduce dispatch s (for [[k vs] x, v vs] [k v]))
-                                       ;; Assuming every external event results in an output message.
-                                       (assoc :sigma h/epsilon))]
-                            (update-in s' [:output :size] conj [(count (:queue s')) (count (:idle s'))])))
-       :output          :output
-       :time-advance    :sigma))))
+(defn- add-server [state id]
+  (log/tracef "add-server: %s" id)
+  (let [parent-id (:id state)]
+    (update state :structure-changes conj
+           [:add-model id [(server) h/zero]]
+           [:connect [parent-id [:out id] id :in]]
+           [:connect [id :out parent-id [:in id]]])))
+
+(defn- rem-server [state id]
+  (log/tracef "rem-server: %s" id)
+  (let [parent-id (:id state)]
+    (update state :structure-changes conj
+            [:rem-model id]
+            [:disconnect [parent-id [:out id] id :in]]
+            [:disconnect [id :out parent-id [:in id]]])))
+
+(defn- idle [state id]
+  (log/tracef "idle: %s" id)
+  (update state :idle conj id))
+
+(defn- maybe-process-next [state]
+  (log/trace "maybe-process-next")
+  (if (and (seq (:idle state)) (seq (:queue state)))
+    (let [w (first (:idle state))
+          v (first (:queue state))]
+      (-> state
+          (update :queue rest)
+          (update :idle rest)
+          (update-in [:output [:out w]] conj [(:effort v) (assoc v :worker w)])))
+    state))
+
+(defn- enqueue [state v t]
+  (log/tracef "enqueue: %s" v)
+  (update state :queue conj (assoc v :arrival-time t)))
+
+(defn- send-job [state v t]
+  (log/tracef "send-job: %s" v)
+  (update-in state [:output :out] conj (assoc v :departure-time t)))
+
+(defn- dispatch [state [port v] t]
+  (case port
+    :add    (-> state
+                (add-server v)
+                (idle v)
+                maybe-process-next)
+    :remove (let [id (first (:idle state))]
+              (-> state
+                  (rem-server id)
+                  (update :idle rest)
+                  (update-in [:output :send] conj id)))
+    :in     (-> state
+                (enqueue v t)
+                maybe-process-next)
+    (case (first port)
+      :in (-> state
+              (send-job v t)
+              (idle (second port))
+              maybe-process-next))))
+
+(def-executive-model Queue [id idle queue output structure-changes total-elapsed]
+  (internal-update [state]
+    ;; It is not necessary to update total-elapsed here, since the
+    ;; elapsed time could only be h/zero. IS THAT WRONG? Should we
+    ;; account for the minimum epsilon delta?
+    (-> state
+        (update :output empty)
+        (update :structure-changes empty)))
+  (external-update [state elapsed mail]
+    (let [t          (h/+ total-elapsed elapsed)
+          flat-mail  (for [[port vs] mail, v vs] [port v])
+          state'     (reduce #(dispatch %1 %2 t) state flat-mail)
+          queue-size (count (:queue state'))
+          idle-size  (count (:idle state'))]
+      (-> state'
+          (update-in [:output :size] conj [queue-size idle-size])
+          (assoc :total-elapsed t))))
+  (output [state] output)
+  (time-advance [state]
+    (if (or (seq output) (seq structure-changes))
+      h/zero
+      h/infinity))
+  (structure-changes [state] structure-changes))
+
+(defn queue [id n-servers]
+  (let [queue-size 0
+        idle-size  n-servers
+        server-ids (repeatedly n-servers #(gensym "worker-"))
+        state      (map->Queue {:id                id
+                                :idle              server-ids
+                                :queue             []
+                                :output            {:init [[queue-size idle-size]]}
+                                :structure-changes []
+                                :total-elapsed     h/zero})]
+    (reduce add-server state server-ids)))
 
 (defn node [n-servers]
-  (network-model {:queue (queue :queue n-servers)}
-                 [[:network :in :queue :in]
-                  [:network :remove :queue :remove]
-                  [:network :add :queue :add]
-                  [:queue :size :network :size]
-                  [:queue :init :network :init]
-                  [:queue :send :network :send]
-                  [:queue :out :network :out]
-                  [:queue :petition :network :petition]]))
+  (network-model
+   :queue
+   [(queue :queue n-servers) h/zero]
+   {}
+   [[:network :in :queue :in]
+    [:network :remove :queue :remove]
+    [:network :add :queue :add]
+    [:queue :size :network :size]
+    [:queue :init :network :init]
+    [:queue :send :network :send]
+    [:queue :out :network :out]]))
+
+(defn- update-size [state k q-size idle-size]
+  (-> state
+      (assoc-in [:queue-sizes k] q-size)
+      (assoc-in [:idle-sizes  k] idle-size)))
+
+(defn- maybe-move [state]
+  ;; If there is an idle server in node-i, and (size of the queue in
+  ;; node-j - number of servers in transit to node-j) > T, then move
+  ;; an idle server from node-i to node-j.
+  (let [threshold               (:threshold     state)
+        [k1-q       k2-q      ] (:queue-sizes   state)
+        [k1-idle    k2-idle   ] (:idle-sizes    state)
+        [k1-transit k2-transit] (:in-transit-to state)]
+    (cond
+      (and (> k1-idle 0)
+           (> (- k2-q k2-transit) threshold)) (-> state
+                                                  (update-in [:output [:ask 0]] conj true)
+                                                  (update-in [:in-transit-to 1] inc))
+      (and (> k2-idle 0)
+           (> (- k1-q k1-transit) threshold)) (-> state
+                                                  (update-in [:output [:ask 1]] conj true)
+                                                  (update-in [:in-transit-to 0] inc))
+      :else                                   state)))
+
+(def-atomic-model Control [queue-sizes idle-sizes output threshold]
+  (internal-update [state]
+    (update state :output empty))
+  (external-update [state elapsed mail]
+    (let [state (assoc state :in-transit-to [0 0])]
+      (-> (reduce (fn [state [port [q-size idle-size]]]
+                    (case port
+                      :init1 (update-size state 0 q-size idle-size)
+                      :init2 (update-size state 1 q-size idle-size)
+                      :size1 (update-size state 0 q-size idle-size)
+                      :size2 (update-size state 1 q-size idle-size)))
+                  state
+                  (for [[port vs] mail, v vs] [port v]))
+          maybe-move)))
+  (output [state] output)
+  (time-advance [state]
+    (if (seq output)
+      h/zero
+      h/infinity)))
 
 (defn control [threshold]
-  (letfn [(update-size [s k q-size idle-size]
-            (-> s
-                (assoc-in [:queue-sizes k] q-size)
-                (assoc-in [:idle-sizes  k] idle-size)))
-          (maybe-move [s]
-            ;; If there is an idle server in node-i, and (size of the queue in
-            ;; node-j - number of servers in transit to node-j) > T, then move
-            ;; an idle server from node-i to node-j.
-            (let [[k1-q       k2-q      ] (:queue-sizes   s)
-                  [k1-idle    k2-idle   ] (:idle-sizes    s)
-                  [k1-transit k2-transit] (:in-transit-to s)]
-              (cond
-                (and (> k1-idle 0)
-                     (> (- k2-q k2-transit) threshold)) (-> s
-                                                            (update-in [:output [:ask 0]] conj true)
-                                                            (update-in [:in-transit-to 1] inc))
-                (and (> k2-idle 0)
-                     (> (- k1-q k1-transit) threshold)) (-> s
-                                                            (update-in [:output [:ask 1]] conj true)
-                                                            (update-in [:in-transit-to 0] inc))
-                :else                                   s)))]
-    (atomic-model
-     :initial-state   {:output      {}
-                       :sigma       h/infinity
-                       :queue-sizes [0 0]
-                       :idle-sizes  [0 0]}
-     :internal-update (fn [s]
-                        (assoc s :sigma h/infinity :output {}))
-     :external-update (fn [s e x]
-                        (let [s (assoc s :in-transit-to [0 0])]
-                          (-> (reduce (fn [s [port [q-size idle-size]]]
-                                        (case port
-                                          :init1 (update-size s 0 q-size idle-size)
-                                          :init2 (update-size s 1 q-size idle-size)
-                                          :size1 (update-size s 0 q-size idle-size)
-                                          :size2 (update-size s 1 q-size idle-size)))
-                                      (assoc s :sigma h/epsilon)
-                                      (for [[k vs] x, v vs] [k v]))
-                              maybe-move)))
-     :output          :output
-     :time-advance    :sigma)))
+  (map->Control {:queue-sizes [0 0]
+                 :idle-sizes  [0 0]
+                 :output      {}
+                 :threshold   threshold}))
 
-(defn network-1 [n-servers-per-node threshold]
-  (network-model
-   {:control (control threshold)
-    :node-1  (node n-servers-per-node)
-    :node-2  (node n-servers-per-node)}
+(defn network [n-servers-per-node threshold]
+  (m/static-network-model
+   {:control [(control threshold) h/zero]
+    :node-1  [(node n-servers-per-node) h/zero]
+    :node-2  [(node n-servers-per-node) h/zero]}
    [[:network :in1 :node-1 :in]
     [:network :in2 :node-2 :in]
     [:control [:ask 0] :node-1 :remove]

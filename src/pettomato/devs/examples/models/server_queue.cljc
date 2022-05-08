@@ -63,8 +63,7 @@
       (-> state
           (update-in [:output [:out worker]] conj [(:effort job) (assoc job :worker worker :start-time t)])
           (update :queue pop)
-          (update :workers pop)
-          (assoc :sigma h/zero)))))
+          (update :workers pop)))))
 
 (defn- import-jobs [state jobs t]
   (let [jobs (map #(assoc % :arrival-time t) jobs)]
@@ -76,13 +75,12 @@
         (update :workers conj worker)
         (update-in [:output :out] into jobs))))
 
-(def-executive-model Server [id queue workers capacity output sigma structure-changes total-elapsed]
+(def-executive-model Server [id queue workers capacity output structure-changes total-elapsed]
   (internal-update [state]
     (let [t (h/+ total-elapsed (time-advance state))]
       (-> (assoc state
                  :output {}
                  :structure-changes []
-                 :sigma h/infinity
                  :total-elapsed t)
           (distribute-work t))))
   (external-update [state elapsed mail]
@@ -97,10 +95,13 @@
                      :else        (-> state
                                       (export-jobs (second port) vs t)
                                       maybe-shrink)))
-                 (assoc state :sigma h/zero :total-elapsed t)
+                 (assoc state :total-elapsed t)
                  mail)))
   (output [state] output)
-  (time-advance [state] sigma)
+  (time-advance [state]
+    (if (or (seq output) (seq structure-changes))
+      h/zero
+      h/infinity))
   (structure-changes [state] structure-changes))
 
 (defn server
@@ -114,7 +115,6 @@
                   :workers           queue ;; A FIFO of available workers.
                   :capacity          0
                   :output            {}
-                  :sigma             h/infinity
                   :structure-changes []
                   :total-elapsed     h/zero
                   :id-counter        0})

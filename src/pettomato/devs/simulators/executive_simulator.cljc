@@ -24,7 +24,8 @@
     (let [tl (h/- t initial-elapsed)
           ta (time-advance initial-state)
           tn (h/+ tl ta)]
-      (assert (h/< tl tn) "tl must be < tn")
+      #_(when (not (h/< tl tn))
+        (throw (ex-info "tl must be < tn" {:tl tl :tn tn})))
       (assoc sim :state initial-state :tl tl :tn tn)))
   (collect-mail [sim t]
     (log/trace "--- collect-mail ---")

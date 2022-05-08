@@ -102,8 +102,17 @@
   []
   (->SimpleExec []))
 
+(def-executive-model StaticExec [])
+
+(defn static-executive []
+  (->StaticExec))
+
 (defn simple-network-model
   ([executive-id]
    (simple-network-model executive-id [] []))
   ([executive-id models routes]
    (network-model executive-id [(simple-executive) h/zero] models routes)))
+
+(defn static-network-model
+  [models routes]
+  (network-model (gensym) [(static-executive) h/zero] models routes))
