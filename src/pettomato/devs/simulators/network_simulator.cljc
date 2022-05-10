@@ -192,6 +192,7 @@
                        :tn         tn
                        :mail-count (count mail)})))
     (let [imminent     (if (h/= t tn) (pq/peek queue) #{})
+          _            (log/tracef "imminent: %s" imminent)
           imm-mail     (zipmap imminent (repeat {})) ; Transitions are "mail-driven"; imminent sims are primed with an empty bag.
           ;; There could be redundancy here, if a component routes
           ;; output to the network (in collect-mail above) and also
@@ -202,9 +203,15 @@
                             (mail/route-mail local-routes))
           network-mail (mail/route-mail network-input-routes {:network mail})
           all-mail     (mail/merge-mail imm-mail local-mail network-mail)
+          _            (binding [*print-level* 10
+                                 *print-length* 10]
+                           (log/tracef "all-mail: %s" all-mail))
           sc*          (if (contains? imminent (:executive-id model))
                          (get-structure-changes (get (:id->sim sim) (:executive-id model)))
                          [])
+          _            (binding [*print-level* 10
+                                 *print-length* 10]
+                         (log/tracef "sc*: %s" sc*))
           sim          (apply-transitions sim t all-mail)
           sim          (apply-network-structure-changes sim t sc*)
           tn           (or (pq/peek-key (:queue sim))

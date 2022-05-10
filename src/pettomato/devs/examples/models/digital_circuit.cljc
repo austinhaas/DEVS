@@ -39,7 +39,7 @@
           input      (if (contains? mail :in)  (rand-nth (:in  mail)) input)
           output     (not input)]
       (assoc state
-             :sigma      (h/- delay h/epsilon) ;; Subtract epsilon b/c NIA.
+             :sigma      delay
              :has-power? has-power?
              :input      input
              :output     output)))
@@ -68,7 +68,7 @@
           input-2    (if (contains? mail :in-2) (rand-nth (:in-2 mail)) input-2)
           output     (and input-1 input-2)]
       (assoc state
-             :sigma      (h/- delay h/epsilon) ;; Subtract epsilon b/c NIA.
+             :sigma      delay
              :has-power? has-power?
              :input-1    input-1
              :input-2    input-2
@@ -98,7 +98,7 @@
           input-2    (if (contains? mail :in-2) (rand-nth (:in-2 mail)) input-2)
           output     (or input-1 input-2)]
       (assoc state
-             :sigma      (h/- delay h/epsilon) ;; Subtract epsilon b/c NIA.
+             :sigma      delay
              :has-power? has-power?
              :input-1    input-1
              :input-2    input-2

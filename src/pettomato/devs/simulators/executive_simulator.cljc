@@ -24,7 +24,8 @@
     (let [tl (h/- t initial-elapsed)
           ta (time-advance initial-state)
           tn (h/+ tl ta)]
-      #_(when (not (h/< tl tn))
+      (assert (h/pos? ta))
+      (when (not (h/< tl tn))
         (throw (ex-info "tl must be < tn" {:tl tl :tn tn})))
       (assoc sim :state initial-state :tl tl :tn tn)))
   (collect-mail [sim t]
@@ -44,7 +45,7 @@
                                                                   :tn         tn
                                                                   :mail-count (count mail)})))
           ta    (time-advance state)
-          tn    (h/+ t h/epsilon ta)]
+          tn    (h/+ t ta)]
       (assoc sim :state state :tl t :tn tn)))
   (time-of-last-event [sim] tl)
   (time-of-next-event [sim] tn)

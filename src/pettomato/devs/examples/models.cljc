@@ -16,14 +16,7 @@
   of [delta output] pairs. The model emits each output after
   delta. Sleeps forever after emitting the last output."
   [xs]
-  (let [xs (lazy-seq (cons (first xs)
-                           ;; Compensate for transitions taking 1ε,
-                           ;; for the NIA.
-                           (map (fn [[delay output]]
-                                  [(h/- delay h/epsilon)
-                                   output])
-                                (rest xs))))]
-    (->Generator xs)))
+  (->Generator xs))
 
 (def-atomic-model Buffer [delta buffer sigma]
   (internal-update [state] (assoc state :buffer nil :sigma h/infinity))
@@ -32,7 +25,7 @@
       (update state :sigma h/- elapsed)
       (assoc state
              :buffer (rand-nth (:in mail))
-             :sigma  (h/- delta h/epsilon))))
+             :sigma  delta)))
   (output [state] {:out [buffer]})
   (time-advance [state] sigma))
 
@@ -46,7 +39,7 @@
       (update state :sigma h/- elapsed)
       (assoc state
              :buffer (rand-nth (:in mail))
-             :sigma  (h/- delta h/epsilon))))
+             :sigma  delta)))
   (confluent-update [state mail]
     (-> (external-update state (time-advance state) mail)
         (internal-update)))
@@ -71,7 +64,7 @@
       (reduce (fn [state [delta value]]
                 (assert (and (h/hyperreal? delta)
                              (h/pos? delta)))
-                (let [t (h/+ total-elapsed (h/- delta h/epsilon))]
+                (let [t (h/+ total-elapsed delta)]
                   (update state :queue pq/insert t value)))
               (assoc state :total-elapsed total-elapsed)
               (:in mail))))
@@ -93,7 +86,7 @@
 (def-executive-model SimpleExec [structure-changes]
   (internal-update [state] (update state :structure-changes empty))
   (external-update [state elapsed mail] (update state :structure-changes into (:in mail)))
-  (time-advance [state] (if (seq structure-changes) h/zero h/infinity))
+  (time-advance [state] (if (seq structure-changes) h/epsilon h/infinity))
   (structure-changes [state] structure-changes))
 
 (defn simple-executive

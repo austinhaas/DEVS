@@ -93,7 +93,7 @@
   (output [state] output)
   (time-advance [state]
     (if (or (seq output) (seq structure-changes))
-      h/zero
+      h/epsilon
       h/infinity))
   (structure-changes [state] structure-changes))
 
@@ -163,7 +163,7 @@
   (output [state] output)
   (time-advance [state]
     (if (seq output)
-      h/zero
+      h/epsilon
       h/infinity)))
 
 (defn control [threshold]

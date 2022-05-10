@@ -184,12 +184,13 @@
     (is (event-log=
          [[(h/*R 7 1) {:out [0]}]
           [(h/*R 9 1) {:out [1]}]]
-         (let [gen (m/generator [[(h/*R 5) {:out [[:add-model :gen-1 [(m/generator
-                                                                       (for [i (range)] [(h/*R 2) {:out [i]}]))
-                                                                      h/zero]]
-                                                  [:connect [:gen-1 :out :network :out]]]}]
-                                 [(h/*R 5) {:out [[:disconnect [:gen-1 :out :network :out]]
-                                                  [:rem-model :gen-1]]}]])
+         (let [gen (m/generator
+                    [[(h/*R 5) {:out [[:add-model :gen-1 [(m/generator
+                                                           (for [i (range)] [(h/*R 2) {:out [i]}]))
+                                                          h/zero]]
+                                      [:connect [:gen-1 :out :network :out]]]}]
+                     [(h/*R 5) {:out [[:disconnect [:gen-1 :out :network :out]]
+                                      [:rem-model :gen-1]]}]])
                net (m/simple-network-model
                     :exec
                     {:gen [gen h/zero]}
