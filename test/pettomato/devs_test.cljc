@@ -48,7 +48,7 @@
                       (-> (network-simulator net)
                           afap-root-coordinator))))))
 
-(deftest initial-elapsed-test
+(deftest initial-elapsed-tests
 
   (testing "An atomic simulation. #1"
     (is (event-log= [[(h/*R 5)  {:out ["x"]}]
@@ -100,6 +100,23 @@
                           net (m/simple-network-model
                                :exec
                                {:gen [gen (h/*R 2)]
+                                :buf [buf h/zero]}
+                               [[:gen :out :buf :in]
+                                [:buf :out :network :out]])]
+                      (-> (network-simulator net)
+                          afap-root-coordinator))))))
+
+(deftest elapsed-time-tests
+
+  (testing "The model can keep track of total elapsed time."
+    (is (event-log= [[(h/*R 15) {:out [1 2 3]}]]
+                    (let [gen (m/generator [[(h/*R 5) {:out [[(h/*R 10) 1]]}]
+                                            [(h/*R 1) {:out [[(h/*R 9)  2]]}]
+                                            [(h/*R 3) {:out [[(h/*R 6)  3]]}]])
+                          buf (m/buffer+)
+                          net (m/simple-network-model
+                               :exec
+                               {:gen [gen h/zero]
                                 :buf [buf h/zero]}
                                [[:gen :out :buf :in]
                                 [:buf :out :network :out]])]
