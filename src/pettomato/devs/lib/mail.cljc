@@ -48,4 +48,4 @@
                 [rk rp->fs] (get-in routes [sk sp])
                 [rp fs]     rp->fs
                 f           fs]
-            [rk rp (keep f vs)])))
+            [rk rp (into [] f vs)])))

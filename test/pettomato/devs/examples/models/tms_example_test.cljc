@@ -36,8 +36,8 @@
           net (m/static-network-model
                {:gen    [gen h/zero]
                 :server [srv h/zero]}
-               [[:gen :out :server :in1 (fn [[idx job]] (when (= idx 1) job))]
-                [:gen :out :server :in2 (fn [[idx job]] (when (= idx 2) job))]
+               [[:gen :out :server :in1 (keep (fn [[idx job]] (when (= idx 1) job)))]
+                [:gen :out :server :in2 (keep (fn [[idx job]] (when (= idx 2) job)))]
                 [:server :out :network :out]])]
       (testing "Runs without errors. Test pp-event-log, too."
         (is (< 0 (count

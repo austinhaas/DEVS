@@ -135,8 +135,8 @@
                                :exec
                                {:gen [gen h/zero]
                                 :buf [buf h/zero]}
-                               [[:gen :out :buf :in (fn [x] [(h/*R 5) x])]
-                                [:buf :out :network :out vector]])]
+                               [[:gen :out :buf :in (map (fn [x] [(h/*R 5) x]))]
+                                [:buf :out :network :out (map vector)]])]
                       (-> (network-simulator net)
                           afap-root-coordinator))))))
 
@@ -182,7 +182,7 @@
                        (m/simple-network-model
                         :exec
                         {id [buf h/zero]}
-                        [[:network :in id :in (fn [x] [id x])]
+                        [[:network :in id :in (map (fn [x] [id x]))]
                          [id :out :network :out]])))
                gen (m/generator (for [i (range)] [(h/*R 2) [i]]))
                buf (-> (m/buffer (h/*R 3)) (f 1) (f 2) (f 3))
