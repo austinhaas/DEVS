@@ -18,27 +18,26 @@
   (rand/with-random-seed 0
     (let [gen (m/generator
                (for [i (range 100)]
-                 (let [dt       (h/*R (+ 1 (rand/rand-int 5)))
+                 (let [dt     (h/*R (+ 1 (rand/rand-int 5)))
                        ;; A sin function is applied to the random
                        ;; selection of ports, to cause the server to
                        ;; continuously move workers.
-                       period   50
-                       x        (Math/sin (* (/ (* Math/PI 2)
-                                                period)
-                                             i))
-                       y        (rand/rand 2.0)
-                       port-idx (int (/ (+ (inc x) y) 2))
-                       port     (keyword (str "out-" port-idx))
-                       id       (str "job-" i)
-                       effort   (h/*R (+ 1 (rand/rand-int 100)))
-                       job      {:id id :effort effort}]
-                   [dt {port [job]}])))
+                       period 50
+                       x      (Math/sin (* (/ (* Math/PI 2)
+                                              period)
+                                           i))
+                       y      (rand/rand 2.0)
+                       idx    (int (/ (+ (inc x) y) 2))
+                       id     (str "job-" i)
+                       effort (h/*R (+ 1 (rand/rand-int 100)))
+                       job    {:id id :effort effort}]
+                   [dt [[idx job]]])))
           srv (tms/network 8 2)
           net (m/static-network-model
                {:gen    [gen h/zero]
                 :server [srv h/zero]}
-               [[:gen :out-1 :server :in1]
-                [:gen :out-2 :server :in2]
+               [[:gen :out :server :in1 (fn [[idx job]] (when (= idx 1) job))]
+                [:gen :out :server :in2 (fn [[idx job]] (when (= idx 2) job))]
                 [:server :out :network :out]])]
       (testing "Runs without errors. Test pp-event-log, too."
         (is (< 0 (count

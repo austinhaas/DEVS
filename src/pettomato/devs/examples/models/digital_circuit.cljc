@@ -197,26 +197,30 @@
     (m/simple-network-model :exec models routes)))
 
 (defn encode
-  "Converts an number into mail."
-  [n-bits n port-label]
-  (into {} (for [i (range n-bits)]
-             (let [v (bit-test n i)]
-               [[port-label i] [v]]))))
+  "Converts an number into seq of \"bits\"."
+  [n-bits n]
+  (for [i (range n-bits)] (bit-test n i)))
 
 (defn decode
-  "Converts mail into a number."
+  "Converts a seq of \"bits\" into a number."
   [xs]
   (reduce (fn [n [i b]]
             (if b
               (bit-set   n i)
               (bit-clear n i)))
           0
-          (for [[t m]  xs
-                [k vs] m
-                :when (and (vector? k) (= :s (first k)))
-                :let  [[k i] k]
-                v      vs]
-            [i v])))
+          (map vector (range) xs)))
+
+(defn decode-mail
+  [bits xs]
+  (->> xs
+       (mapcat second)
+       (keep (fn [[port vs]]
+               (when (and (vector? port)
+                          (= :s (first port)))
+                 [(second port) (rand-nth vs)])))
+       (reduce (fn [v [i b]] (assoc v i b)) (vec (repeat bits 0)))
+       decode))
 
 (defn ripple-carry-add
   "Adds two numbers using a ripple adder."
@@ -224,24 +228,41 @@
                  :or   {inverter-delay (h/*R 0 2)
                         and-gate-delay (h/*R 0 3)
                         or-gate-delay  (h/*R 0 5)}}]
-  (-> (m/simple-network-model
-       :exec
-       {:gen [(m/generator [[(h/*R 1) {:pwr [true]}]
-                            [(h/*R 1000) (merge (encode n-bits a :a)
-                                                (encode n-bits b :b))]])
-              (h/*R 1)]
-        :rca [(ripple-carry-adder n-bits
-                                  inverter-delay
-                                  and-gate-delay
-                                  or-gate-delay)
-              h/zero]}
-       (apply concat
-              [[:gen :pwr :rca :pwr]
-               [:rca :c :network :c]]
-              (for [i (range n-bits)]
-                [[:gen [:a i] :rca [:a i]]
-                 [:gen [:b i] :rca [:b i]]
-                 [:rca [:s i] :network [:s i]]])))
-      network-simulator
-      afap-root-coordinator
-      decode))
+  (let [a-bits (encode n-bits a)
+        b-bits (encode n-bits b)
+        a-gens (map-indexed
+                (fn [i b]
+                  [(keyword (str "a-gen-" i))
+                   [(m/generator [[(h/*R 1000) [b]]]) h/zero]])
+                a-bits)
+        b-gens (map-indexed
+                (fn [i b]
+                  [(keyword (str "b-gen-" i))
+                   [(m/generator [[(h/*R 1000) [b]]]) h/zero]])
+                b-bits)
+        models (merge {:gen-pwr [(m/generator [[(h/*R 1) [true]]])
+                                 (h/*R 1)]
+                       :rca     [(ripple-carry-adder n-bits
+                                                     inverter-delay
+                                                     and-gate-delay
+                                                     or-gate-delay)
+                                 h/zero]}
+                      (into {} a-gens)
+                      (into {} b-gens))
+        routes (apply concat
+                      [[:gen-pwr :out :rca :pwr]
+                       [:rca :c :network :c]]
+                      (map-indexed
+                       (fn [i [id gen]]
+                         [id :out :rca [:a i]])
+                       a-gens)
+                      (map-indexed
+                       (fn [i [id gen]]
+                         [id :out :rca [:b i]])
+                       b-gens)
+                      (for [i (range n-bits)]
+                        [[:rca [:s i] :network [:s i]]]))]
+    (->> (m/static-network-model models routes)
+         network-simulator
+         afap-root-coordinator
+         (decode-mail n-bits))))

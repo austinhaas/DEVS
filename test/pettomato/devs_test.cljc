@@ -22,22 +22,22 @@
                      [(h/*R 6 0)  {:out ["x"]}]
                      [(h/*R 8 0)  {:out ["x"]}]
                      [(h/*R 10 0) {:out ["x"]}]]
-                    (-> (m/generator (repeat [(h/*R 2 0) {:out ["x"]}]))
+                    (-> (m/generator (repeat [(h/*R 2 0) ["x"]]))
                         atomic-simulator
                         (afap-root-coordinator :end (h/*R 10 0))))))
 
   (testing "Specifying a non-zero start time."
     (is (event-log= [[(h/*R 7 0) {:out ["x"]}]
                      [(h/*R 9 0) {:out ["x"]}]]
-                    (-> (m/generator (repeat [(h/*R 2 0) {:out ["x"]}]))
+                    (-> (m/generator (repeat [(h/*R 2 0) ["x"]]))
                         atomic-simulator
                         (afap-root-coordinator :start (h/*R 5 0) :end (h/*R 10 0))))))
 
   (testing "A simple network."
     (is (event-log= [[(h/*R 15 0) {:out ["x"]}]
                      [(h/*R 25 0) {:out ["y"]}]]
-                    (let [gen (m/generator [[(h/*R 10) {:out ["x"]}]
-                                            [(h/*R 10) {:out ["y"]}]])
+                    (let [gen (m/generator [[(h/*R 10) ["x"]]
+                                            [(h/*R 10) ["y"]]])
                           buf (m/buffer (h/*R 5))
                           net (m/simple-network-model
                                :exec
@@ -53,24 +53,24 @@
   (testing "An atomic simulation. #1"
     (is (event-log= [[(h/*R 5)  {:out ["x"]}]
                      [(h/*R 15) {:out ["y"]}]]
-                    (let [gen (m/generator [[(h/*R 10) {:out ["x"]}]
-                                            [(h/*R 10) {:out ["y"]}]])]
+                    (let [gen (m/generator [[(h/*R 10) ["x"]]
+                                            [(h/*R 10) ["y"]]])]
                       (-> (atomic-simulator gen :elapsed (h/*R 5))
                           afap-root-coordinator)))))
 
   (testing "An atomic simulation. #2"
     (is (event-log= [[(h/*R 0)  {:out ["x"]}]
                      [(h/*R 10) {:out ["y"]}]]
-                    (let [gen (m/generator [[(h/*R 10) {:out ["x"]}]
-                                            [(h/*R 10) {:out ["y"]}]])]
+                    (let [gen (m/generator [[(h/*R 10) ["x"]]
+                                            [(h/*R 10) ["y"]]])]
                       (-> (atomic-simulator gen :elapsed (h/*R 10))
                           afap-root-coordinator)))))
 
   (testing "A network simulation. #1"
     (is (event-log= [[(h/*R 13 0) {:out ["x"]}]
                      [(h/*R 23 0) {:out ["y"]}]]
-                    (let [gen (m/generator [[(h/*R 10) {:out ["x"]}]
-                                            [(h/*R 10) {:out ["y"]}]])
+                    (let [gen (m/generator [[(h/*R 10) ["x"]]
+                                            [(h/*R 10) ["y"]]])
                           buf (m/buffer (h/*R 5))
                           net (m/simple-network-model
                                :exec
@@ -83,7 +83,7 @@
 
   (testing "A network simulation. #2"
     (is (event-log= [[(h/*R 0) {:out ["x"]}]]
-                    (let [gen (m/generator [[(h/*R 10) {:out ["x"]}]])
+                    (let [gen (m/generator [[(h/*R 10) ["x"]]])
                           net (m/simple-network-model
                                :exec
                                {:gen [gen h/zero]}
@@ -94,8 +94,8 @@
   (testing "An atomic model within a network simulation."
     (is (event-log= [[(h/*R 13 0) {:out ["x"]}]
                      [(h/*R 23 0) {:out ["y"]}]]
-                    (let [gen (m/generator [[(h/*R 10) {:out ["x"]}]
-                                            [(h/*R 10) {:out ["y"]}]])
+                    (let [gen (m/generator [[(h/*R 10) ["x"]]
+                                            [(h/*R 10) ["y"]]])
                           buf (m/buffer (h/*R 5))
                           net (m/simple-network-model
                                :exec
@@ -110,9 +110,9 @@
 
   (testing "The model can keep track of total elapsed time."
     (is (event-log= [[(h/*R 15) {:out [1 2 3]}]]
-                    (let [gen (m/generator [[(h/*R 5) {:out [[(h/*R 10) 1]]}]
-                                            [(h/*R 1) {:out [[(h/*R 9)  2]]}]
-                                            [(h/*R 3) {:out [[(h/*R 6)  3]]}]])
+                    (let [gen (m/generator [[(h/*R 5) [[(h/*R 10) 1]]]
+                                            [(h/*R 1) [[(h/*R 9)  2]]]
+                                            [(h/*R 3) [[(h/*R 6)  3]]]])
                           buf (m/buffer+)
                           net (m/simple-network-model
                                :exec
@@ -128,8 +128,8 @@
   (testing "Using route functions"
     (is (event-log= [[(h/*R 15 0) {:out [["x"]]}]
                      [(h/*R 25 0) {:out [["y"]]}]]
-                    (let [gen (m/generator [[(h/*R 10) {:out ["x"]}]
-                                            [(h/*R 10) {:out ["y"]}]])
+                    (let [gen (m/generator [[(h/*R 10) ["x"]]
+                                            [(h/*R 10) ["y"]]])
                           buf (m/buffer+)
                           net (m/simple-network-model
                                :exec
@@ -145,8 +145,8 @@
   (testing "Internal before external."
     (is (event-log= [[(h/*R 20 0) {:out ["x"]}]
                      [(h/*R 30 0) {:out ["y"]}]]
-                    (let [gen (m/generator [[(h/*R 10) {:out ["x"]}]
-                                            [(h/*R 10) {:out ["y"]}]])
+                    (let [gen (m/generator [[(h/*R 10) ["x"]]
+                                            [(h/*R 10) ["y"]]])
                           buf (m/buffer (h/*R 10))
                           net (m/simple-network-model
                                :exec
@@ -159,8 +159,8 @@
 
   (testing "External before internal."
     (is (event-log= [[(h/*R 20 0) {:out ["x"]}]]
-                    (let [gen (m/generator [[(h/*R 10) {:out ["x"]}]
-                                            [(h/*R 10) {:out ["y"]}]])
+                    (let [gen (m/generator [[(h/*R 10) ["x"]]
+                                            [(h/*R 10) ["y"]]])
                           buf (m/buffer2 (h/*R 10))
                           net (m/simple-network-model
                                :exec
@@ -184,7 +184,7 @@
                         {id [buf h/zero]}
                         [[:network :in id :in (fn [x] [id x])]
                          [id :out :network :out]])))
-               gen (m/generator (for [i (range)] [(h/*R 2) {:out [i]}]))
+               gen (m/generator (for [i (range)] [(h/*R 2) [i]]))
                buf (-> (m/buffer (h/*R 3)) (f 1) (f 2) (f 3))
                net (m/simple-network-model
                     :exec
@@ -202,12 +202,12 @@
          [[(h/*R 7 1) {:out [0]}]
           [(h/*R 9 1) {:out [1]}]]
          (let [gen (m/generator
-                    [[(h/*R 5) {:out [[:add-model :gen-1 [(m/generator
-                                                           (for [i (range)] [(h/*R 2) {:out [i]}]))
-                                                          h/zero]]
-                                      [:connect [:gen-1 :out :network :out]]]}]
-                     [(h/*R 5) {:out [[:disconnect [:gen-1 :out :network :out]]
-                                      [:rem-model :gen-1]]}]])
+                    [[(h/*R 5) [[:add-model :gen-1 [(m/generator
+                                                     (for [i (range)] [(h/*R 2) [i]]))
+                                                    h/zero]]
+                                [:connect [:gen-1 :out :network :out]]]]
+                     [(h/*R 5) [[:disconnect [:gen-1 :out :network :out]]
+                                [:rem-model :gen-1]]]])
                net (m/simple-network-model
                     :exec
                     {:gen [gen h/zero]}
@@ -219,12 +219,12 @@
     (is (event-log=
          [[(h/*R 7 1) {:out [0]}]
           [(h/*R 9 1) {:out [1]}]]
-         (let [gen (m/generator [[(h/*R 5) {:out [[:connect [:gen-1 :out :network :out]]
-                                                  [:add-model :gen-1 [(m/generator
-                                                                       (for [i (range)] [(h/*R 2) {:out [i]}]))
-                                                                      h/zero]]]}]
-                                 [(h/*R 5) {:out [[:rem-model :gen-1]
-                                                  [:disconnect [:gen-1 :out :network :out]]]}]])
+         (let [gen (m/generator [[(h/*R 5) [[:connect [:gen-1 :out :network :out]]
+                                            [:add-model :gen-1 [(m/generator
+                                                                 (for [i (range)] [(h/*R 2) [i]]))
+                                                                h/zero]]]]
+                                 [(h/*R 5) [[:rem-model :gen-1]
+                                            [:disconnect [:gen-1 :out :network :out]]]]])
                net (m/simple-network-model
                     :exec
                     {:gen [gen h/zero]}
@@ -234,12 +234,12 @@
 
   (testing "Remove an atomic model before it is imminent."
     (is (event-log= []
-                    (let [sc-gen (m/generator [[(h/*R 10 -3) {:out [[:disconnect [:gen :out :network :out]]
-                                                                    [:rem-model :gen]]}]])
+                    (let [sc-gen (m/generator [[(h/*R 10 -3) [[:disconnect [:gen :out :network :out]]
+                                                              [:rem-model :gen]]]])
                           net    (m/simple-network-model
                                   :exec
                                   {:sc-gen [sc-gen h/zero]
-                                   :gen    [(m/generator [[(h/*R 10) {:out ["x"]}]])
+                                   :gen    [(m/generator [[(h/*R 10) ["x"]]])
                                             h/zero]}
                                   [[:sc-gen :out :exec :in]
                                    [:gen :out :network :out]])]
@@ -248,12 +248,12 @@
 
   (testing "Remove an atomic model when it is imminent."
     (is (event-log= []
-                    (let [sc-gen (m/generator [[(h/*R 10 -2) {:out [[:disconnect [:gen :out :network :out]]
-                                                                    [:rem-model :gen]]}]])
+                    (let [sc-gen (m/generator [[(h/*R 10 -2) [[:disconnect [:gen :out :network :out]]
+                                                              [:rem-model :gen]]]])
                           net    (m/simple-network-model
                                   :exec
                                   {:sc-gen [sc-gen h/zero]
-                                   :gen    [(m/generator [[(h/*R 10) {:out ["x"]}]])
+                                   :gen    [(m/generator [[(h/*R 10) ["x"]]])
                                             h/zero]}
                                   [[:sc-gen :out :exec :in]
                                    [:gen :out :network :out]])]
@@ -262,12 +262,12 @@
 
   (testing "Remove an atomic model after it is imminent."
     (is (event-log= [[(h/*R 10) {:out ["x"]}]]
-                    (let [sc-gen (m/generator [[(h/*R 10 -1) {:out [[:disconnect [:gen :out :network :out]]
-                                                                    [:rem-model :gen]]}]])
+                    (let [sc-gen (m/generator [[(h/*R 10 -1) [[:disconnect [:gen :out :network :out]]
+                                                              [:rem-model :gen]]]])
                           net    (m/simple-network-model
                                   :exec
                                   {:sc-gen [sc-gen h/zero]
-                                   :gen    [(m/generator [[(h/*R 10) {:out ["x"]}]])
+                                   :gen    [(m/generator [[(h/*R 10) ["x"]]])
                                             h/zero]}
                                   [[:sc-gen :out :exec :in]
                                    [:gen :out :network :out]])]
@@ -281,18 +281,18 @@
           [(h/*R 17) {:out [7]}]
           [(h/*R 19) {:out [8]}]]
          (let [sc-gen (m/generator
-                       [[(h/*R 10) {:out [[:add-model :net-1 [(m/simple-network-model
-                                                               :exec
-                                                               {:buf [(m/buffer (h/*R 1)) h/zero]}
-                                                               [[:network :in :buf :in]
-                                                                [:buf :out :network :out]])
-                                                              h/zero]]
-                                          [:connect [:gen :out :net-1 :in]]
-                                          [:connect [:net-1 :out :network :out]]]}]
-                        [(h/*R 10) {:out [[:rem-model :net-1]
-                                          [:disconnect [:gen :out :net-1 :in]]
-                                          [:disconnect [:net-1 :out :network :out]]]}]])
-               gen    (m/generator (for [i (range)] [(h/*R 2) {:out [i]}]))
+                       [[(h/*R 10) [[:add-model :net-1 [(m/simple-network-model
+                                                         :exec
+                                                         {:buf [(m/buffer (h/*R 1)) h/zero]}
+                                                         [[:network :in :buf :in]
+                                                          [:buf :out :network :out]])
+                                                        h/zero]]
+                                    [:connect [:gen :out :net-1 :in]]
+                                    [:connect [:net-1 :out :network :out]]]]
+                        [(h/*R 10) [[:rem-model :net-1]
+                                    [:disconnect [:gen :out :net-1 :in]]
+                                    [:disconnect [:net-1 :out :network :out]]]]])
+               gen    (m/generator (for [i (range)] [(h/*R 2) [i]]))
                net    (m/simple-network-model
                        :exec
                        {:sc-gen [sc-gen h/zero]
@@ -324,22 +324,22 @@
                      [(h/*R 18) {:gen-out ["msg-18"]}]
                      [(h/*R 19) {:gen-out ["msg-19"] :del-2-out ["msg-17"]}]
                      [(h/*R 20) {:gen-out ["msg-20"]}]]
-                    (let [gen    (m/generator (for [i (range)] [(h/*R 1) {:out [(str "msg-" (inc i))]}]))
+                    (let [gen    (m/generator (for [i (range)] [(h/*R 1) [(str "msg-" (inc i))]]))
                           del-1  (m/buffer (h/*R 1))
                           del-2  (m/buffer (h/*R 2))
                           sc-gen (m/generator
-                                  (cycle [[(h/*R 5 -1) {:out [[:disconnect [:gen :out :del-1 :in]]
-                                                              [:disconnect [:del-1 :out :network :del-1-out]]
-                                                              [:rem-model :del-1]
-                                                              [:add-model :del-2 [del-2 h/zero]]
-                                                              [:connect [:gen :out :del-2 :in]]
-                                                              [:connect [:del-2 :out :network :del-2-out]]]}]
-                                          [(h/*R 5 -1) {:out [[:disconnect [:gen :out :del-2 :in]]
-                                                              [:disconnect [:del-2 :out :network :del-2-out]]
-                                                              [:rem-model :del-2]
-                                                              [:add-model :del-1 [del-1 h/zero]]
-                                                              [:connect [:gen :out :del-1 :in]]
-                                                              [:connect [:del-1 :out :network :del-1-out]]]}]]))
+                                  (cycle [[(h/*R 5 -1) [[:disconnect [:gen :out :del-1 :in]]
+                                                        [:disconnect [:del-1 :out :network :del-1-out]]
+                                                        [:rem-model :del-1]
+                                                        [:add-model :del-2 [del-2 h/zero]]
+                                                        [:connect [:gen :out :del-2 :in]]
+                                                        [:connect [:del-2 :out :network :del-2-out]]]]
+                                          [(h/*R 5 -1) [[:disconnect [:gen :out :del-2 :in]]
+                                                        [:disconnect [:del-2 :out :network :del-2-out]]
+                                                        [:rem-model :del-2]
+                                                        [:add-model :del-1 [del-1 h/zero]]
+                                                        [:connect [:gen :out :del-1 :in]]
+                                                        [:connect [:del-1 :out :network :del-1-out]]]]]))
                           net    (m/simple-network-model
                                   :exec
                                   {:gen    [gen h/zero]

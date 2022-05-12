@@ -8,13 +8,13 @@
 
 (def-atomic-model Generator [xs]
   (internal-update [state] (update state :xs next))
-  (output [state] (second (first xs)))
+  (output [state] (when (first xs) {:out (second (first xs))}))
   (time-advance [state] (or (ffirst xs) h/infinity)))
 
 (defn generator
   "Creates a generator atomic model from a (possibly lazy) sequence
-  of [delta output] pairs. The model emits each output after
-  delta. Sleeps forever after emitting the last output."
+  of [delta output] pairs. The model emits each output on port :out
+  after delta. Sleeps forever after emitting the last output."
   [xs]
   (->Generator xs))
 

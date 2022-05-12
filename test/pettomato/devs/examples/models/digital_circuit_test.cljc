@@ -21,13 +21,14 @@
           [(h/*R 5 5) {:out [false]}]]
          (-> (m/simple-network-model
               :exec
-              {:gen [(m/generator [[(h/*R 1) {:pwr [true]}]
-                                   [(h/*R 5) {:out [true]}]])
-                     (h/*R 1)]
-               :inv [(circ/inverter (h/*R 0 5))
-                     h/zero]}
-              [[:gen :pwr :inv :pwr]
-               [:gen :out :inv :in]
+              {:gen-pwr [(m/generator [[(h/*R 1) [true]]])
+                         (h/*R 1)]
+               :gen-val [(m/generator [[(h/*R 5) [true]]])
+                         h/zero]
+               :inv     [(circ/inverter (h/*R 0 5))
+                         h/zero]}
+              [[:gen-pwr :out :inv :pwr]
+               [:gen-val :out :inv :in]
                [:inv :out :network :out]])
              network-simulator
              afap-root-coordinator))))
@@ -35,19 +36,21 @@
   (testing "and-gate"
     (is (event-log=
          [[(h/*R 0 5) {:out [false]}]
-          [(h/*R 3 5) {:out [true]}]]
+          [(h/*R 2 5) {:out [true]}]]
          (-> (m/simple-network-model
               :exec
-              {:gen [(m/generator [[(h/*R 1) {:pwr [true]}]
-                                   [(h/*R 1) {:out-1 [true]}]
-                                   [(h/*R 2) {:out-2 [true]}]])
-                     (h/*R 1)]
-               :and [(circ/and-gate (h/*R 0 5))
-                     h/zero]}
-                            [[:gen :pwr :and :pwr]
-                             [:gen :out-1 :and :in-1]
-                             [:gen :out-2 :and :in-2]
-                             [:and :out :network :out]])
+              {:gen-pwr   [(m/generator [[(h/*R 1) [true]]])
+                           (h/*R 1)]
+               :gen-val-1 [(m/generator [[(h/*R 1) [true]]])
+                           h/zero]
+               :gen-val-2 [(m/generator [[(h/*R 2) [true]]])
+                           h/zero]
+               :and       [(circ/and-gate (h/*R 0 5))
+                           h/zero]}
+              [[:gen-pwr :out :and :pwr]
+               [:gen-val-1 :out :and :in-1]
+               [:gen-val-2 :out :and :in-2]
+               [:and :out :network :out]])
              network-simulator
              afap-root-coordinator))))
 
@@ -58,18 +61,20 @@
           [(h/*R 7 5) {:out [false]}]]
          (-> (m/simple-network-model
               :exec
-              {:gen [(m/generator [[(h/*R 1) {:pwr [true]}]
-                                   [(h/*R 1) {:out-1 [true]}]
-                                   [(h/*R 2) {:out-2 [true]}]
-                                   [(h/*R 2) {:out-1 [false]}]
-                                   [(h/*R 2) {:out-2 [false]}]])
-                     (h/*R 1)]
-               :or  [(circ/or-gate (h/*R 0 5))
-                     h/zero]}
-                            [[:gen :pwr :or :pwr]
-                             [:gen :out-1 :or :in-1]
-                             [:gen :out-2 :or :in-2]
-                             [:or :out :network :out]])
+              {:gen-pwr   [(m/generator [[(h/*R 1) [true]]])
+                           (h/*R 1)]
+               :gen-val-1 [(m/generator [[(h/*R 1) [true]]
+                                         [(h/*R 5) [false]]])
+                           h/zero]
+               :gen-val-2 [(m/generator [[(h/*R 4) [true]]
+                                         [(h/*R 3) [false]]])
+                           h/zero]
+               :or        [(circ/or-gate (h/*R 0 5))
+                           h/zero]}
+              [[:gen-pwr :out :or :pwr]
+               [:gen-val-1 :out :or :in-1]
+               [:gen-val-2 :out :or :in-2]
+               [:or :out :network :out]])
              network-simulator
              afap-root-coordinator)))))
 
@@ -84,15 +89,17 @@
           [(h/*R 9 8) {:s [false]}]]
          (-> (m/simple-network-model
               :exec
-              {:gen [(m/generator [[(h/*R 1) {:pwr [true]}]
-                                   [(h/*R 1) {:out-1 [true]}]
-                                   [(h/*R 8) {:out-2 [true]}]])
-                     (h/*R 1)]
+              {:gen-pwr   [(m/generator [[(h/*R 1) [true]]])
+                           (h/*R 1)]
+               :gen-val-1 [(m/generator [[(h/*R 1) [true]]])
+                           h/zero]
+               :gen-val-2 [(m/generator [[(h/*R 9) [true]]])
+                           h/zero]
                :ha  [(circ/half-adder (h/*R 0 2) (h/*R 0 3) (h/*R 0 5))
                      h/zero]}
-                            [[:gen :pwr :ha :pwr]
-                             [:gen :out-1 :ha :a]
-                             [:gen :out-2 :ha :b]
+                            [[:gen-pwr :out :ha :pwr]
+                             [:gen-val-1 :out :ha :a]
+                             [:gen-val-2 :out :ha :b]
                              [:ha :s :network :s]
                              [:ha :c :network :c]])
              network-simulator
@@ -107,15 +114,17 @@
                         :s [false]}]]
          (-> (m/simple-network-model
               :exec
-              {:gen [(m/generator [[(h/*R 1) {:pwr [true]}]
-                                   [(h/*R 1) {:out-1 [true]}]
-                                   [(h/*R 8) {:out-2 [true]}]])
-                     (h/*R 1)]
+              {:gen-pwr   [(m/generator [[(h/*R 1) [true]]])
+                           (h/*R 1)]
+               :gen-val-1 [(m/generator [[(h/*R 1) [true]]])
+                           h/zero]
+               :gen-val-2 [(m/generator [[(h/*R 9) [true]]])
+                           h/zero]
                :ha  [(circ/full-adder (h/*R 0 2) (h/*R 0 3) (h/*R 0 5))
                      h/zero]}
-              [[:gen :pwr :ha :pwr]
-               [:gen :out-1 :ha :a]
-               [:gen :out-2 :ha :b]
+              [[:gen-pwr :out :ha :pwr]
+               [:gen-val-1 :out :ha :a]
+               [:gen-val-2 :out :ha :b]
                [:ha :s :network :s]
                [:ha :c :network :c]])
              network-simulator

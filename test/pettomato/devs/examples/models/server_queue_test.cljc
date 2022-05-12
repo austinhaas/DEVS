@@ -37,8 +37,8 @@
                     (take 100
                           (for [i (range)]
                             [(h/*R (+ 1 (rand/rand-int 10)))
-                             {:out [{:id     (str "job-" i)
-                                     :effort (h/*R (+ 1 (rand/rand-int 100)))}]}])))
+                             [{:id     (str "job-" i)
+                               :effort (h/*R (+ 1 (rand/rand-int 100)))}]])))
                srv (server :server)
                net (m/simple-network-model
                     :exec
