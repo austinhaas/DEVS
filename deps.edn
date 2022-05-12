@@ -27,7 +27,7 @@
                                                   :args          [{:opts     {:warn-on-undeclared false}
                                                                    :env-opts {}}]
                                                   :server-daemon false}}
-           :coverage                 {:extra-deps {cloverage/cloverage {:mvn/version "1.2.2"}}
+           :coverage                 {:extra-deps {cloverage/cloverage {:mvn/version "1.2.3"}}
                                       :main-opts  ["-m" "cloverage.coverage"
                                                    "--src-ns-path" "src"
                                                    "--test-ns-path" "test"]
@@ -36,4 +36,4 @@
                                                    :test-ns-path ["test"]}}
            :eastwood                 {:main-opts  ["-m" "eastwood.lint" {:source-paths ["src"]
                                                                          :add-linters  [:unused-fn-args :unused-locals :unused-namespaces :unused-private-vars]}]
-	                                    :extra-deps {jonase/eastwood {:mvn/version "0.4.1"}}}}}
+	                                    :extra-deps {jonase/eastwood {:mvn/version "1.2.3"}}}}}
