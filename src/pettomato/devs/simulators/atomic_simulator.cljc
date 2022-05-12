@@ -12,7 +12,8 @@
                                                atomic-model?]]
    [pettomato.devs.lib.hyperreal :as h]
    [pettomato.devs.lib.log :as log]
-   [pettomato.devs.simulator :refer [Simulator]]))
+   [pettomato.devs.simulator :refer [Simulator]])
+  #?(:clj (:import [java.io Writer])))
 
 (defrecord AtomicSimulator [initial-state initial-elapsed state tl tn]
   Simulator
@@ -49,18 +50,18 @@
   (time-of-last-event [sim] tl)
   (time-of-next-event [sim] tn))
 
-(defn format-atomic-simulator [x]
+(defn format-atomic-simulator ^String [x]
   #?(:clj  (format "#pettomato.devs.simulators.AtomicSimulator<0x%x>{}"
                    (System/identityHashCode x))
      :cljs (format "#pettomato.devs.simulators.AtomicSimulator<%s>{}"
                    (.toString (hash x) 16))))
 
 #?(:clj
-   (defn print-atomic-simulator [x w]
+   (defn print-atomic-simulator [^AtomicSimulator x ^java.io.Writer w]
      (.write w (format-atomic-simulator x))))
 
 #?(:clj
-   (defmethod print-method AtomicSimulator [x w]
+   (defmethod print-method AtomicSimulator [^AtomicSimulator x ^java.io.Writer w]
      (print-atomic-simulator x w)))
 
 #?(:clj

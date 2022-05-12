@@ -44,21 +44,22 @@
    [clojure.core :as clj]
    [clojure.pprint]
    #?(:cljs [goog.string :as gstring :refer [format]])
-   #?(:cljs [goog.string.format])))
+   #?(:cljs [goog.string.format]))
+  #?(:clj (:import [java.io Writer])))
 
 (defrecord Hyperreal [infinity standard infinitesimal]
   Object
   (toString [this] (str "*ℝ<" infinity " " standard " " infinitesimal ">")))
 
-(defn format-hyperreal [x]
+(defn format-hyperreal ^String [x]
   (format "*ℝ<%s %s %s>" (:infinity x) (:standard x) (:infinitesimal x)))
 
 #?(:clj
-   (defn pretty-print-hyperreal [x w]
+   (defn pretty-print-hyperreal [^Hyperreal x ^java.io.Writer w]
      (.write w (format-hyperreal x))))
 
 #?(:clj
-   (defmethod print-method Hyperreal [x w]
+   (defmethod print-method Hyperreal [^Hyperreal x ^java.io.Writer w]
      (pretty-print-hyperreal x w)))
 
 #?(:clj

@@ -12,7 +12,8 @@
    [pettomato.devs.models.executive-model :refer [executive-model? structure-changes]]
    [pettomato.devs.lib.hyperreal :as h]
    [pettomato.devs.lib.log :as log]
-   [pettomato.devs.simulator :refer [Simulator]]))
+   [pettomato.devs.simulator :refer [Simulator]])
+  #?(:clj (:import [java.io Writer])))
 
 (defprotocol IExecutiveSimulator
   (get-structure-changes [sim]))
@@ -54,18 +55,18 @@
   (get-structure-changes [sim]
     (structure-changes state)))
 
-(defn format-network-exec-simulator [x]
+(defn format-network-exec-simulator ^String [x]
   #?(:clj  (format "#pettomato.devs.simulators.ExecutiveSimulator<0x%x>{}"
                    (System/identityHashCode x))
      :cljs (format "#pettomato.devs.simulators.ExecutiveSimulator<%s>{}"
                    (.toString (hash x) 16))))
 
 #?(:clj
-   (defn print-network-exec-simulator [x w]
+   (defn print-network-exec-simulator [^ExecutiveSimulator x ^java.io.Writer w]
      (.write w (format-network-exec-simulator x))))
 
 #?(:clj
-   (defmethod print-method ExecutiveSimulator [x w]
+   (defmethod print-method ExecutiveSimulator [^ExecutiveSimulator x ^java.io.Writer w]
      (print-network-exec-simulator x w)))
 
 #?(:clj
