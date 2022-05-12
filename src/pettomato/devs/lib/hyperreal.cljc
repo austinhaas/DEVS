@@ -42,6 +42,7 @@
   (:refer-clojure :exclude [= + - < <= comparator min max zero? pos? infinite?])
   (:require
    [clojure.core :as clj]
+   [clojure.pprint]
    #?(:cljs [goog.string :as gstring :refer [format]])
    #?(:cljs [goog.string.format])))
 

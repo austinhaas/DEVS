@@ -1,6 +1,7 @@
 (ns pettomato.devs.simulators.atomic-simulator
   "A simulator for atomic models."
   (:require
+   [clojure.pprint]
    #?(:cljs [goog.string :as gstring :refer [format]])
    #?(:cljs [goog.string.format])
    [pettomato.devs.models.atomic-model :refer [internal-update
