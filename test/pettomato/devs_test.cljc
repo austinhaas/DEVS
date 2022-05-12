@@ -39,8 +39,7 @@
                     (let [gen (m/generator [[(h/*R 10) ["x"]]
                                             [(h/*R 10) ["y"]]])
                           buf (m/buffer (h/*R 5))
-                          net (m/simple-network-model
-                               :exec
+                          net (m/static-network-model
                                {:gen [gen h/zero]
                                 :buf [buf h/zero]}
                                [[:gen :out :buf :in]
@@ -72,8 +71,7 @@
                     (let [gen (m/generator [[(h/*R 10) ["x"]]
                                             [(h/*R 10) ["y"]]])
                           buf (m/buffer (h/*R 5))
-                          net (m/simple-network-model
-                               :exec
+                          net (m/static-network-model
                                {:gen [gen h/zero]
                                 :buf [buf h/zero]}
                                [[:gen :out :buf :in]
@@ -84,8 +82,7 @@
   (testing "A network simulation. #2"
     (is (event-log= [[(h/*R 0) {:out ["x"]}]]
                     (let [gen (m/generator [[(h/*R 10) ["x"]]])
-                          net (m/simple-network-model
-                               :exec
+                          net (m/static-network-model
                                {:gen [gen h/zero]}
                                [[:gen :out :network :out]])]
                       (-> (network-simulator net :elapsed (h/*R 10))
@@ -97,8 +94,7 @@
                     (let [gen (m/generator [[(h/*R 10) ["x"]]
                                             [(h/*R 10) ["y"]]])
                           buf (m/buffer (h/*R 5))
-                          net (m/simple-network-model
-                               :exec
+                          net (m/static-network-model
                                {:gen [gen (h/*R 2)]
                                 :buf [buf h/zero]}
                                [[:gen :out :buf :in]
@@ -114,8 +110,7 @@
                                             [(h/*R 1) [[(h/*R 9)  2]]]
                                             [(h/*R 3) [[(h/*R 6)  3]]]])
                           buf (m/buffer+)
-                          net (m/simple-network-model
-                               :exec
+                          net (m/static-network-model
                                {:gen [gen h/zero]
                                 :buf [buf h/zero]}
                                [[:gen :out :buf :in]
@@ -131,8 +126,7 @@
                     (let [gen (m/generator [[(h/*R 10) ["x"]]
                                             [(h/*R 10) ["y"]]])
                           buf (m/buffer+)
-                          net (m/simple-network-model
-                               :exec
+                          net (m/static-network-model
                                {:gen [gen h/zero]
                                 :buf [buf h/zero]}
                                [[:gen :out :buf :in (map (fn [x] [(h/*R 5) x]))]
@@ -148,8 +142,7 @@
                     (let [gen (m/generator [[(h/*R 10) ["x"]]
                                             [(h/*R 10) ["y"]]])
                           buf (m/buffer (h/*R 10))
-                          net (m/simple-network-model
-                               :exec
+                          net (m/static-network-model
                                {:gen [gen h/zero]
                                 :buf [buf h/zero]}
                                [[:gen :out :buf :in]
@@ -162,8 +155,7 @@
                     (let [gen (m/generator [[(h/*R 10) ["x"]]
                                             [(h/*R 10) ["y"]]])
                           buf (m/buffer2 (h/*R 10))
-                          net (m/simple-network-model
-                               :exec
+                          net (m/static-network-model
                                {:gen [gen h/zero]
                                 :buf [buf h/zero]}
                                [[:gen :out :buf :in]
@@ -179,15 +171,13 @@
           [(h/*R 9) {:out [[:buf-1 [:buf-2 [:buf-3 2]]]]}]]
          (let [f   (fn [buf i]
                      (let [id (keyword (str "buf-" i))]
-                       (m/simple-network-model
-                        :exec
+                       (m/static-network-model
                         {id [buf h/zero]}
                         [[:network :in id :in (map (fn [x] [id x]))]
                          [id :out :network :out]])))
                gen (m/generator (for [i (range)] [(h/*R 2) [i]]))
                buf (-> (m/buffer (h/*R 3)) (f 1) (f 2) (f 3))
-               net (m/simple-network-model
-                    :exec
+               net (m/static-network-model
                     {:gen   [gen h/zero]
                      :buf-0 [buf h/zero]}
                     [[:gen :out :buf-0 :in]

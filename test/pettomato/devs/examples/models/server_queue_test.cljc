@@ -40,8 +40,7 @@
                              [{:id     (str "job-" i)
                                :effort (h/*R (+ 1 (rand/rand-int 100)))}]])))
                srv (server :server)
-               net (m/simple-network-model
-                    :exec
+               net (m/static-network-model
                     {:gen    [gen h/zero]
                      :server [srv h/zero]}
                     [[:gen :out :server :in]

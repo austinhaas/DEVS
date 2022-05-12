@@ -124,8 +124,7 @@
   "S will become 1 whenever precisely one of A and B is 1, and C will become 1
   whenever A and B are both 1. - SICP, p. 274"
   [inverter-delay and-gate-delay or-gate-delay]
-  (m/simple-network-model
-   :exec
+  (m/static-network-model
    {:or    [(or-gate  or-gate-delay)  h/zero]
     :and-1 [(and-gate and-gate-delay) h/zero]
     :and-2 [(and-gate and-gate-delay) h/zero]
@@ -145,8 +144,7 @@
     [:and-2   :out :network :s   ]]))
 
 (defn full-adder [inverter-delay and-gate-delay or-gate-delay]
-  (m/simple-network-model
-   :exec
+  (m/static-network-model
    {:ha-1 [(half-adder inverter-delay and-gate-delay or-gate-delay)
            h/zero]
     :ha-2 [(half-adder inverter-delay and-gate-delay or-gate-delay)
@@ -194,7 +192,7 @@
                       (range n-bits)
                       (range 1 n-bits))
         routes   (concat routes-1 routes-2)]
-    (m/simple-network-model :exec models routes)))
+    (m/static-network-model models routes)))
 
 (defn encode
   "Converts an number into seq of \"bits\"."

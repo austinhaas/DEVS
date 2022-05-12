@@ -19,8 +19,7 @@
     (is (event-log=
          [[(h/*R 0 5) {:out [true]}]
           [(h/*R 5 5) {:out [false]}]]
-         (-> (m/simple-network-model
-              :exec
+         (-> (m/static-network-model
               {:gen-pwr [(m/generator [[(h/*R 1) [true]]])
                          (h/*R 1)]
                :gen-val [(m/generator [[(h/*R 5) [true]]])
@@ -37,8 +36,7 @@
     (is (event-log=
          [[(h/*R 0 5) {:out [false]}]
           [(h/*R 2 5) {:out [true]}]]
-         (-> (m/simple-network-model
-              :exec
+         (-> (m/static-network-model
               {:gen-pwr   [(m/generator [[(h/*R 1) [true]]])
                            (h/*R 1)]
                :gen-val-1 [(m/generator [[(h/*R 1) [true]]])
@@ -59,8 +57,7 @@
          [[(h/*R 0 5) {:out [false]}]
           [(h/*R 1 5) {:out [true]}]
           [(h/*R 7 5) {:out [false]}]]
-         (-> (m/simple-network-model
-              :exec
+         (-> (m/static-network-model
               {:gen-pwr   [(m/generator [[(h/*R 1) [true]]])
                            (h/*R 1)]
                :gen-val-1 [(m/generator [[(h/*R 1) [true]]
@@ -87,8 +84,7 @@
           [(h/*R 1 8) {:s [true]}]
           [(h/*R 9 3) {:c [true]}]
           [(h/*R 9 8) {:s [false]}]]
-         (-> (m/simple-network-model
-              :exec
+         (-> (m/static-network-model
               {:gen-pwr   [(m/generator [[(h/*R 1) [true]]])
                            (h/*R 1)]
                :gen-val-1 [(m/generator [[(h/*R 1) [true]]])
@@ -112,8 +108,7 @@
           [(h/*R 1 8)  {:s [true]}]
           [(h/*R 9 16) {:c [true]
                         :s [false]}]]
-         (-> (m/simple-network-model
-              :exec
+         (-> (m/static-network-model
               {:gen-pwr   [(m/generator [[(h/*R 1) [true]]])
                            (h/*R 1)]
                :gen-val-1 [(m/generator [[(h/*R 1) [true]]])
