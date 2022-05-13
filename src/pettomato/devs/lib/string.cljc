@@ -1,4 +1,5 @@
 (ns pettomato.devs.lib.string
+  "String utilities."
   #?(:cljs
      (:require
       [goog.string :as gstr]
