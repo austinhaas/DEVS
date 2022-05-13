@@ -29,7 +29,14 @@
   (output [state] {:out [buffer]})
   (time-advance [state] sigma))
 
-(defn buffer [delta]
+(defn buffer
+  "Creates a buffer atomic model. This model receives a value on
+  port :in and emits the same value on port :out after delta time, a
+  positive hyperreal. If multiple values are received at the same
+  time, then one will be selected at random. If a new value is
+  received before the currently buffered value is emitted, it will be
+  ignored."
+  [delta]
   (->Buffer delta nil h/infinity))
 
 (def-atomic-model Buffer2 [delta buffer sigma]
@@ -75,10 +82,9 @@
       (h/- (pq/peek-key queue) total-elapsed))))
 
 (defn buffer+
-  "Creates a delay atomic model, which receives messages in the
-  form [delta value] on port :in, waits for delta, and then emits
-  value on port :out. Multiple messages may be delayed
-  simultaneously."
+  "Creates an atomic buffer model capable of buffering many values
+  simultaneously. The model accepts messages in the form [delta value]
+  on port :in, waits for delta, and then emits value on port :out."
   []
   (map->Buffer+ {:total-elapsed h/zero
                  :queue         (pq/priority-queue h/comparator)}))
@@ -90,8 +96,8 @@
   (structure-changes [state] structure-changes))
 
 (defn simple-executive
-  "A network executive that translates a fixed set of incoming messages
-  into structure change messages."
+  "A network executive that accepts structure change messages on
+  port :in and provides them as-is to the network simulator."
   []
   (->SimpleExec []))
 
@@ -101,11 +107,14 @@
   (->StaticExec))
 
 (defn simple-network-model
+  "A network model with a simple-executive."
   ([executive-id]
    (simple-network-model executive-id [] []))
   ([executive-id models routes]
    (network-model executive-id [(simple-executive) h/zero] models routes)))
 
 (defn static-network-model
+  "A network model for static networks. The model has a network
+  executive, but it is inaccessible and does nothing."
   [models routes]
   (network-model (gensym) [(static-executive) h/zero] models routes))
