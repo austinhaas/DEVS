@@ -1,9 +1,9 @@
 (ns pettomato.devs.lib.log
   "Trivial logging for Clojure and Clojurescript.
 
-  Standard logging functions are provided, but the user is encouraged to create
-  custom functions to add additional structured data, and to implement an
-  alternative *log-function* to handle those extensions."
+  Standard logging functions are provided, but users are encouraged to
+  create custom functions to add additional structured data, and to
+  implement an alternative *log-function* to handle those extensions."
   (:require
    [clojure.string :as str]
    [pettomato.devs.lib.date :as date]
@@ -30,15 +30,16 @@
 (declare log-level-filter)
 
 (def ^:dynamic *log-function*
-  "The implementation of the log function. This can be dynamically bound to an
-  arbitrary function that takes a single argument, but to be compatible with the
-  standard log functions below, it should be a function that takes a map with at
-  least the fields :level and :message. The root binding checks the log level
-  and, if it is enabled, it prints the current time, the value of :level, and
-  the value of :message. Alternative implementations could change the format;
-  write to multiple other destinations, such as files and databases; call
-  another logger implementation; or store in an in-memory database, for
-  example."
+  "The implementation of the log function. This can be dynamically bound
+  to an arbitrary function that takes a single argument, but to be
+  compatible with the standard log functions below, it should be a
+  function that takes a map with at least the fields :level
+  and :message. The root binding checks the log level and, if it is
+  enabled, it prints the current time, the value of :level, and the
+  value of :message. Alternative implementations could change the
+  format, or write to multiple other destinations, such as files and
+  databases, or call another logger implementation, or store in an
+  in-memory database, for example."
   (fn [m]
     (some-> m
       log-level-filter
@@ -56,8 +57,8 @@
 ;; Standard logging functions
 
 (def ^:dynamic *log-level*
-  "The log level. This can be bound to :trace, :debug:, :info, :warn, :error,
-  or :fatal. The root binding is :info."
+  "The log level. This can be bound to :trace, :debug:, :info,
+   :warn, :error, or :fatal. The root binding is :info."
   :info)
 
 (def log-level->int
