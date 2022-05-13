@@ -15,9 +15,9 @@
         models                    (assoc models executive-id executive-model)]
     (assert (executive-model? executive-model))
     (assert (atomic-model? executive-model))
-    ;; A coupled model must contain at least one component model.
+    ;; A network model must contain at least one component model.
     (when (zero? (count models))
-      (throw (ex-info "A coupled model must contain at least one component model."
+      (throw (ex-info "A network model must contain at least one component model."
                       model)))
     ;; All models in routes must appear in models (except for :network).
     (let [keys-in-routes (-> (mapcat (fn [[sk _ rk _ _]] [sk rk])
@@ -47,6 +47,8 @@
   nil)
 
 (defn network-model
+  "Construct a network model. Optionally, an initial set of models and
+  routes may be supplied."
   ([executive-id executive-model]
    (network-model executive-id executive-model {} []))
   ([executive-id executive-model models routes]
