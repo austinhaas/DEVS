@@ -1,4 +1,5 @@
-(ns pettomato.devs.lib.coll)
+(ns pettomato.devs.lib.coll
+  #?(:clj (:import [java.io Writer])))
 
 (defn prune
   "Recursively removes empty values in a nested associative structure."
@@ -17,5 +18,5 @@
      :cljs cljs.core.PersistentQueue.EMPTY))
 
 #?(:clj
-   (defmethod print-method clojure.lang.PersistentQueue [q, w]
+   (defmethod print-method clojure.lang.PersistentQueue [^clojure.lang.PersistentQueue q ^java.io.Writer w]
      (.write w (format "#queue%s" (vec q)))))
