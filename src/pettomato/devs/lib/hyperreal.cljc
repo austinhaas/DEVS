@@ -1,43 +1,45 @@
 (ns pettomato.devs.lib.hyperreal
   "An implementation of hyperreal numbers.
 
-  The hyperreal numbers are the real numbers extended with infinitesimal (ε) and
-  infinity (ω).
+  The hyperreal numbers are the real numbers extended with
+  infinitesimal (ε) and infinity (ω).
 
   Hyperreal numbers are represented as the sum of three components:
   Aω+r+Bε. They are implemented as a record with three fields:
 
-  - `infinity` is an integer coefficient indicating the number of infinity
-  units in the number (i.e., A in Aω+r+Bε).
+  - `infinity` is an integer coefficient indicating the number of
+  infinity units in the number; A in Aω+r+Bε.
 
-  - `standard` is a real number (i.e., r in Aω+r+Bε).
+  - `standard` is a real number; r in Aω+r+Bε.
 
   - `infinitesimal` is an integer coefficient indicating the number of
-  infinitesimal units in the number (i.e., B in Aω+r+Bε).
+  infinitesimal units in the number; B in Aω+r+Bε.
 
-  For example, with constructor *R, (*R 1 2 3) = 1ω+2+3ε, and (*R 0 5.2 0) =
-  0ω+5.2+0ε = 5.2.
+  For example, with constructor *R, (*R 1 2 3) = 1ω+2+3ε, and (*R 0
+  5.2 0) = 0ω+5.2+0ε = 5.2.
 
-  (*R 0 0 1), meaning ε, or `epsilon`, is the smallest positive hyperreal
-  number. There is no largest hyperreal number; `infinity` is taken to be an
-  unknown quantity that is larger than all real numbers, but less than
-  infinity+1 and infinity*2.
+  (*R 0 0 1), meaning ε, or `epsilon`, is the smallest positive
+  hyperreal number. There is no largest hyperreal number; `infinity`
+  is taken to be an unknown quantity that is larger than all real
+  numbers, but less than infinity+1 and infinity*2.
 
-  Hyperreal numbers may be printed as *ℝ<infinity standard infinitesimal>.
+  Hyperreal numbers may be printed as *ℝ<infinity standard
+  infinitesimal>.
 
-  The component number types are not enforced, but users should respect
-  them. Importantly, do not use special numeric values like
-  Double/POSITIVE_INFINITY and (.-POSITIVE_INFINITY js/Number), because that
-  will produce erroneous results and it would unjustifiably complicate the code
-  to support it.
+  The component number types are not enforced, but should be
+  respected. Importantly, never use special numeric values like
+  Double/POSITIVE_INFINITY and (.-POSITIVE_INFINITY js/Number),
+  because that will produce erroneous results and it would
+  unjustifiably complicate the code to support it.
 
-  Also note that the real number implementation is based on the host platform,
-  so the real numbers are represented as floating-point numbers with all their
-  associated deficiencies.
+  Also note that the real number implementation is based on the host
+  platform, so the real numbers are represented as floating-point
+  numbers with all their associated deficiencies.
 
   Reference:
 
-  Barros, Fernando J. \"On the representation of time in modeling & simulation.\" 2016 winter simulation conference (WSC). IEEE, 2016.
+  Barros, Fernando J. \"On the representation of time in modeling &
+  simulation.\" 2016 winter simulation conference (WSC). IEEE, 2016.
   http://simulation.su/uploads/files/default/2016-barros-1.pdf"
   (:refer-clojure :exclude [= + - < <= comparator min max zero? pos? infinite?])
   (:require
@@ -78,7 +80,7 @@
 
 (defn standard
   "Returns the closest standard real number to hyperreal number x,
-  where real number means floating point number in the host platform."
+  where real number means floating point number on the host platform."
   [x]
   (cond
     (clj/zero? (:infinity x)) (:standard x)
