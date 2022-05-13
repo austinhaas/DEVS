@@ -19,10 +19,10 @@
   will produce repeatable values.
 
   Note that this problem won't occur if the lazy seq is created and
-  consumed within the body of `with-random-seed`; an entire program
+  consumed within the body of `with-random-seed`. An entire program
   could be wrapped in `with-random-seed`. But it is probably a good
-  idea to avoid mixing laziness with random number generation, just
-  like other side-effects. You wouldn't want the sequence of random
+  idea to avoid mixing laziness with random number generation (or,
+  side-effects, in general). You wouldn't want the sequence of random
   numbers to depend on the lazy sequence chunking implementation, for
   example.
 
@@ -37,8 +37,8 @@
    [clojure.test.check.random :refer [make-random rand-double split]]))
 
 (defn generator
-  "Returns a new generator. An optional seed may be provided. Users
-  should prefer `with-random-seed` to creating a generator
+  "Returns a new generator. An optional integer n may be provided as a
+  seed. Users should prefer `with-random-seed` to creating a generator
   explicitly."
   ([]  (atom (make-random)))
   ([n] (atom (make-random n))))
@@ -92,12 +92,11 @@
 
 (defn random-sample
   "Returns a lazy sequence of the items in coll with random probability
-  given by `prob`, which is a number from 0.0 to 1.0,
-  inclusive. Returns a transducer when no collection is provided. The
-  items in the result will be in the same order as the input
-  collection.
+  given by `prob`, which is a number from 0.0 to 1.0, inclusive.
+  Returns a transducer when no collection is provided. The items in
+  the result will be in the same order as the input collection.
 
-  For example, (random-sample 0.5 xs) will return a collection about
+  For example, (random-sample 0.5 xs) will return a collection roughly
   half the size of xs. Each item in xs will have a 50% chance of being
   included in the result.
 
