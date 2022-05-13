@@ -1,4 +1,5 @@
 (ns pettomato.devs.examples.models
+  "Some useful models."
   (:require
    [pettomato.devs.models.atomic-model :refer [def-atomic-model internal-update external-update time-advance]]
    [pettomato.devs.models.executive-model :refer [def-executive-model structure-changes]]
