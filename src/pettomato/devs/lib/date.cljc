@@ -25,8 +25,8 @@
   "Returns an integer representing the number of milliseconds since
   _some_ epoch. This is intended to be used when you only care about
   the delta between timestamps, not what time they actually
-  represent. And in the case of CLJS, it will try to use a high
-  precision timestamp, if available."
+  represent. In the case of CLJS, it will try to use a high precision
+  timestamp, if available."
      []
      #?(:clj  (.getTime (java.util.Date.))
         :cljs (if high-performance-timer-available?
