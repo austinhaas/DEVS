@@ -58,13 +58,15 @@
                           afap-root-coordinator)))))
 
   (testing "Atomic: tn can't be before start time. "
-    (is (thrown? clojure.lang.ExceptionInfo
+    (is (thrown? #?(:clj  clojure.lang.ExceptionInfo
+                    :cljs ExceptionInfo)
                  (-> (m/generator (repeat [(h/*R 2) ["x"]]))
                      (atomic-simulator :elapsed (h/*R 3))
                      (afap-root-coordinator :end (h/*R 10))))))
 
   (testing "Atomic: tn can't be equal to start time. "
-    (is (thrown? clojure.lang.ExceptionInfo
+    (is (thrown? #?(:clj  clojure.lang.ExceptionInfo
+                    :cljs ExceptionInfo)
                  (-> (m/generator (repeat [(h/*R 2) ["x"]]))
                      (atomic-simulator :elapsed (h/*R 2))
                      (afap-root-coordinator :end (h/*R 10))))))
@@ -84,7 +86,8 @@
                           afap-root-coordinator)))))
 
   (testing "Network: tn can't be before start time."
-    (is (thrown? clojure.lang.ExceptionInfo
+    (is (thrown? #?(:clj  clojure.lang.ExceptionInfo
+                    :cljs ExceptionInfo)
                  (let [gen (m/generator [[(h/*R 10) ["x"]]])
                        net (m/static-network-model
                             {:gen [gen h/zero]}
@@ -93,7 +96,8 @@
                        afap-root-coordinator)))))
 
   (testing "Network: tn can't be equal start time."
-    (is (thrown? clojure.lang.ExceptionInfo
+    (is (thrown? #?(:clj  clojure.lang.ExceptionInfo
+                    :cljs ExceptionInfo)
                  (let [gen (m/generator [[(h/*R 10) ["x"]]])
                        net (m/static-network-model
                             {:gen [gen h/zero]}
