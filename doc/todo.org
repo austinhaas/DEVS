@@ -69,41 +69,145 @@
       from a model to the root, and that wouldn't work because networks can't be
       (atomic) executives, and we can't have more than one exec.
 ** DONE Add coupled model validation
-** Make cljs work
-** Enforce NIA / improve examples
+** DONE Make cljs work
+** DONE Enforce NIA / improve examples
 **** Update root coordinators to require that timestamps are increasing.
-** Consider if network-simulator should throw an exception if transition is called incorrectly
+** DONE Consider if network-simulator should throw an exception if transition is called incorrectly
    - I.e., called without any models being imminent or receiving any messages.
    - Technically, a network sim could receive messages that aren't currently
      routed to any component. I think we just want to check if it was called
      without any messages at all.
    - The question is: what would this gain? Maybe it is better for this
      implementation to be robust than throw an error.
-** Setup dynamic network
+** DONE Consider allowing pass thru connections for networks.
+   - Can't create a "pass thru" connection where an input to :N
+     connects to an output of :N.
+   - I seem to recall this being explicitly disallowed in the literature, but I
+     can't recall where. I'm not sure what it means to allow this.
+     - I may have been thinking of direct feedback loops, which are
+       forbidden in the main devs book.
+   - This could be useful for debugging.
+   - Argument against: The NIA does not allow it. A model cannot produce output
+     based on an input without advancing time.
+*** Not doing it
+    - I tested trying it w/o modification and I hit an error.
+    - I don't think I want to do the work to support it.
+** DONE Initialize networks
+   - Need to clear local data structures.
+** DONE Setup dynamic network
+*** DONE How do we handle adding models that are imminent immediately?
+*** DONE Consider setting tl and tn in add-model and rem-model.
+*** Determine how to structure
+    - Should the exec provide the initial structure?
+      - That seems consistent with the mathematical treatment in the
+        literature.
+      - But, it may be simpler to provide the initial set, as with the
+        coupled model.
+
+    - When is structure-changes called?
+      - Proposal: Same as collect-mail.
+
+      - Proposal: After transition.
+        - Rationale: The exec's structure has changed, so update the
+          simulator.
+
+      - Proposal: Also, after initialize.
+        - To get the initial structure.
+**** Try after init and transition.
+***** Problem: How to clear structure-changes after init?
+****** Proposal: Don't make changes after init.
+       - Solve the problem differently: If components should exist
+         from the onset, include them in the network from the onset.
+** DONE Fix timing issue with networks
+*** NIA violation
+*** Doesn't use elapsed time parameter.
+*** Set initial structure.
+    - Does this really matter?
+** DONE Update other examples/tests.
+** DONE Determine how to handle issues with NIA
+*** Problems
+**** To avoid accumulation of ε, models must account for it.
+**** When accounting for it, there is a discrepancy between the duration of the first state and the rest.
+     - This seems wrong.
+**** Models must also account for it when tracking total elapsed time.
+*** Check that what I have is correct.
+    - E.g., that we can accumulate time correctly
+    - That it matches the Barros paper, semantically.
+*** See if we can improve it.
+** DONE Confirm dynamic tests show expected results.
+   - Make sure we are handling the required delay properly.
+     - I'm afraid it is confusing to have to always subtract ε all the
+       time. You can't just use (time-elapsed state) w/o accounting
+       for it.
+** DONE Make generator have one fixed port.
+   - Add another model to dispatch to different ports, if necessary.
+** DONE Possible optimization: use transducers for the route fn.
+   - I think I did this originally and I just didn't like the added complexity.
+   - One possible benefit, besides perf, is that it might make the purpose
+     clearer to people who are familiar with Clojure's transducers.
+** DONE Convert networks to static
+** DONE Fix Eastwood issues
+** Straighten out time.
+   - tl < start <= tn
+
+   - Problem
+     - If tl = start, it means that the sim has already transitioned
+       at start.
+
+   - Is the initial state special?
+
+     - Is start where we are starting from?
+
+       - In this case, a sim cannot be immediately imminent (unless
+         immediate = start + ε.
+
+   - If you want models to broadcast their status at time t, then the
+     simulation must start before t.
+
+
+
+
+** Standardize protocol names
+** Update all docstrings and comments.
+** Check that add-model ex-assert shouldn't be (h/< t tn).
+** Consolidate models and simulators into a single namespace.
+** Add tests for all exceptions.
+** Update network-model tests.
+** Test that structure changes happen from the bottom up.
+   - Remove parent, then child.
+** Test removing a model without disconnecting it first.
+** Validate structure changes.
+** Improve logging
+   - Show sim-time w/ each message.
 ** Setup RT system
-** Update other examples/tests.
 ** Implement external events
     - The root-coordinator converts events to normal messages.
     - The receiving model will need a route all the way to the route.
       - Getting around this is too complicated and confusing.
 ** Add more dynamic structure tests.
-** Setup a RT runner.
-** Consider removing find-simulator.
-   - If we don't need it, removing would simplify things.
-** Update RT code / tests
-** Add more tests.
+** Check that a model has no connections before removing it.
+   - Make it optional
+   - In dev mode, all checks should be enabled.
+   - Add tests.
+** Determine what to do with find-simulator.
+   - Circular dependencies.
+   - Do we want it to be customizable?
+     - Would a dynamic binding suffice?
+       - No, because:
+         1. We'd need to rebind it within each method.
+         2. Doesn't help how we set up the default.
+*** Proposal: Drop coupled stuff in favor of networks.
+    - Use a reasonable default find-simulator for networks.
+*** Consider removing find-simulator.
+    - If we don't need it, removing would simplify things.
+** Add RT tests.
 *** Test rt-atomic-simulator confluent-update
 *** Test rt-network-simulator dynamic structure
 *** Check that a rt-model that is imminent handles the no-op case correctly.
     - I'm concerned this will be handled by a confluent update fn, when it
       should be an internal-update.
-*** Test that structure changes happen from the bottom up.
-    - Remove parent, then child.
-*** Test removing a model without disconnecting it first.
-*** Test a mixed RT and non-RT network.
-*** Check that dynamic structure changes are valid.
-*** Add tests for parallelization.
-*** Determine how to validate the TMS example.
+** Add tests for parallelization.
+** Determine how to validate the TMS example.
 ** update docs
    - Every state must have positive duration; message delivery is instantaneous.
    - NIA
@@ -131,7 +235,7 @@
           - Atomic models don't know about external events; network models
             do, because that is where routes are defined.
             - Exec models know about the network.
-*** DONE Consider move to hyperreal time base.
+*** Explain hyperreal time base.
 **** Problem statement
      - Zero-length delays cause any notion of causation to be lost.
      - Users must understand that the transition function may be called multiple
@@ -185,6 +289,37 @@
          this after all the events at 2ε, 3ε, etc. have passed
 ****** Problem: How long does it take to send a message? How long until a transition goes into effect?
 **** Implement hyperreal system w/ new sim algorithm
+** Add tutorial.
+** Set up a real-time, interactive cljs example.
+** Benchmark.
+*** Create an example for benchmarking.
+*** Consider that cljs vs clj might vary significantly.
+    - What should we do about that?
+**** Consider exporting benchmark results, for comparison.
+*** Test that logging isn't adding significant overhead when it is disabled.
+*** Test indexing routes by [name port] instead of name->route.
+*** Test multithreading.
+    - We'll need to bubble up the number of simulators that need to be updated
+      in each branch of the network hierarchy, and allocate resources
+      accordingly.
+*** Test storing a ref to models fns in the simulator.
+    - Instead of looking them up in the model.
+*** Test using an array to hold model state.
+    - Use indices as model references instead of paths.
+*** Test creating new records vs. updating properties.
+** Improve debugging.
+*** Render network using graphviz.
+*** Stepper
+    - Like prolog.
+    - Step forward and back in time. Inspect states.
+** Implement a distributed root coordinator.
+   - I've considered using atoms with listeners, like an async "mailbox", but it
+     is awkward, if not illegal, for the listener to modify the thing it is
+     listening to (e.g., to empty the mailbox after reading it).
+** Implement structure changes for updating a model.
+   - A model could be replaced with a different implementation, while
+     maintaining the same state.
+   - Check the literature to see what the intention is.
 ** Consider adding join and leave methods to simulator.
 *** Consider whether the simulator or the model should be responsible for constructor/destructor.
     - Based on the implementation of external RT events, I'm starting to think
@@ -226,6 +361,39 @@
      - This is consistent with at least one of the dynamic structure papers.
 ** Setup broadcast networks.
 *** Attach entity id to messages.
+** Determine how to specify version in pom.xml.
+   - Clojurescript does it in a build script: https://github.com/clojure/clojurescript/search?q=CLOJURESCRIPT_VERSION
+** Consider building a GUI.
+   - Use existing graphics engine.
+     - SVG might be easier to work with, though.
+       - three.js can render as SVG.
+   - We need to add UI, anyway.
+   - I believe we need more information management support than we can get from
+     text alone.
+*** Graphical animation
+**** Proposal: Use D3
+     - force simulation
+     https://github.com/d3/d3-force/blob/v2.1.1/README.md#forceSimulation
+     - Might be a great application/showcase for the customizable logging
+       system.
+     - Consider using the logging system to capture the state changes.
+       - Unsure if this is a good idea. The internal state of the system is
+         distinct from the simulation messages.
+** Extend the logging system
+*** Log to a file
+    - And load from it. Compare stats on two historical logs.
+*** Capture metrics
+    - The idea is to capture some core bits of information about the internal,
+      run-time behavior and make it presentable.
+      - # of steps
+      - # of parallel processes
+      - # of messages
+      - by network
+*** Capture logs w/o printing
+    - Allow user to query and inspect.
+*** Handle key system messages specially.
+    - E.g., make it easy to control the handling of mail and network structure
+      change messages.
 ** Flatten the network
    - Seems like it could be simpler.
      - Don't need to store local mail.
@@ -257,28 +425,6 @@
      - Structure changes.
        - Map from model to network?
          - How is the network represented?
-** Possible optimization: use transducers for the route fn.
-   - I think I did this originally and I just didn't like the added complexity.
-   - One possible benefit, besides perf, is that it might make the purpose
-     clearer to people who are familiar with Clojure's transducers.
-** Consider building a GUI.
-   - Use existing graphics engine.
-     - SVG might be easier to work with, though.
-       - three.js can render as SVG.
-   - We need to add UI, anyway.
-   - I believe we need more information management support than we can get from
-     text alone.
-*** Graphical animation
-**** Proposal: Use D3
-     - force simulation
-     https://github.com/d3/d3-force/blob/v2.1.1/README.md#forceSimulation
-     - Might be a great application/showcase for the customizable logging
-       system.
-     - Consider using the logging system to capture the state changes.
-       - Unsure if this is a good idea. The internal state of the system is
-         distinct from the simulation messages.
-** Determine how to specify version in pom.xml.
-   - Clojurescript does it in a build script: https://github.com/clojure/clojurescript/search?q=CLOJURESCRIPT_VERSION
 ** RT optimization: Consider that the RT model could accurately predict the next state
    - Assuming that a human-in-the-loop (or other RT component) performs no
      action the overwhelming majority of the steps, we could start computing the
@@ -289,63 +435,3 @@
        determine just what needs to be updated. For example, in our restaurant
        simulation, a user action should have very little bearing on the next
        step.
-** Add tutorial.
-** Set up cljs example.
-** Check that a model has no connections before removing it.
-   - Make it optional
-   - In dev mode, all checks should be enabled.
-   - Add tests.
-** Implement structure changes for updating a model.
-   - A model could be replaced with a different implementation, while
-     maintaining the same state.
-   - Check the literature to see what the intention is.
-** Benchmark.
-*** Create an example for benchmarking.
-*** Consider that cljs vs clj might vary significantly.
-    - What should we do about that?
-**** Consider exporting benchmark results, for comparison.
-*** Test that logging isn't adding significant overhead when it is disabled.
-*** Test indexing routes by [name port] instead of name->route.
-*** Test multithreading.
-    - We'll need to bubble up the number of simulators that need to be updated
-      in each branch of the network hierarchy, and allocate resources
-      accordingly.
-*** Test storing a ref to models fns in the simulator.
-    - Instead of looking them up in the model.
-*** Test using an array to hold model state.
-    - Use indices as model references instead of paths.
-*** Test creating new records vs. updating properties.
-** Extend the logging system
-*** Log to a file
-    - And load from it. Compare stats on two historical logs.
-*** Capture metrics
-    - The idea is to capture some core bits of information about the internal,
-      run-time behavior and make it presentable.
-      - # of steps
-      - # of parallel processes
-      - # of messages
-      - by network
-*** Capture logs w/o printing
-    - Allow user to query and inspect.
-*** Handle key system messages specially.
-    - E.g., make it easy to control the handling of mail and network structure
-      change messages.
-** Consider allowing pass thru connections for networks.
-   - Can't create a "pass thru" connection where an input to :N
-     connects to an output of :N.
-   - I seem to recall this being explicitly disallowed in the literature, but I
-     can't recall where. I'm not sure what it means to allow this.
-     - I may have been thinking of direct feedback loops, which are
-       forbidden in the main devs book.
-   - This could be useful for debugging.
-   - Argument against: The NIA does not allow it. A model cannot produce output
-     based on an input without advancing time.
-** Improve debugging.
-*** Render network using graphviz.
-*** Stepper
-    - Like prolog.
-    - Step forward and back in time. Inspect states.
-** Implement a distributed root coordinator.
-   - I've considered using atoms with listeners, like an async "mailbox", but it
-     is awkward, if not illegal, for the listener to modify the thing it is
-     listening to (e.g., to empty the mailbox after reading it).

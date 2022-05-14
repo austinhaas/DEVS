@@ -239,7 +239,7 @@
                    [(m/generator [[(h/*R 1000) [b]]]) h/zero]])
                 b-bits)
         models (merge {:gen-pwr [(m/generator [[(h/*R 1) [true]]])
-                                 (h/*R 1)]
+                                 h/zero]
                        :rca     [(ripple-carry-adder n-bits
                                                      inverter-delay
                                                      and-gate-delay

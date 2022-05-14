@@ -18,14 +18,19 @@
 (declare network-simulator)
 
 (defn find-simulator
-  "A function that takes two args: an id and a model, and returns an
-  appropriate simulator for that model."
+  "Find an appropriate simulator for a model.
+
+  id - The id that will be assigned to the model.
+
+  model - The model.
+
+  Returns a simulator."
   [id model]
   (cond
     (executive-model? model) executive-simulator
     (atomic-model?  model)   atomic-simulator
     (network-model? model)   network-simulator
-    :else                    (throw (ex-info "Unknown model type." {:id id }))))
+    :else                    (throw (ex-info "Unknown model type." {:id id}))))
 
 (defn- add-model [parent-sim id [model elapsed] t]
   (log/tracef "add-model: %s" [id elapsed])
@@ -35,34 +40,24 @@
   (let [simulator (find-simulator id model)
         sim       (-> model (simulator :elapsed elapsed) (initialize t))
         tl        (time-of-last-event sim)
-        tn        (time-of-next-event sim)
-        id->sim   (assoc (:id->sim parent-sim) id sim)
-        queue     (pq/insert (:queue parent-sim) tn id)
-        parent-tl (if (:tl parent-sim)
-                    (h/max (:tl parent-sim) tl)
-                    tl)
-        parent-tn (or (pq/peek-key queue) h/infinity)]
-    (ex-assert (h/<= t parent-tn))
-    (assoc parent-sim
-           :id->sim id->sim
-           :queue queue
-           :tl parent-tl
-           :tn parent-tn)))
+        tn        (time-of-next-event sim)]
+    (ex-assert (h/< t tn))
+    (as-> parent-sim s
+      (update s :id->sim assoc id sim)
+      (update s :queue pq/insert tn id)
+      (assoc s :tl (h/max (:tl parent-sim) tl))
+      (assoc s :tn (h/min (:tn parent-sim) tn)))))
 
 (defn- rem-model [parent-sim id]
   (log/tracef "rem-model: %s" id)
-  (let [sim       (get-in parent-sim [:id->sim id])
-        _         (ex-assert sim "id not found" {:id id})
-        tn        (time-of-next-event sim)
-        id->sim   (dissoc (:id->sim parent-sim) id)
-        queue     (pq/delete (:queue parent-sim) tn id)
-        parent-tl (apply h/max (map time-of-last-event (vals id->sim)))
-        parent-tn (or (pq/peek-key queue) h/infinity)]
-    (assoc parent-sim
-           :id->sim id->sim
-           :queue   queue
-           :tl      parent-tl
-           :tn      parent-tn)))
+  (ex-assert (not= (get-in parent-sim [:model :executive-id]) id)
+             "Can't remove the network executive.")
+  (let [sim (get-in parent-sim [:id->sim id])]
+    (ex-assert sim "id not found" {:id id})
+    (as-> parent-sim s
+      (update s :id->sim dissoc id)
+      (update s :queue pq/delete (time-of-next-event sim) id)
+      (assoc  s :tn (pq/peek-key (:queue s))))))
 
 (defn- connect
   "Add a route to the routing table.
@@ -166,19 +161,21 @@
                             :local-routes          {}
                             :network-input-routes  {}
                             :network-output-routes {}
-                            :queue                 (pq/priority-queue h/comparator))
+                            :queue                 (pq/priority-queue h/comparator)
+                            :tl                    (h/*R -1 0 0)
+                            :tn                    (h/*R  1 0 0))
           exec-id    (:executive-id model)
           exec-model (:executive-model model)
           t'         (h/- t initial-elapsed)]
       (as-> sim sim
         (add-model sim exec-id exec-model t')
         (reduce-kv #(add-model %1 %2 %3 t') sim (:models model))
-        (reduce connect sim (:routes model))
-        (assoc sim :tl (apply h/max (map time-of-last-event (vals (:id->sim sim)))))
-        (assoc sim :tn (or (pq/peek-key (:queue sim)) h/infinity)))))
+        (reduce connect sim (:routes model)))))
   (collect-mail [sim t]
     (log/trace "--- collect-mail ---")
-    (ex-assert (h/= t tn) "synchronization error" {:t t :tn tn})
+    (ex-assert (h/= t tn)
+               "synchronization error"
+               {:t t :tn tn})
     (->> (set/intersection (pq/peek queue) (set (keys network-output-routes))) ; The set of model ids that have network-output-routes could be cached.
          (select-keys id->sim)
          (reduce-kv (fn [m id sim] (assoc m id (collect-mail sim t))) {})
@@ -186,41 +183,39 @@
          :network))
   (transition [sim mail t]
     (log/trace "--- transition ---")
-    (ex-assert (h/<= tl t tn) "synchronization error"
+    (ex-assert (h/< tl t)
+               "synchronization error"
+               {:tl tl :t t :tn tn})
+    (ex-assert (h/<= t tn)
+               "synchronization error"
                {:tl tl :t t :tn tn})
     (ex-assert (or (h/= t tn) (seq mail))
                "Illegal state for transition; sim is not imminent nor receiving mail."
-               {:tl tl, :t t, :tn tn, :mail-count (count mail)})
-    (let [imminent     (if (h/= t tn) (pq/peek queue) #{})
-          _            (log/tracef "imminent: %s" imminent)
-          imm-mail     (zipmap imminent (repeat {})) ; Transitions are "mail-driven"; imminent sims are primed with an empty bag.
+               {:tl tl :t t :tn tn :mail-count (count mail)})
+    (let [imminent          (if (h/= t tn) (pq/peek queue) #{})
+          imm-mail          (zipmap imminent (repeat {})) ; Transitions are "mail-driven"; imminent sims are primed with an empty bag.
           ;; There could be redundancy here, if a component routes
           ;; output to the network (in collect-mail above) and also
           ;; locally (here).
-          local-mail   (->> (set/intersection imminent (set (keys local-routes))) ; The set of model ids that have local-routes could be cached.
-                            (select-keys id->sim)
-                            (reduce-kv (fn [m id sim] (assoc m id (collect-mail sim t))) {})
-                            (mail/route-mail local-routes))
-          network-mail (mail/route-mail network-input-routes {:network mail})
-          all-mail     (mail/merge-mail imm-mail local-mail network-mail)
-          _            (binding [*print-level* 10
-                                 *print-length* 10]
-                           (log/tracef "all-mail: %s" all-mail))
-          sc*          (if (contains? imminent (:executive-id model))
-                         (get-structure-changes (get (:id->sim sim) (:executive-id model)))
-                         [])
-          _            (binding [*print-level* 10
-                                 *print-length* 10]
-                         (log/tracef "sc*: %s" sc*))
-          sim          (apply-transitions sim t all-mail)
-          sim          (apply-network-structure-changes sim t sc*)
-          tl           t
-          tn           (or (pq/peek-key (:queue sim))
-                           h/infinity)]
+          local-mail        (->> (set/intersection imminent (set (keys local-routes))) ; The set of model ids that have local-routes could be cached.
+                                 (select-keys id->sim)
+                                 (reduce-kv (fn [m id sim] (assoc m id (collect-mail sim t))) {})
+                                 (mail/route-mail local-routes))
+          network-mail      (mail/route-mail network-input-routes {:network mail})
+          all-mail          (mail/merge-mail imm-mail local-mail network-mail)
+          structure-changes (if (contains? imminent (:executive-id model))
+                              (get-structure-changes (get (:id->sim sim) (:executive-id model)))
+                              [])]
+      #_
       (ex-assert (h/< tl tn)
                  "tn must be greater than tl."
                  {:tl tl :tn tn})
-      (assoc sim :tl tl :tn tn)))
+      (as-> sim s
+        (apply-transitions s t all-mail)
+        (apply-network-structure-changes s t structure-changes)
+        (assoc s
+               :tl t
+               :tn (pq/peek-key (:queue s))))))
   (time-of-last-event [sim] tl)
   (time-of-next-event [sim] tn))
 

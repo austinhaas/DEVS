@@ -17,11 +17,11 @@
 
   (testing "inverter"
     (is (event-log=
-         [[(h/*R 0 5) {:out [true]}]
+         [[(h/*R 1 5) {:out [true]}]
           [(h/*R 5 5) {:out [false]}]]
          (-> (m/static-network-model
               {:gen-pwr [(m/generator [[(h/*R 1) [true]]])
-                         (h/*R 1)]
+                         h/zero]
                :gen-val [(m/generator [[(h/*R 5) [true]]])
                          h/zero]
                :inv     [(circ/inverter (h/*R 0 5))
@@ -34,11 +34,11 @@
 
   (testing "and-gate"
     (is (event-log=
-         [[(h/*R 0 5) {:out [false]}]
+         [[(h/*R 1 5) {:out [false]}]
           [(h/*R 2 5) {:out [true]}]]
          (-> (m/static-network-model
               {:gen-pwr   [(m/generator [[(h/*R 1) [true]]])
-                           (h/*R 1)]
+                           h/zero]
                :gen-val-1 [(m/generator [[(h/*R 1) [true]]])
                            h/zero]
                :gen-val-2 [(m/generator [[(h/*R 2) [true]]])
@@ -54,12 +54,11 @@
 
   (testing "or-gate"
     (is (event-log=
-         [[(h/*R 0 5) {:out [false]}]
-          [(h/*R 1 5) {:out [true]}]
+         [[(h/*R 1 5) {:out [true]}]
           [(h/*R 7 5) {:out [false]}]]
          (-> (m/static-network-model
               {:gen-pwr   [(m/generator [[(h/*R 1) [true]]])
-                           (h/*R 1)]
+                           h/zero]
                :gen-val-1 [(m/generator [[(h/*R 1) [true]]
                                          [(h/*R 5) [false]]])
                            h/zero]
@@ -79,14 +78,14 @@
 
   (testing "SICP, p. 280"
     (is (event-log=
-         [[(h/*R 0 3) {:c [false]}]
-          [(h/*R 0 5) {:s [false]}]
+         [[(h/*R 1 3) {:c [false]}]
+          [(h/*R 1 5) {:s [false]}]
           [(h/*R 1 8) {:s [true]}]
           [(h/*R 9 3) {:c [true]}]
           [(h/*R 9 8) {:s [false]}]]
          (-> (m/static-network-model
               {:gen-pwr   [(m/generator [[(h/*R 1) [true]]])
-                           (h/*R 1)]
+                           h/zero]
                :gen-val-1 [(m/generator [[(h/*R 1) [true]]])
                            h/zero]
                :gen-val-2 [(m/generator [[(h/*R 9) [true]]])
@@ -103,14 +102,14 @@
 
   (testing "full-adder"
     (is (event-log=
-         [[(h/*R 0 5)  {:s [false]}]
-          [(h/*R 0 8)  {:c [false]}]
-          [(h/*R 1 8)  {:s [true]}]
+         [[(h/*R 1 5)  {:s [false]}]
+          [(h/*R 1 8)  {:c [false]
+                        :s [true]}]
           [(h/*R 9 16) {:c [true]
                         :s [false]}]]
          (-> (m/static-network-model
               {:gen-pwr   [(m/generator [[(h/*R 1) [true]]])
-                           (h/*R 1)]
+                           h/zero]
                :gen-val-1 [(m/generator [[(h/*R 1) [true]]])
                            h/zero]
                :gen-val-2 [(m/generator [[(h/*R 9) [true]]])

@@ -28,8 +28,12 @@
                {:initial-elapsed initial-elapsed})
     (let [tl (h/- t initial-elapsed)
           tn (h/+ tl (time-advance initial-state))]
-      (ex-assert (h/< tl tn) "tn must be greater than tl."
-                 {:tl tl :tn tn})
+      (ex-assert (h/<= tl t)
+                 "NIA violation"
+                 {:tl tl :t t})
+      (ex-assert (h/< t tn)
+                 "NIA violation"
+                 {:t t :tn tn})
       (assoc sim :state initial-state :tl tl :tn tn)))
   (collect-mail [sim t]
     (log/trace "--- collect-mail ---")
@@ -41,7 +45,7 @@
                {:tl tl :t t :tn tn})
     (ex-assert (or (h/= t tn) (seq mail))
                "Illegal state for transition; sim is not imminent nor receiving mail."
-               {:tl tl, :t t, :tn tn, :mail-count (count mail)})
+               {:tl tl :t t :tn tn :mail-count (count mail)})
     (let [state (if (h/= t tn)
                   (if (seq mail)
                     (confluent-update state mail)

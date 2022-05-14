@@ -49,7 +49,7 @@
 
 (deftest initial-elapsed-tests
 
-  (testing "An atomic simulation. #1"
+  (testing "An atomic simulation."
     (is (event-log= [[(h/*R 5)  {:out ["x"]}]
                      [(h/*R 15) {:out ["y"]}]]
                     (let [gen (m/generator [[(h/*R 10) ["x"]]
@@ -57,15 +57,19 @@
                       (-> (atomic-simulator gen :elapsed (h/*R 5))
                           afap-root-coordinator)))))
 
-  (testing "An atomic simulation. #2"
-    (is (event-log= [[(h/*R 0)  {:out ["x"]}]
-                     [(h/*R 10) {:out ["y"]}]]
-                    (let [gen (m/generator [[(h/*R 10) ["x"]]
-                                            [(h/*R 10) ["y"]]])]
-                      (-> (atomic-simulator gen :elapsed (h/*R 10))
-                          afap-root-coordinator)))))
+  (testing "Atomic: tn can't be before start time. "
+    (is (thrown? clojure.lang.ExceptionInfo
+                 (-> (m/generator (repeat [(h/*R 2) ["x"]]))
+                     (atomic-simulator :elapsed (h/*R 3))
+                     (afap-root-coordinator :end (h/*R 10))))))
 
-  (testing "A network simulation. #1"
+  (testing "Atomic: tn can't be equal to start time. "
+    (is (thrown? clojure.lang.ExceptionInfo
+                 (-> (m/generator (repeat [(h/*R 2) ["x"]]))
+                     (atomic-simulator :elapsed (h/*R 2))
+                     (afap-root-coordinator :end (h/*R 10))))))
+
+  (testing "A network simulation."
     (is (event-log= [[(h/*R 13 0) {:out ["x"]}]
                      [(h/*R 23 0) {:out ["y"]}]]
                     (let [gen (m/generator [[(h/*R 10) ["x"]]
@@ -79,14 +83,23 @@
                       (-> (network-simulator net :elapsed (h/*R 2))
                           afap-root-coordinator)))))
 
-  (testing "A network simulation. #2"
-    (is (event-log= [[(h/*R 0) {:out ["x"]}]]
-                    (let [gen (m/generator [[(h/*R 10) ["x"]]])
-                          net (m/static-network-model
-                               {:gen [gen h/zero]}
-                               [[:gen :out :network :out]])]
-                      (-> (network-simulator net :elapsed (h/*R 10))
-                          afap-root-coordinator)))))
+  (testing "Network: tn can't be before start time."
+    (is (thrown? clojure.lang.ExceptionInfo
+                 (let [gen (m/generator [[(h/*R 10) ["x"]]])
+                       net (m/static-network-model
+                            {:gen [gen h/zero]}
+                            [[:gen :out :network :out]])]
+                   (-> (network-simulator net :elapsed (h/*R 20))
+                       afap-root-coordinator)))))
+
+  (testing "Network: tn can't be equal start time."
+    (is (thrown? clojure.lang.ExceptionInfo
+                 (let [gen (m/generator [[(h/*R 10) ["x"]]])
+                       net (m/static-network-model
+                            {:gen [gen h/zero]}
+                            [[:gen :out :network :out]])]
+                   (-> (network-simulator net :elapsed (h/*R 10))
+                       afap-root-coordinator)))))
 
   (testing "An atomic model within a network simulation."
     (is (event-log= [[(h/*R 13 0) {:out ["x"]}]
