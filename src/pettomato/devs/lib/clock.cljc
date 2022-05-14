@@ -3,6 +3,7 @@
   time as an argument, which must be nondecreasing. Use a consistent and
   reliable source for supplying wall time, such as `(.getTime (java.util.Date.))`."
   (:require
+   [pettomato.devs.lib.debug :refer [ex-assert]]
    [pettomato.devs.lib.hyperreal :as h :refer [*R]]))
 
 ;; Most of the complexity in this implementation is due to the fact that
@@ -29,7 +30,7 @@
   will cause sim-time to advance towards negative infinity; i.e., in reverse."
   [wall-time sim-time & {:keys [scale-factor]
                          :or   {scale-factor 1.0}}]
-  (assert (h/hyperreal? sim-time))
+  (ex-assert (h/hyperreal? sim-time))
   {:wall-time    wall-time
    :sim-time     sim-time
    :scale-factor scale-factor})

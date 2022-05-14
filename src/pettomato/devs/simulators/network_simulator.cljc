@@ -3,6 +3,7 @@
   (:require
    [clojure.set :as set]
    [pettomato.devs.lib.coll :refer [prune]]
+   [pettomato.devs.lib.debug :refer [ex-assert]]
    [pettomato.devs.lib.hyperreal :as h]
    [pettomato.devs.lib.log :as log]
    [pettomato.devs.lib.mail :as mail]
@@ -28,8 +29,9 @@
 
 (defn- add-model [parent-sim id [model elapsed] t]
   (log/tracef "add-model: %s" [id elapsed])
-  (assert (not (contains? (:id->sim parent-sim) id))
-          (str "parent-sim already contains a model with id: " id))
+  (ex-assert (not (contains? (:id->sim parent-sim) id))
+             "duplicate id"
+             {:id id})
   (let [simulator (find-simulator id model)
         sim       (-> model (simulator :elapsed elapsed) (initialize t))
         tl        (time-of-last-event sim)
@@ -40,7 +42,7 @@
                     (h/max (:tl parent-sim) tl)
                     tl)
         parent-tn (or (pq/peek-key queue) h/infinity)]
-    (assert (h/<= t parent-tn))
+    (ex-assert (h/<= t parent-tn))
     (assoc parent-sim
            :id->sim id->sim
            :queue queue
@@ -50,7 +52,7 @@
 (defn- rem-model [parent-sim id]
   (log/tracef "rem-model: %s" id)
   (let [sim       (get-in parent-sim [:id->sim id])
-        _         (assert sim (str "parent-sim does not contain a model with id: " id))
+        _         (ex-assert sim "id not found" {:id id})
         tn        (time-of-next-event sim)
         id->sim   (dissoc (:id->sim parent-sim) id)
         queue     (pq/delete (:queue parent-sim) tn id)
@@ -176,7 +178,7 @@
         (assoc sim :tn (or (pq/peek-key (:queue sim)) h/infinity)))))
   (collect-mail [sim t]
     (log/trace "--- collect-mail ---")
-    (assert (h/= t tn) (str "synchronization error: (not (= " t " " tn "))"))
+    (ex-assert (h/= t tn) "synchronization error" {:t t :tn tn})
     (->> (set/intersection (pq/peek queue) (set (keys network-output-routes))) ; The set of model ids that have network-output-routes could be cached.
          (select-keys id->sim)
          (reduce-kv (fn [m id sim] (assoc m id (collect-mail sim t))) {})
@@ -184,13 +186,11 @@
          :network))
   (transition [sim mail t]
     (log/trace "--- transition ---")
-    (assert (h/<= tl t tn) (str "synchronization error: (not (<= " tl " " t " " tn "))"))
-    (when (and (h/< t tn) (empty? mail))
-      (throw (ex-info "Illegal state for transition; sim is not imminent nor receiving mail."
-                      {:tl         tl
-                       :t          t
-                       :tn         tn
-                       :mail-count (count mail)})))
+    (ex-assert (h/<= tl t tn) "synchronization error"
+               {:tl tl :t t :tn tn})
+    (ex-assert (or (h/= t tn) (seq mail))
+               "Illegal state for transition; sim is not imminent nor receiving mail."
+               {:tl tl, :t t, :tn tn, :mail-count (count mail)})
     (let [imminent     (if (h/= t tn) (pq/peek queue) #{})
           _            (log/tracef "imminent: %s" imminent)
           imm-mail     (zipmap imminent (repeat {})) ; Transitions are "mail-driven"; imminent sims are primed with an empty bag.
@@ -214,9 +214,13 @@
                          (log/tracef "sc*: %s" sc*))
           sim          (apply-transitions sim t all-mail)
           sim          (apply-network-structure-changes sim t sc*)
+          tl           t
           tn           (or (pq/peek-key (:queue sim))
                            h/infinity)]
-      (assoc sim :tl t :tn tn)))
+      (ex-assert (h/< tl tn)
+                 "tn must be greater than tl."
+                 {:tl tl :tn tn})
+      (assoc sim :tl tl :tn tn)))
   (time-of-last-event [sim] tl)
   (time-of-next-event [sim] tn))
 
@@ -230,4 +234,5 @@
     A NetworkSimulator."
   [model & {:keys [elapsed]
             :or   {elapsed h/zero}}]
+  (ex-assert (network-model? model))
   (map->NetworkSimulator {:model model :initial-elapsed elapsed}))

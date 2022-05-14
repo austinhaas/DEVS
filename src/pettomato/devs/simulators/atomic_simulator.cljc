@@ -10,6 +10,7 @@
                                                output
                                                time-advance
                                                atomic-model?]]
+   [pettomato.devs.lib.debug :refer [ex-assert]]
    [pettomato.devs.lib.hyperreal :as h]
    [pettomato.devs.lib.log :as log]
    [pettomato.devs.simulator :refer [Simulator]])
@@ -19,34 +20,36 @@
   Simulator
   (initialize [sim t]
     (log/trace "--- initialize ---")
-    (assert (h/<= h/zero initial-elapsed) "initial-elapsed must be <= 0")
+    (ex-assert (h/<= h/zero initial-elapsed)
+               "initial-elapsed must be <= 0"
+               {:initial-elapsed initial-elapsed})
     (let [tl (h/- t initial-elapsed)
-          ta (time-advance initial-state)
-          tn (h/+ tl ta)]
-      (assert (h/pos? ta))
-      (when (not (h/< tl tn))
-        (throw (ex-info "tl must be < tn" {:tl tl :tn tn})))
+          tn (h/+ tl (time-advance initial-state))]
+      (ex-assert (h/< tl tn) "tn must be greater than tl."
+                 {:tl tl :tn tn})
       (assoc sim :state initial-state :tl tl :tn tn)))
   (collect-mail [sim t]
     (log/trace "--- collect-mail ---")
-    (assert (h/= t tn) (str "synchronization error: (not (= " t " " tn "))"))
+    (ex-assert (h/= t tn) "synchronization error" {:t t :tn tn})
     (output state))
   (transition [sim mail t]
     (log/tracef "--- transition ---")
-    (assert (h/<= tl t tn) (str "synchronization error: (not (<= " tl " " t " " tn "))"))
-    (let [state (cond
-                  (and (h/= t tn) (empty? mail)) (internal-update state)
-                  (and (h/= t tn) (seq    mail)) (confluent-update state mail)
-                  (and (h/< t tn) (seq    mail)) (external-update state (h/- t tl) mail)
-                  :else                          (throw (ex-info "Illegal state for transition; sim is not imminent nor receiving mail."
-                                                                 {:tl         tl
-                                                                  :t          t
-                                                                  :tn         tn
-                                                                  :mail-count (count mail)})))
-          ta    (time-advance state)
-          tn    (h/+ t ta)]
-      (assert (h/pos? ta))
-      (assoc sim :state state :tl t :tn tn)))
+    (ex-assert (h/<= tl t tn) "synchronization error"
+               {:tl tl :t t :tn tn})
+    (ex-assert (or (h/= t tn) (seq mail))
+               "Illegal state for transition; sim is not imminent nor receiving mail."
+               {:tl tl, :t t, :tn tn, :mail-count (count mail)})
+    (let [state (if (h/= t tn)
+                  (if (seq mail)
+                    (confluent-update state mail)
+                    (internal-update state))
+                  (external-update state (h/- t tl) mail))
+          tl    t
+          tn    (h/+ t (time-advance state))]
+      (ex-assert (h/< tl tn)
+                 "tn must be greater than tl."
+                 {:tl tl :tn tn})
+      (assoc sim :state state :tl tl :tn tn)))
   (time-of-last-event [sim] tl)
   (time-of-next-event [sim] tn))
 
@@ -80,6 +83,6 @@
     A simulator."
   [model & {:keys [elapsed]
             :or   {elapsed h/zero}}]
-  (assert (atomic-model? model))
+  (ex-assert (atomic-model? model))
   (map->AtomicSimulator {:initial-state   model
                          :initial-elapsed elapsed}))

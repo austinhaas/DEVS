@@ -1,6 +1,7 @@
 (ns pettomato.devs.models.network-model
   (:require
    [clojure.set :as set]
+   [pettomato.devs.lib.debug :refer [ex-assert]]
    [pettomato.devs.models.atomic-model :refer [atomic-model?]]
    [pettomato.devs.models.executive-model :refer [executive-model?]]))
 
@@ -13,12 +14,10 @@
         executive-id              (:executive-id model)
         {:keys [models routes]}   model
         models                    (assoc models executive-id executive-model)]
-    (assert (executive-model? executive-model))
-    (assert (atomic-model? executive-model))
-    ;; A network model must contain at least one component model.
-    (when (zero? (count models))
-      (throw (ex-info "A network model must contain at least one component model."
-                      model)))
+    (ex-assert (executive-model? executive-model))
+    (ex-assert (atomic-model? executive-model))
+    (ex-assert (pos? (count models))
+               "A network model must contain at least one component model.")
     ;; All models in routes must appear in models (except for :network).
     (let [keys-in-routes (-> (mapcat (fn [[sk _ rk _ _]] [sk rk])
                                      routes)
@@ -27,23 +26,20 @@
           keys-in-models (-> models
                              keys
                              set)]
-     (when-not (set/subset? keys-in-routes keys-in-models)
-       (throw (ex-info (str "All models in routes must appear in models (except for :network). Unknown models in routes: "
-                            (set/difference keys-in-routes keys-in-models))
-                       model))))
+      (ex-assert (set/subset? keys-in-routes keys-in-models)
+                 "All models in routes must appear in models (except for :network)."
+                 {:unknown-models (set/difference keys-in-routes keys-in-models)}))
     ;; A model cannot use the same port for both input and output.
     (let [input-ports  (set (for [[sk sp _ _ _] routes] [sk sp]))
           output-ports (set (for [[_ _ rk rp _] routes] [rk rp]))]
-      (when (seq (set/intersection input-ports output-ports))
-        (throw (ex-info "A model cannot use the same port for both input and output."
-                        model))))
+      (ex-assert (empty? (set/intersection input-ports output-ports))
+                 "A model cannot use the same port for both input and output."))
     ;; A network input port cannot connect directly to a network output port.
     (let [pass-thru-routes (filter (fn [[sk _ rk _ _]] (= sk rk))
                                    routes)]
-      (when (seq pass-thru-routes)
-        (throw (ex-info (str "A network input port cannot connect directly to a network output port: "
-                             pass-thru-routes)
-                        model)))))
+      (ex-assert (empty? pass-thru-routes)
+                 "A network input port cannot connect directly to a network output port."
+                 {:bad-routes pass-thru-routes})))
   nil)
 
 (defn network-model
