@@ -59,25 +59,25 @@
   (get-structure-changes [sim]
     (structure-changes state)))
 
-(defn format-network-exec-simulator ^String [x]
+(defn format-executive-simulator ^String [x]
   #?(:clj  (format "#pettomato.devs.simulators.ExecutiveSimulator<0x%x>{}"
                    (System/identityHashCode x))
      :cljs (format "#pettomato.devs.simulators.ExecutiveSimulator<%s>{}"
                    (.toString (hash x) 16))))
 
 #?(:clj
-   (defn print-network-exec-simulator [^ExecutiveSimulator x ^java.io.Writer w]
-     (.write w (format-network-exec-simulator x))))
+   (defn print-executive-simulator [^ExecutiveSimulator x ^java.io.Writer w]
+     (.write w (format-executive-simulator x))))
 
 #?(:clj
    (defmethod print-method ExecutiveSimulator [^ExecutiveSimulator x ^java.io.Writer w]
-     (print-network-exec-simulator x w)))
+     (print-executive-simulator x w)))
 
 #?(:clj
    (. clojure.pprint/simple-dispatch
       addMethod
       ExecutiveSimulator
-      #(print-network-exec-simulator % *out*)))
+      #(print-executive-simulator % *out*)))
 
 (defn executive-simulator
   "Wrap a network executive model in a network executive simulator.
