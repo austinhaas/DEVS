@@ -33,6 +33,10 @@
     :else                    (throw (ex-info "Unknown model type." {:id id}))))
 
 (defn- add-model [parent-sim id [model elapsed] t]
+  ;; Adding a model at time t means that the state of the model is
+  ;; already determined at time t. In other words, we do not add a
+  ;; model at time t, and then invoke a transition to bring it up to
+  ;; speed at time t.
   (log/tracef "add-model: %s" [id elapsed])
   (ex-assert (not (contains? (:id->sim parent-sim) id))
              "duplicate id"
