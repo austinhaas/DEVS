@@ -206,7 +206,6 @@
           structure-changes (if (contains? imminent (:executive-id model))
                               (get-structure-changes (get (:id->sim sim) (:executive-id model)))
                               [])]
-      #_
       (ex-assert (h/< tl tn)
                  "tn must be greater than tl."
                  {:tl tl :tn tn})
