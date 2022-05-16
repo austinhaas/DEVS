@@ -14,10 +14,10 @@
         executive-id              (:executive-id model)
         {:keys [models routes]}   model
         models                    (assoc models executive-id executive-model)]
-    (ex-assert (executive-model? executive-model))
-    (ex-assert (atomic-model? executive-model))
-    (ex-assert (pos? (count models))
-               "A network model must contain at least one component model.")
+    (ex-assert (executive-model? executive-model)
+               "Executive must be an executive model.")
+    (ex-assert (atomic-model? executive-model)
+               "Executive must be an atomic model.")
     ;; All models in routes must appear in models (except for :network).
     (let [keys-in-routes (-> (mapcat (fn [[sk _ rk _ _]] [sk rk])
                                      routes)

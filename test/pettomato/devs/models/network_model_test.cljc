@@ -10,27 +10,18 @@
 
 (deftest invalid-network-models
 
-  ;; Aside from the specific invalid case that is being tested, these models are
-  ;; valid, but may be nonsensical.
-
-  #_
   (is (thrown-with-msg? #?(:clj clojure.lang.ExceptionInfo
                            :cljs ExceptionInfo)
-                        #"A network model must contain at least one component model."
+                        #"Executive must be an executive model."
                         (network-model :exec
-                                       [(simple-executive) h/zero]
-                                       {}
-                                       [])))
-
-  ;; validate exec-model
-
+                                       [(buffer (h/*R 5)) h/zero])))
 
   (is (thrown-with-msg? #?(:clj clojure.lang.ExceptionInfo
                            :cljs ExceptionInfo)
                         #"All models in routes must appear in models \(except for :network\)."
                         (network-model :exec
                                        [(simple-executive) h/zero]
-                                       {:x (buffer 5)}
+                                       {:x (buffer (h/*R 5))}
                                        [[:network :in :y :in]])))
 
   (is (thrown-with-msg? #?(:clj clojure.lang.ExceptionInfo
@@ -38,7 +29,7 @@
                         #"A model cannot use the same port for both input and output."
                         (network-model :exec
                                        [(simple-executive) h/zero]
-                                       {:x (buffer 5)}
+                                       {:x (buffer (h/*R 5))}
                                        [[:network :in :x :in]
                                         [:x :in :network :out]])))
 
@@ -47,5 +38,5 @@
                         #"A network input port cannot connect directly to a network output port"
                         (network-model :exec
                                        [(simple-executive) h/zero]
-                                       {:x (buffer 5)}
+                                       {:x (buffer (h/*R 5))}
                                        [[:network :in :network :out]]))))
