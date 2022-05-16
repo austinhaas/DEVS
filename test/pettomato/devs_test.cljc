@@ -239,9 +239,14 @@
            (-> (network-simulator net)
                afap-root-coordinator)))))
 
-  (testing "Remove an atomic model before it is imminent."
+  (testing "Remove an atomic model just before it can emit a message."
+    ;; In order to remove :gen before it can send its next message,
+    ;; :sc-gen must emit its disconnect message two epsilon
+    ;; prior. This is because :exec will take one epsilon to change
+    ;; its state, and :gen must be removed at least one epsilon before
+    ;; it is scheduled to emit its message.
     (is (event-log= []
-                    (let [sc-gen (m/generator [[(h/*R 10 -3) [[:disconnect [:gen :out :network :out]]
+                    (let [sc-gen (m/generator [[(h/*R 10 -2) [[:disconnect [:gen :out :network :out]]
                                                               [:rem-model :gen]]]])
                           net    (m/simple-network-model
                                   :exec
@@ -254,8 +259,10 @@
                           afap-root-coordinator)))))
 
   (testing "Remove an atomic model when it is imminent."
-    (is (event-log= []
-                    (let [sc-gen (m/generator [[(h/*R 10 -2) [[:disconnect [:gen :out :network :out]]
+    ;; The message is still sent, because outgoing mail is collected
+    ;; and delivered before structure changes are applied.
+    (is (event-log= [[(h/*R 10) {:out ["x"]}]]
+                    (let [sc-gen (m/generator [[(h/*R 10 -1) [[:disconnect [:gen :out :network :out]]
                                                               [:rem-model :gen]]]])
                           net    (m/simple-network-model
                                   :exec
@@ -280,6 +287,145 @@
                                    [:gen :out :network :out]])]
                       (-> (network-simulator net)
                           afap-root-coordinator)))))
+
+  (testing "Remove a message recipient before it is imminent."
+    ;; In this case, :buf will receive the message and process it, but
+    ;; it will be removed immediately after, when the structure
+    ;; changes are processed.
+    (is (event-log= []
+                    (let [sc-gen (m/generator [[(h/*R 10 -1) [[:disconnect [:buf :out :network :out]]
+                                                              [:disconnect [:gen :out :buf :in]]
+                                                              [:rem-model :buf]]]])
+                          net    (m/simple-network-model
+                                  :exec
+                                  {:sc-gen [sc-gen h/zero]
+                                   :gen    [(m/generator [[(h/*R 10) ["x"]]])
+                                            h/zero]
+                                   :buf    [(m/buffer (h/*R 5))
+                                            h/zero]}
+                                  [[:sc-gen :out :exec :in]
+                                   [:gen :out :buf :in]
+                                   [:buf :out :network :out]])]
+                      (-> (network-simulator net)
+                          afap-root-coordinator)))))
+
+  (testing "Moving a sender from one network to another. #1"
+    (is (event-log= [[(h/*R 3 1)  {:out-1 ["x"]}]
+                     [(h/*R 4 1)  {:out-1 ["x"]}]
+                     [(h/*R 5 1)  {:out-1 ["x"]}]
+                     [(h/*R 6 1)  {:out-1 ["x"]}]
+                     [(h/*R 7 1)  {:out-1 ["x"]}]
+                     [(h/*R 8 1)  {:out-2 ["x"]}]
+                     [(h/*R 9 1)  {:out-2 ["x"]}]]
+                    (let [net-1 (m/simple-network-model
+                                 :exec
+                                 {:sc-gen [(m/generator [[(h/*R 2) [[:add-model :gen [(m/generator (repeat 10 [(h/*R 1) ["x"]]))
+                                                                                      h/zero]]
+                                                                    [:connect [:gen :out :network :out]]]]
+                                                         [(h/*R 5) [[:rem-model :gen]
+                                                                    [:disconnect [:gen :out :network :out]]]]])
+                                           h/zero]}
+                                 [[:sc-gen :out :exec :in]])
+                          net-2 (m/simple-network-model
+                                 :exec
+                                 {:sc-gen [(m/generator [[(h/*R 7) [[:add-model :gen [(m/generator (repeat 10 [(h/*R 1) ["x"]]))
+                                                                                      h/zero]]
+                                                                    [:connect [:gen :out :network :out]]]]])
+                                           h/zero]}
+                                 [[:sc-gen :out :exec :in]])
+                          net   (m/static-network-model
+                                 {:net-1 [net-1 h/zero]
+                                  :net-2 [net-2 h/zero]}
+                                 [[:net-1 :out :network :out-1]
+                                  [:net-2 :out :network :out-2]])]
+                      (-> (network-simulator net)
+                          (afap-root-coordinator :end (h/*R 10)))))))
+
+  (testing "Moving a sender from one network to another. #2"
+    ;; This works because the second generator is started with an
+    ;; elapsed time that matches the time when it was removed from the
+    ;; first network.
+    (is (event-log= [[(h/*R 7 1)  {:out-1 ["x"]}]
+                     [(h/*R 9 1)  {:out-1 ["x"]}]
+                     [(h/*R 11 1) {:out-2 ["x"]}]
+                     [(h/*R 13 1) {:out-2 ["x"]}]]
+                    (let [net-1 (m/simple-network-model
+                                 :exec
+                                 {:sc-gen [(m/generator [[(h/*R 5) [[:add-model :gen [(m/generator (repeat 10 [(h/*R 2) ["x"]]))
+                                                                                      h/zero]]
+                                                                    [:connect [:gen :out :network :out]]]]
+                                                         [(h/*R 5) [[:rem-model :gen]
+                                                                    [:disconnect [:gen :out :network :out]]]]])
+                                           h/zero]}
+                                 [[:sc-gen :out :exec :in]])
+                          net-2 (m/simple-network-model
+                                 :exec
+                                 {:sc-gen [(m/generator [[(h/*R 10) [[:add-model :gen [(m/generator (repeat 10 [(h/*R 2) ["x"]]))
+                                                                                       (h/*R 1)]] ; important
+                                                                     [:connect [:gen :out :network :out]]]]])
+                                           h/zero]}
+                                 [[:sc-gen :out :exec :in]])
+                          net   (m/static-network-model
+                                 {:net-1 [net-1 h/zero]
+                                  :net-2 [net-2 h/zero]}
+                                 [[:net-1 :out :network :out-1]
+                                  [:net-2 :out :network :out-2]])]
+                      (-> (network-simulator net)
+                          (afap-root-coordinator :end (h/*R 15)))))))
+
+  (testing "Move a receiver from one network to another."
+    ;; This is a bit of a hack. Currently, we don't have a way to
+    ;; preserve the current state of a buffer that we want to move,
+    ;; which means that a buffered message will get dropped when we
+    ;; remove the old buffer and add the new buffer (because it is
+    ;; completely new).
+
+    ;; So, instead, to test that the model won't miss an incoming
+    ;; message, we use a route transducer to record incoming messages
+    ;; in an atom, and then check the atom at the end of the test.
+    (let [a1    (atom [])
+          a2    (atom [])
+          tx1   (map (fn [x] (swap! a1 conj x) x))
+          tx2   (map (fn [x] (swap! a2 conj x) x))
+          net-1 (m/simple-network-model
+                 :exec
+                 {:sc-gen [(m/generator [[(h/*R 5 -2) [[:rem-model :buf]
+                                                       [:disconnect [:network :in :buf :in tx1]]
+                                                       [:disconnect [:buf :out :network :out]]]]])
+                           h/zero]
+                  :buf    [(m/buffer (h/*R 1))
+                           h/zero]}
+                 [[:sc-gen :out :exec :in]
+                  [:network :in :buf :in tx1]
+                  [:buf :out :network :out]])
+          net-2 (m/simple-network-model
+                 :exec
+                 {:sc-gen [(m/generator [[(h/*R 5 -2) [[:add-model :buf [(m/buffer (h/*R 1))
+                                                                         h/zero]]
+                                                       [:connect [:network :in :buf :in tx2]]
+                                                       [:connect [:buf :out :network :out]]]]])
+                           h/zero]}
+                 [[:sc-gen :out :exec :in]])
+          net   (m/static-network-model
+                 {:gen   [(m/generator (for [i (range 10)] [(h/*R 2) [(str "msg-" i)]]))
+                          h/zero]
+                  :net-1 [net-1 h/zero]
+                  :net-2 [net-2 h/zero]}
+                 [[:gen :out :net-1 :in]
+                  [:gen :out :net-2 :in]
+                  [:net-1 :out :network :out-1]
+                  [:net-2 :out :network :out-2]])]
+      (is (event-log=
+           [[(h/*R 3) {:out-1 ["msg-0"]}]
+            ;; msg-1 is lost, because we didn't preserve the buffer's
+            ;; state when we moved it.
+            [(h/*R 7) {:out-2 ["msg-2"]}]
+            [(h/*R 9) {:out-2 ["msg-3"]}]]
+           (-> (network-simulator net)
+               (afap-root-coordinator :end (h/*R 10))
+               doall)))
+      (is (= [["msg-0" "msg-1"] ["msg-2" "msg-3" "msg-4"]]
+             [@a1 @a2]))))
 
   (testing "Add and remove a NETWORK model."
     (is (event-log=
