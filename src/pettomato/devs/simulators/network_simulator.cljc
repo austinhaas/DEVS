@@ -42,7 +42,8 @@
              "duplicate id"
              {:id id})
   (let [simulator (find-simulator id model)
-        sim       (-> model (simulator :elapsed elapsed) (initialize t))
+        sim       (binding [log/*context* (update log/*context* :path conj id)]
+                    (-> model (simulator :elapsed elapsed) (initialize t)))
         tl        (time-of-last-event sim)
         tn        (time-of-next-event sim)]
     (ex-assert (h/< t tn))
@@ -115,7 +116,9 @@
   mail - The local mail (p->vs) for the component simulator."
   [parent-sim id t mail]
   (let [sim  (get-in parent-sim [:id->sim id])
-        sim' (transition sim mail t)  ; Recursive step.
+        sim' (binding [log/*context* (update log/*context* :path conj id)]
+               ;; Recursive step.
+               (transition sim mail t))
         tn   (time-of-next-event sim) ; Previously scheduled time; (<= t tn).
         tn'  (time-of-next-event sim')]
     (-> parent-sim
@@ -159,66 +162,70 @@
                              tl tn]
   Simulator
   (initialize [sim t]
-    (log/trace "--- initialize ---")
-    (let [sim        (assoc sim
-                            :id->sim               {}
-                            :local-routes          {}
-                            :network-input-routes  {}
-                            :network-output-routes {}
-                            :queue                 (pq/priority-queue h/comparator)
-                            :tl                    (h/*R -1 0 0)
-                            :tn                    (h/*R  1 0 0))
-          exec-id    (:executive-id model)
-          exec-model (:executive-model model)
-          t'         (h/- t initial-elapsed)]
-      (as-> sim sim
-        (add-model sim exec-id exec-model t')
-        (reduce-kv #(add-model %1 %2 %3 t') sim (:models model))
-        (reduce connect sim (:routes model)))))
+    (binding [log/*context* (assoc log/*context* :time t)]
+      (log/trace "<initialize>")
+      (let [sim        (assoc sim
+                              :id->sim               {}
+                              :local-routes          {}
+                              :network-input-routes  {}
+                              :network-output-routes {}
+                              :queue                 (pq/priority-queue h/comparator)
+                              :tl                    (h/*R -1 0 0)
+                              :tn                    (h/*R  1 0 0))
+            exec-id    (:executive-id model)
+            exec-model (:executive-model model)
+            t'         (h/- t initial-elapsed)]
+        (as-> sim sim
+          (add-model sim exec-id exec-model t')
+          (reduce-kv #(add-model %1 %2 %3 t') sim (:models model))
+          (reduce connect sim (:routes model))))))
   (collect-mail [sim t]
-    (log/trace "--- collect-mail ---")
-    (ex-assert (h/= t tn)
-               "synchronization error"
-               {:t t :tn tn})
-    (->> (set/intersection (pq/peek queue) (set (keys network-output-routes))) ; The set of model ids that have network-output-routes could be cached.
-         (select-keys id->sim)
-         (reduce-kv (fn [m id sim] (assoc m id (collect-mail sim t))) {})
-         (mail/route-mail network-output-routes)
-         :network))
+    (binding [log/*context* (assoc log/*context* :time t)]
+      (log/trace "<collect-mail>")
+      (ex-assert (h/= t tn)
+                 "synchronization error"
+                 {:t t :tn tn})
+      (->> (set/intersection (pq/peek queue) (set (keys network-output-routes))) ; The set of model ids that have network-output-routes could be cached.
+           (select-keys id->sim)
+           (reduce-kv (fn [m id sim] (assoc m id (binding [log/*context* (update log/*context* :path conj id)]
+                                                   (collect-mail sim t)))) {})
+           (mail/route-mail network-output-routes)
+           :network)))
   (transition [sim mail t]
-    (log/trace "--- transition ---")
-    (ex-assert (h/< tl t)
-               "synchronization error"
-               {:tl tl :t t :tn tn})
-    (ex-assert (h/<= t tn)
-               "synchronization error"
-               {:tl tl :t t :tn tn})
-    (ex-assert (or (h/= t tn) (seq mail))
-               "Illegal state for transition; sim is not imminent nor receiving mail."
-               {:tl tl :t t :tn tn :mail-count (count mail)})
-    (let [imminent          (if (h/= t tn) (pq/peek queue) #{})
-          imm-mail          (zipmap imminent (repeat {})) ; Transitions are "mail-driven"; imminent sims are primed with an empty bag.
-          ;; There could be redundancy here, if a component routes
-          ;; output to the network (in collect-mail above) and also
-          ;; locally (here).
-          local-mail        (->> (set/intersection imminent (set (keys local-routes))) ; The set of model ids that have local-routes could be cached.
-                                 (select-keys id->sim)
-                                 (reduce-kv (fn [m id sim] (assoc m id (collect-mail sim t))) {})
-                                 (mail/route-mail local-routes))
-          network-mail      (mail/route-mail network-input-routes {:network mail})
-          all-mail          (mail/merge-mail imm-mail local-mail network-mail)
-          structure-changes (if (contains? imminent (:executive-id model))
-                              (get-structure-changes (get (:id->sim sim) (:executive-id model)))
-                              [])]
-      (ex-assert (h/< tl tn)
-                 "tn must be greater than tl."
-                 {:tl tl :tn tn})
-      (as-> sim s
-        (apply-transitions s t all-mail)
-        (apply-network-structure-changes s t structure-changes)
-        (assoc s
-               :tl t
-               :tn (pq/peek-key (:queue s))))))
+    (binding [log/*context* (assoc log/*context* :time t)]
+      (log/trace "<transition>")
+      (ex-assert (h/< tl t)
+                 "synchronization error"
+                 {:tl tl :t t :tn tn})
+      (ex-assert (h/<= t tn)
+                 "synchronization error"
+                 {:tl tl :t t :tn tn})
+      (ex-assert (or (h/= t tn) (seq mail))
+                 "Illegal state for transition; sim is not imminent nor receiving mail."
+                 {:tl tl :t t :tn tn :mail-count (count mail)})
+      (let [imminent          (if (h/= t tn) (pq/peek queue) #{})
+            imm-mail          (zipmap imminent (repeat {})) ; Transitions are "mail-driven"; imminent sims are primed with an empty bag.
+            ;; There could be redundancy here, if a component routes
+            ;; output to the network (in collect-mail above) and also
+            ;; locally (here).
+            local-mail        (->> (set/intersection imminent (set (keys local-routes))) ; The set of model ids that have local-routes could be cached.
+                                   (select-keys id->sim)
+                                   (reduce-kv (fn [m id sim] (assoc m id (collect-mail sim t))) {})
+                                   (mail/route-mail local-routes))
+            network-mail      (mail/route-mail network-input-routes {:network mail})
+            all-mail          (mail/merge-mail imm-mail local-mail network-mail)
+            structure-changes (if (contains? imminent (:executive-id model))
+                                (get-structure-changes (get (:id->sim sim) (:executive-id model)) t)
+                                [])]
+        (ex-assert (h/< tl tn)
+                   "tn must be greater than tl."
+                   {:tl tl :tn tn})
+        (as-> sim s
+          (apply-transitions s t all-mail)
+          (apply-network-structure-changes s t structure-changes)
+          (assoc s
+                 :tl t
+                 :tn (pq/peek-key (:queue s)))))))
   (time-of-last-event [sim] tl)
   (time-of-next-event [sim] tn))
 

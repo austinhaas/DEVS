@@ -34,7 +34,6 @@
                (ex-assert (h/< tl tn)
                           "NIA violation."
                           {:tl tl :tn tn})
-               (log/tracef "tn: %s" tn)
                (if (or (h/infinite? tn)
                        (h/< end tn))
                  nil

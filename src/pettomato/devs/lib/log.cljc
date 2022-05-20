@@ -3,7 +3,7 @@
 
   Standard logging functions are provided, but users are encouraged to
   create custom functions to add additional structured data, and to
-  implement an alternative *log-function* to handle those extensions."
+  implement an alternative *handler* to handle those extensions."
   (:require
    [clojure.string :as str]
    [pettomato.devs.lib.date :as date]
@@ -13,7 +13,10 @@
 ;; Building blocks
 
 (def print-fn
-  #?(:clj  println
+  #?(:clj  (fn [x]
+             (binding [*print-level* 10
+                       *print-length* 10]
+               (println x)))
      :cljs js/console.log))
 
 (defn format-date [context] (update context :date date/format-date))
@@ -27,41 +30,53 @@
 ;;------------------------------------------------------------------------------
 ;; Core functionality
 
-(declare log-level-filter)
+(declare level-filter)
 
-(def ^:dynamic *log-function*
+(def ^:dynamic *handler*
   "The implementation of the log function. This can be dynamically bound
   to an arbitrary function that takes a single argument, but to be
   compatible with the standard log functions below, it should be a
   function that takes a map with at least the fields :level
-  and :message. The root binding checks the log level and, if it is
-  enabled, it prints the current time, the value of :level, and the
-  value of :message. Alternative implementations could change the
-  format, or write to multiple other destinations, such as files and
-  databases, or call another logger implementation, or store in an
-  in-memory database, for example."
+  and :message. The returned value is not used.
+
+  The root binding checks the log level and, if it is enabled, it
+  prints the current time, the value of :level, and the value
+  of :message. Alternative implementations could change the format, or
+  write to multiple other destinations, such as files and databases,
+  or call another logger implementation, or store in an in-memory
+  database, for example. "
   (fn [m]
     (some-> m
-      log-level-filter
+      level-filter
       add-date
       format-date
       default-formatter
       print-fn)))
 
+(def ^:dynamic *context*
+  "Can be used to establish a context for log expressions occuring
+  within this var's dynamic scope. It should always be bound to a
+  map. The root binding is an empty map.
+
+  See `log` for more info."
+  {})
+
 (defn log
-  "Calls *log-function* on context."
+  "Low-level logging function. Calls *handler* on (merge *context*
+  context). Returns nil."
   [context]
-  (*log-function* context))
+  (*handler* (merge *context* context))
+  nil)
 
 ;;------------------------------------------------------------------------------
 ;; Standard logging functions
 
-(def ^:dynamic *log-level*
+(def ^:dynamic *level*
   "The log level. This can be bound to :trace, :debug:, :info,
    :warn, :error, or :fatal. The root binding is :info."
   :info)
 
-(def log-level->int
+(def level->int
   {:trace 0
    :debug 1
    :info  2
@@ -69,11 +84,11 @@
    :error 4
    :fatal 5})
 
-(defn log-level-enabled? [level] (<= (log-level->int *log-level*)
-                                     (log-level->int level)))
+(defn level-enabled? [level] (<= (level->int *level*)
+                                 (level->int level)))
 
-(defn log-level-filter [context]
-  (when (log-level-enabled? (:level context))
+(defn level-filter [context]
+  (when (level-enabled? (:level context))
     context))
 
 (defn trace [& args] (log {:level :trace :message (str/join " " args)}))
