@@ -179,7 +179,7 @@
                          (add-model sim exec-id exec-model tl)
                          (reduce-kv #(add-model %1 %2 %3 tl) sim (:models model))
                          (reduce connect sim (:routes model)))]
-        (ex-assert (h/< t (:tn sim)))
+        (ex-assert (h/< t (:tn sim)) "tn can't be in the past.")
         sim)))
   (collect-mail [sim t]
     (trace/with-collect-mail [sim t]
