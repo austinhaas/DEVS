@@ -4,11 +4,11 @@
   reliable source for supplying wall time, such as `(.getTime (java.util.Date.))`."
   (:require
    [pettomato.devs.lib.debug :refer [ex-assert]]
-   [pettomato.devs.lib.hyperreal :as h :refer [*R]]))
+   [pettomato.devs.lib.hyperreal :as h]))
 
-;; Most of the complexity in this implementation is due to the fact that
-;; scale-factor can change over time, which necessitates checkpointing wall-time
-;; and sim-time.
+;; This implementation is complex because scale-factor can change over
+;; time, which requires recording checkpoint values for wall-time and
+;; sim-time.
 
 (defn clock
   "Returns a new clock.
@@ -50,7 +50,7 @@
       (= curr-wall-time
          prev-wall-time) clock
       :else              (let [wall-time-delta (- curr-wall-time prev-wall-time)
-                               sim-time-delta  (*R (* wall-time-delta (:scale-factor clock)))
+                               sim-time-delta  (h/*R (* wall-time-delta (:scale-factor clock)))
                                prev-sim-time   (:sim-time clock)
                                curr-sim-time   (h/+ prev-sim-time sim-time-delta)]
                            (assoc clock
