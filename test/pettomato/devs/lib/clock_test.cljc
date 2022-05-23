@@ -10,13 +10,15 @@
 (deftest clock-tests
 
   (testing "initial sim time"
-    (is (h/= h/zero (-> (clock/clock 1000 h/zero)
-                        clock/get-sim-time))))
+    (is (h/= h/zero
+             (-> (clock/clock 1000 h/zero)
+                 clock/get-sim-time))))
 
   (testing "Advancing 1 second"
-    (is (h/= (*R 1000) (-> (clock/clock 0 h/zero)
-                          (clock/advance 1000)
-                          clock/get-sim-time))))
+    (is (h/= (*R 1000)
+             (-> (clock/clock 0 h/zero)
+                 (clock/advance 1000)
+                 clock/get-sim-time))))
 
   (testing "wall-time must be nondecreasing"
     (is (thrown? #?(:clj clojure.lang.ExceptionInfo
