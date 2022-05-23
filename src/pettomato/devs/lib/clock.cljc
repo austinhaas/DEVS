@@ -1,7 +1,12 @@
 (ns pettomato.devs.lib.clock
-  "A simulation clock based on wall time. Some functions take the current wall
-  time as an argument, which must be nondecreasing. Use a consistent and
-  reliable source for supplying wall time, such as `(.getTime (java.util.Date.))`."
+  "A simulation clock based on wall-time.
+
+  Supports applying a scale-factor to the time, e.g., to run a
+  simulation at double speed.
+
+  Some functions take wall-time as an argument, which must be
+  nondecreasing. Choose a consistent and reliable source for
+  wall-time, such as `(.getTime (java.util.Date.))`."
   (:require
    [pettomato.devs.lib.debug :refer [ex-assert]]
    [pettomato.devs.lib.hyperreal :as h]))
@@ -11,7 +16,7 @@
 ;; sim-time.
 
 (defn clock
-  "Returns a new clock.
+  "Returns a new simulation clock.
 
   Args:
 
