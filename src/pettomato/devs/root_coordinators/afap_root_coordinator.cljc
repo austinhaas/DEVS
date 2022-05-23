@@ -43,13 +43,6 @@
                    (if (seq mail)
                      (cons [tn mail] (step sim'))
                      (step sim')))))))]
-    (let [sim (initialize sim start)
-          tl  (time-of-last-event sim)
-          tn  (time-of-next-event sim)]
-      (ex-assert (h/<= tl start)
-                 "tl must be <= start"
-                 {:start start :tl tl})
-      (ex-assert (h/< start tn)
-                 "start must be < tn"
-                 {:start start :tn tn})
-      (step sim))))
+    (-> sim
+        (initialize start)
+        step)))

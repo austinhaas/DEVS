@@ -46,6 +46,7 @@
                     (-> model (simulator :elapsed elapsed) (initialize t)))
         tl        (time-of-last-event sim)
         tn        (time-of-next-event sim)]
+    (ex-assert (h/<= tl t))
     (ex-assert (h/< t tn))
     (as-> parent-sim s
       (update s :id->sim assoc id sim)
@@ -163,21 +164,23 @@
   Simulator
   (initialize [sim t]
     (trace/with-initialize [sim t]
-      (let [sim        (assoc sim
-                              :id->sim               {}
-                              :local-routes          {}
-                              :network-input-routes  {}
-                              :network-output-routes {}
-                              :queue                 (pq/priority-queue h/comparator)
-                              :tl                    (h/*R -1 0 0)
-                              :tn                    (h/*R  1 0 0))
-            exec-id    (:executive-id model)
+      (let [exec-id    (:executive-id model)
             exec-model (:executive-model model)
-            t'         (h/- t initial-elapsed)]
-        (as-> sim sim
-          (add-model sim exec-id exec-model t')
-          (reduce-kv #(add-model %1 %2 %3 t') sim (:models model))
-          (reduce connect sim (:routes model))))))
+            tl         (h/- t initial-elapsed)
+            sim        (as-> sim sim
+                         (assoc sim
+                                :id->sim               {}
+                                :local-routes          {}
+                                :network-input-routes  {}
+                                :network-output-routes {}
+                                :queue                 (pq/priority-queue h/comparator)
+                                :tl                    tl
+                                :tn                    h/infinity)
+                         (add-model sim exec-id exec-model tl)
+                         (reduce-kv #(add-model %1 %2 %3 tl) sim (:models model))
+                         (reduce connect sim (:routes model)))]
+        (ex-assert (h/< t (:tn sim)))
+        sim)))
   (collect-mail [sim t]
     (trace/with-collect-mail [sim t]
       (ex-assert (h/= t tn)
