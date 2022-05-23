@@ -12,15 +12,14 @@
                                                atomic-model?]]
    [pettomato.devs.lib.debug :refer [ex-assert]]
    [pettomato.devs.lib.hyperreal :as h]
-   [pettomato.devs.lib.log :as log]
+   [pettomato.devs.lib.trace :as trace]
    [pettomato.devs.simulator :refer [Simulator]])
   #?(:clj (:import [java.io Writer])))
 
 (defrecord AtomicSimulator [initial-state initial-elapsed state tl tn]
   Simulator
   (initialize [sim t]
-    (binding [log/*context* (assoc log/*context* :time t)]
-      (log/trace "<initialize>")
+    (trace/with-initialize [sim t]
       (ex-assert (h/<= h/zero initial-elapsed)
                  "initial-elapsed must be <= 0"
                  {:initial-elapsed initial-elapsed})
@@ -34,13 +33,11 @@
                    {:t t :tn tn})
         (assoc sim :state initial-state :tl tl :tn tn))))
   (collect-mail [sim t]
-    (binding [log/*context* (assoc log/*context* :time t)]
-      (log/trace "<collect-mail>")
+    (trace/with-collect-mail [sim t]
       (ex-assert (h/= t tn) "synchronization error" {:t t :tn tn})
       (output state)))
   (transition [sim mail t]
-    (binding [log/*context* (assoc log/*context* :time t)]
-      (log/tracef "<transition>")
+    (trace/with-transition [sim mail t]
       (ex-assert (h/<= tl t tn) "synchronization error"
                  {:tl tl :t t :tn tn})
       (ex-assert (or (h/= t tn) (seq mail))

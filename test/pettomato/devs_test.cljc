@@ -7,7 +7,6 @@
    [pettomato.devs.examples.models :as m]
    [pettomato.devs.lib.event-log :refer [event-log=]]
    [pettomato.devs.lib.hyperreal :as h]
-   [pettomato.devs.lib.log :as log]
    [pettomato.devs.models.atomic-model :refer [def-atomic-model]]
    [pettomato.devs.models.network-model :refer [network-model]]
    [pettomato.devs.root-coordinators.afap-root-coordinator :refer [afap-root-coordinator]]

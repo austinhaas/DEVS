@@ -5,9 +5,9 @@
    [pettomato.devs.lib.coll :refer [prune]]
    [pettomato.devs.lib.debug :refer [ex-assert]]
    [pettomato.devs.lib.hyperreal :as h]
-   [pettomato.devs.lib.log :as log]
    [pettomato.devs.lib.mail :as mail]
    [pettomato.devs.lib.priority-queue :as pq]
+   [pettomato.devs.lib.trace :as trace]
    [pettomato.devs.models.atomic-model :refer [atomic-model?]]
    [pettomato.devs.models.executive-model :refer [executive-model?]]
    [pettomato.devs.models.network-model :refer [network-model?]]
@@ -37,12 +37,12 @@
   ;; already determined at time t. In other words, we do not add a
   ;; model at time t, and then invoke a transition to bring it up to
   ;; speed at time t.
-  (log/tracef "add-model: %s" [id elapsed])
+  (trace/add-model id [model elapsed])
   (ex-assert (not (contains? (:id->sim parent-sim) id))
              "duplicate id"
              {:id id})
   (let [simulator (find-simulator id model)
-        sim       (binding [log/*context* (update log/*context* :path conj id)]
+        sim       (binding [trace/*context* (update trace/*context* :path conj id)]
                     (-> model (simulator :elapsed elapsed) (initialize t)))
         tl        (time-of-last-event sim)
         tn        (time-of-next-event sim)]
@@ -54,7 +54,7 @@
       (assoc s :tn (h/min (:tn parent-sim) tn)))))
 
 (defn- rem-model [parent-sim id]
-  (log/tracef "rem-model: %s" id)
+  (trace/rem-model id)
   (ex-assert (not= (get-in parent-sim [:model :executive-id]) id)
              "Can't remove the network executive.")
   (let [sim (get-in parent-sim [:id->sim id])]
@@ -69,7 +69,7 @@
 
   f is optional; defaults to the identity function."
   [parent-sim [sk sp rk rp f]]
-  (log/tracef "connect: %s" [sk sp rk rp f])
+  (trace/connect [sk sp rk rp f])
   (let [f (or f identity)]
     (cond
       (= :network sk)
@@ -86,7 +86,7 @@
 
   f is optional; defaults to the identity function."
   [parent-sim [sk sp rk rp f]]
-  (log/tracef "disconnect: %s" [sk sp rk rp f])
+  (trace/disconnect [sk sp rk rp f])
   (let [f (or f identity)]
     (cond
       (= :network sk)
@@ -116,7 +116,7 @@
   mail - The local mail (p->vs) for the component simulator."
   [parent-sim id t mail]
   (let [sim  (get-in parent-sim [:id->sim id])
-        sim' (binding [log/*context* (update log/*context* :path conj id)]
+        sim' (binding [trace/*context* (update trace/*context* :path conj id)]
                ;; Recursive step.
                (transition sim mail t))
         tn   (time-of-next-event sim) ; Previously scheduled time; (<= t tn).
@@ -162,8 +162,7 @@
                              tl tn]
   Simulator
   (initialize [sim t]
-    (binding [log/*context* (assoc log/*context* :time t)]
-      (log/trace "<initialize>")
+    (trace/with-initialize [sim t]
       (let [sim        (assoc sim
                               :id->sim               {}
                               :local-routes          {}
@@ -180,20 +179,18 @@
           (reduce-kv #(add-model %1 %2 %3 t') sim (:models model))
           (reduce connect sim (:routes model))))))
   (collect-mail [sim t]
-    (binding [log/*context* (assoc log/*context* :time t)]
-      (log/trace "<collect-mail>")
+    (trace/with-collect-mail [sim t]
       (ex-assert (h/= t tn)
                  "synchronization error"
                  {:t t :tn tn})
       (->> (set/intersection (pq/peek queue) (set (keys network-output-routes))) ; The set of model ids that have network-output-routes could be cached.
            (select-keys id->sim)
-           (reduce-kv (fn [m id sim] (assoc m id (binding [log/*context* (update log/*context* :path conj id)]
+           (reduce-kv (fn [m id sim] (assoc m id (binding [trace/*context* (update trace/*context* :path conj id)]
                                                    (collect-mail sim t)))) {})
            (mail/route-mail network-output-routes)
            :network)))
   (transition [sim mail t]
-    (binding [log/*context* (assoc log/*context* :time t)]
-      (log/trace "<transition>")
+    (trace/with-transition [sim mail t]
       (ex-assert (h/< tl t)
                  "synchronization error"
                  {:tl tl :t t :tn tn})
