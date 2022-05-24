@@ -1,9 +1,7 @@
 (ns pettomato.devs.root-coordinators.afap-root-coordinator
   (:require
-   [pettomato.devs.lib.debug :refer [ex-assert]]
    [pettomato.devs.lib.hyperreal :as h]
-   [pettomato.devs.lib.log :as log]
-   [pettomato.devs.simulator :refer [initialize collect-mail transition time-of-last-event time-of-next-event]]))
+   [pettomato.devs.simulator :as sim]))
 
 (defn afap-root-coordinator
   "Run a simulation \"as fast as possible\".
@@ -28,21 +26,8 @@
   [sim & {:keys [start end]
           :or   {start h/zero
                  end   h/infinity}}]
-  (letfn [(step [sim]
-            (lazy-seq
-             (let [tl (time-of-last-event sim)
-                   tn (time-of-next-event sim)]
-               (ex-assert (h/< tl tn)
-                          "NIA violation."
-                          {:tl tl :tn tn})
-               (if (or (h/infinite? tn)
-                       (h/< end tn))
-                 nil
-                 (let [mail (collect-mail sim tn)
-                       sim' (transition sim nil tn)]
-                   (if (seq mail)
-                     (cons [tn mail] (step sim'))
-                     (step sim')))))))]
-    (-> sim
-        (initialize start)
-        step)))
+  (->> (-> (sim/initialize sim start)
+           (sim/step* :end end))
+       (remove (comp empty? second))
+       (map (juxt (comp sim/time-of-last-event first)
+                  second))))
