@@ -38,7 +38,11 @@
       (output state)))
   (transition [sim mail t]
     (trace/with-transition [sim mail t]
-      (ex-assert (h/<= tl t tn) "synchronization error"
+      (ex-assert (h/< tl t)
+                 "synchronization error"
+                 {:tl tl :t t :tn tn})
+      (ex-assert (h/<= t tn)
+                 "synchronization error"
                  {:tl tl :t t :tn tn})
       (ex-assert (or (h/= t tn) (seq mail))
                  "Illegal state for transition; sim is not imminent nor receiving mail."
