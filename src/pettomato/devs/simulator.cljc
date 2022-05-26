@@ -21,8 +21,10 @@ time sim will remain in its current state, i.e., the time of sim's next update
 if it doesn't receive any external messages before then."))
 
 (defn step
-  "Advance sim to the time of its next event. Returns [sim
-  mail]. Returns nil if (time-of-next-event sim) is infinite."
+  "Advance sim to the time of its next event.
+
+  Returns [sim mail], or nil if if sim cannot be advanced because the
+  time of the next event is infinite."
   [sim]
   (let [tn (time-of-next-event sim)]
     (if (h/infinite? tn)
@@ -34,8 +36,8 @@ if it doesn't receive any external messages before then."))
 (defn step*
   "Repeatedly step sim. Returns a lazy seq of [sim mail].
 
-  The sequence terminates when (time-of-next-event sim) is infinite or
-  greater than `end`."
+  The sequence terminates when the time of the next event is infinite
+  or greater than `end`."
   [sim & {:keys [end]
           :or   {end h/infinity}}]
   (let [done? (fn [sim]
@@ -54,5 +56,5 @@ if it doesn't receive any external messages before then."))
     (let [mail' (if (h/= t tn)
                   (collect-mail sim t)
                   {})
-          sim  (transition sim mail t)]
+          sim   (transition sim mail t)]
       [sim mail'])))
