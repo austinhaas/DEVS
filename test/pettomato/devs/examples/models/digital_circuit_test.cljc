@@ -6,8 +6,8 @@
       [cljs.test :refer-macros [deftest is testing]])
    [pettomato.devs.examples.models :as m]
    [pettomato.devs.examples.models.digital-circuit :as circ]
-   [pettomato.devs.lib.event-log :refer [event-log=]]
    [pettomato.devs.lib.hyperreal :as h]
+   [pettomato.devs.lib.mail :refer [mail-log=]]
    [pettomato.devs.lib.random :as rand]
    [pettomato.devs.models.network-model :refer [network-model]]
    [pettomato.devs.root-coordinators.afap-root-coordinator :refer [afap-root-coordinator]]
@@ -16,7 +16,7 @@
 (deftest primitive-function-box-tests
 
   (testing "inverter"
-    (is (event-log=
+    (is (mail-log=
          [[(h/*R 1 5) {:out [true]}]
           [(h/*R 5 5) {:out [false]}]]
          (-> (m/static-network-model
@@ -33,7 +33,7 @@
              afap-root-coordinator))))
 
   (testing "and-gate"
-    (is (event-log=
+    (is (mail-log=
          [[(h/*R 1 5) {:out [false]}]
           [(h/*R 2 5) {:out [true]}]]
          (-> (m/static-network-model
@@ -53,7 +53,7 @@
              afap-root-coordinator))))
 
   (testing "or-gate"
-    (is (event-log=
+    (is (mail-log=
          [[(h/*R 1 5) {:out [true]}]
           [(h/*R 7 5) {:out [false]}]]
          (-> (m/static-network-model
@@ -77,7 +77,7 @@
 (deftest composite-function-box-tests
 
   (testing "SICP, p. 280"
-    (is (event-log=
+    (is (mail-log=
          [[(h/*R 1 3) {:c [false]}]
           [(h/*R 1 5) {:s [false]}]
           [(h/*R 1 8) {:s [true]}]
@@ -101,7 +101,7 @@
              afap-root-coordinator))))
 
   (testing "full-adder"
-    (is (event-log=
+    (is (mail-log=
          [[(h/*R 1 5)  {:s [false]}]
           [(h/*R 1 8)  {:c [false]
                         :s [true]}]

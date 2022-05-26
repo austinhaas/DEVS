@@ -6,9 +6,9 @@
       [cljs.test :refer-macros [deftest is testing]])
    [pettomato.devs.examples.models :as m]
    [pettomato.devs.examples.models.tms-example :as tms]
-   [pettomato.devs.lib.event-log :refer [pp-event-log]]
    [pettomato.devs.lib.hyperreal :as h]
    [pettomato.devs.lib.log :as log]
+   [pettomato.devs.lib.mail :refer [pp-mail-log]]
    [pettomato.devs.lib.random :as rand]
    [pettomato.devs.models.network-model :refer [network-model]]
    [pettomato.devs.root-coordinators.afap-root-coordinator :refer [afap-root-coordinator]]
@@ -43,4 +43,4 @@
         (is (< 0 (count
                   (with-out-str
                     (-> (afap-root-coordinator (network-simulator net) :start (h/*R 0) :end (h/*R 2000))
-                        pp-event-log)))))))))
+                        pp-mail-log)))))))))
