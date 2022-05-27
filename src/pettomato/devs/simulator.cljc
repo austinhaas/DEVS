@@ -24,25 +24,32 @@ if it doesn't receive any external messages before then."))
 
   If only sim is provided, advance sim to the time of its next event.
 
-  Returns [sim mail], or nil if if sim cannot be advanced because the
-  time of the next event is infinite.
+  Returns [sim mail].
 
-  Throws an exception if t <= time-of-last-event or if t >
-  time-of-next-event."
+  Throws an exception if:
+
+    - t <= time-of-last-event.
+    - t > time-of-next-event.
+    - time-of-next-event is infinite.
+    - t < time-of-next-event and mail is empty.
+
+  This is a low-level function. `step*` is a higher-level function
+  with a friendlier interface."
   ([sim]
    (let [tn (time-of-next-event sim)]
-     (if (h/infinite? tn)
-       nil
-       (let [mail (collect-mail sim tn)
-             sim  (transition sim {} tn)]
-         [sim mail]))))
+     (ex-assert (not (h/infinite? tn))
+                "Cannot step sim, because time-of-next-event is infinite.")
+     (let [mail (collect-mail sim tn)
+           sim  (transition sim {} tn)]
+       [sim mail])))
   ([sim t mail]
    (let [tl (time-of-last-event sim)
          tn (time-of-next-event sim)]
      (ex-assert (h/< tl t) "Synchronization error.")
      (ex-assert (h/<= t tn) "Synchronization error.")
      (ex-assert (or (h/= t tn)
-                    (seq mail)))
+                    (seq mail))
+                "Sim must be imminent or receiving mail.")
      (let [mail' (if (h/= t tn)
                    (collect-mail sim t)
                    {})
@@ -54,8 +61,8 @@ if it doesn't receive any external messages before then."))
 
   If mail is provided, sends mail to sim at time t.
 
-  The sequence terminates when the time of the next event is infinite
-  or greater than t."
+  The sequence terminates when there are no more states; that is, when
+  t is reached or if t and time-of-next-event are both infinite."
   ([sim]
    (step* sim h/infinity {}))
   ([sim t]
