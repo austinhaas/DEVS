@@ -26,8 +26,6 @@
   [sim & {:keys [start end]
           :or   {start h/zero
                  end   h/infinity}}]
-  (->> (-> (sim/initialize sim start)
-           (sim/step* :end end))
-       (remove (comp empty? second))
-       (map (juxt (comp sim/time-of-last-event first)
-                  second))))
+  (-> (sim/initialize sim start)
+      (sim/step* end)
+      (sim/output->mail-log)))
