@@ -1,12 +1,22 @@
 (ns pettomato.devs.lib.clock
-  "A simulation clock based on wall-time.
+  "A simulation clock that is paced by wall-time.
 
-  Supports applying a scale-factor to the time, e.g., to run a
-  simulation at double speed.
+  Supports time scaling, e.g., to run a simulation at double speed.
 
-  Some functions take wall-time as an argument, which must be
-  nondecreasing. Choose a consistent and reliable source for
-  wall-time, such as `(.getTime (java.util.Date.))`."
+  Wall-time is supplied as an argument to most functions. It must be
+  nondecreasing. Choose a consistent and reliable source, such
+  as `(.getTime (java.util.Date.))`.
+
+  Wall-time isn't managed internally for two reasons:
+
+  1. Some host platform APIs that we can use to drive this (e.g.,
+  requestAnimationFrame, for ClojureScript) provide an integer to
+  represent the elapsed time. It would be silly to do anything more
+  complicated than taking that value as a parameter.
+
+  2. It may be undesirable to update wall-time on every function
+  call. You may want to get wall-time once, for example, at the top of
+  an animation frame, and then call several API fns with that value."
   (:require
    [pettomato.devs.lib.debug :refer [ex-assert]]
    [pettomato.devs.lib.hyperreal :as h]))
@@ -20,7 +30,7 @@
 
   Args:
 
-    wall-time - Current wall-time. A number.
+    wall-time - Initial wall-time. A number.
 
     sim-time - Initial sim-time. A hyperreal number.
 
@@ -40,10 +50,11 @@
    :sim-time     sim-time
    :scale-factor scale-factor})
 
-(defn advance
-  "Advance sim-time based on the current wall-time. Throws an exception if
-  wall-time is less than the previously supplied wall-time. Returns a new
-  clock."
+(defn set-wall-time
+  "Set wall-time, and consequently sim-time. Returns new clock.
+
+  Throws an exception if wall-time is less than the previously
+  supplied wall-time. Returns a new clock."
   [clock wall-time]
   (let [curr-wall-time wall-time
         prev-wall-time (:wall-time clock)]
@@ -65,10 +76,12 @@
 (defn get-sim-time
   "Returns the current simulation time.
 
-  Note that this does not advance the simulation automatically. Typically, you
-  will want to call `advance` prior to calling this function."
-  [clock]
-  (:sim-time clock))
+  Call `set-wall-time` to advance the clock before calling this
+  function, or pass wall-time."
+  ([clock]
+   (:sim-time clock))
+  ([clock wall-time]
+   (:sim-time (set-wall-time clock wall-time))))
 
 (defn get-scale-factor
   "Returns clock's scale factor."
@@ -76,8 +89,10 @@
   (:scale-factor clock))
 
 (defn set-scale-factor
-  "Set clock's scale factor."
+  "Set clock's scale factor.
+
+  This can be used to pause/unpause the simulation."
   [clock wall-time scale-factor]
   (-> clock
-      (advance wall-time)
+      (set-wall-time wall-time)
       (assoc :scale-factor scale-factor)))
