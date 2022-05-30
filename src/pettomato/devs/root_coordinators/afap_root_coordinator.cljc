@@ -12,6 +12,7 @@
   Optional keyword args:
     start - Simulation start time (inclusive). Default: (hyperreal) zero.
     end - Simulation end time (inclusive, unless infinity). Default: (hyperreal) infinity.
+    input-log - A seq of [sim-time mail] to be used as input to sim.
 
   Returns:
     A lazy seq of [time mail], containing all messages sent to the root network.
@@ -23,9 +24,10 @@
   time to the user) or that it runs slower than real-time.\"
 
     - Fujimoto. Parallel and Distributed Simulation Systems. 2000. p. 7."
-  [sim & {:keys [start end]
-          :or   {start h/zero
-                 end   h/infinity}}]
+  [sim & {:keys [start end input-log]
+          :or   {start     h/zero
+                 end       h/infinity
+                 input-log []}}]
   (-> (sim/initialize sim start)
-      (sim/step* end)
+      (sim/step* :end end :mail-log input-log)
       (sim/output->mail-log)))
