@@ -30,7 +30,7 @@ if it doesn't receive any external messages before then."))
 
     - t <= time-of-last-event.
     - t > time-of-next-event.
-    - time-of-next-event is infinite.
+    - t is not provided and time-of-next-event is infinite.
     - t < time-of-next-event and mail is empty.
 
   This is a low-level function. `step*` is a higher-level function
@@ -57,47 +57,79 @@ if it doesn't receive any external messages before then."))
        [sim mail']))))
 
 (defn step*
-  "Repeatedly step sim. Returns a lazy seq of [sim mail].
+  "Repeatedly step sim. Returns [sim mail-log].
 
-  Options:
+  If `t` is provided, the sim will not be stepped past t.
 
-   end - Simulation end time (inclusive, unless  infinity).
-   Default: (hyperreal) infinity.
+  If `t` and `mail` are provided, the sim will stepped up to `t` and
+  then at `t` the sim will be stepped with `mail` as input."
+  ;; TODO: Add additional optional parameters like sim-end-fn and
+  ;; mail-end-fn that cause the sim to terminate when they return
+  ;; true. We might want to terminate when a particular message is
+  ;; returned, for example.
 
-   mail-log - A (possibly lazy) seq of [time mail] that will be sent
-   to sim at the appropriate times.
+  ;; Implementation note: This function was defined with multiple
+  ;; arities instead of optional keywords to enforce the only
+  ;; meaningful use cases. For example, if `mail` could be supplied
+  ;; without `t`, that would mean, send the mail whenever the next
+  ;; internal event occurs, and I can't imagine a scenario where that
+  ;; would be a good idea.
 
-  The sequence terminates when there are no more states; that is, when
-  t is reached or time-of-next-event is infinite."
-  ;; Implementation note: In an attempt to decompose this further, I
-  ;; considered discarding parameter `t`, and instead treating this
-  ;; like an output stream (i.e., of [sim mail]) that can be merged
-  ;; with an input stream (i.e., mail-log) to produce a new output
-  ;; stream, but there would be no simple way to factor in `t` after
-  ;; the streams have been merged, because there would be no access to
-  ;; mail-log. For example, a reactive sim that is passive until it
-  ;; receives input could have a time-of-next-event value of infinity,
-  ;; but at the same time there could be outstanding events remaining
-  ;; in the mail-log, and there's no way to determine when they occur
-  ;; by inspecting the output stream alone.
-  ([sim & {:keys [end mail-log]
-           :or   {end      h/infinity
-                  mail-log []}}]
-   (lazy-seq
-    (let [tn         (time-of-next-event sim)
-          [mtn mail] (first mail-log)]
-      (cond
-        (and (seq mail-log)
-             (h/<= mtn tn)
-             (h/<= mtn end)) (let [[sim mail] (step sim mtn mail)]
-                               (cons [sim mail] (step* sim :end end :mail-log (rest mail-log))))
-        (h/infinite? tn)     []
-        (h/<= tn end)        (let [[sim mail] (step sim)]
-                               (cons [sim mail] (step* sim :end end :mail-log mail-log)))
-        :else                [])))))
+  ([sim] ; Step until sim's time-of-next-event is infinite.
+   (step* sim h/infinity))
+  ([sim t] ; Step until sim's time-of-next-event is > t.
+   (loop [sim      sim
+          mail-log []]
+     (let [tn (time-of-next-event sim)]
+       (if (or (h/infinite? tn)
+               (h/< t tn))
+         [sim mail-log]
+         (let [[sim mail] (step sim)
+               mail-log   (if (seq mail)
+                            (conj mail-log [(time-of-last-event sim) mail])
+                            mail-log)]
+           (recur sim mail-log))))))
+  ([sim t mail] ; Step to t and send mail.
+   (loop [sim      sim
+          mail-log []]
+     (let [tn (time-of-next-event sim)]
+       (if (or (h/infinite? tn)
+               (h/<= t tn))
+         (let [[sim mail] (step sim t mail)
+               mail-log   (if (seq mail)
+                            (conj mail-log [(time-of-last-event sim) mail])
+                            mail-log)]
+           [sim mail-log])
+         (let [[sim mail] (step sim)
+               mail-log   (if (seq mail)
+                            (conj mail-log [(time-of-last-event sim) mail])
+                            mail-log)]
+           (recur sim mail-log)))))))
 
-(defn output->mail-log [xs]
-  (->> xs
-       (remove (comp empty? second))
-       (map (juxt (comp time-of-last-event first)
-                  second))))
+(defn step**
+  "Repeatedly step sim and incorporate a mail-log of mail to send to sim
+  at the designated times.
+
+  Returns [sim mail-log].
+
+  Optional parameters:
+
+    end - Simulation end time (inclusive, unless infinity).
+          Default: (hyperreal) infinity.
+
+    mail-log - A seq of [time mail].
+
+  Prefer `step*`, unless you really need to send multiple mail
+  messages in one call."
+  [sim & {:keys [end mail-log]
+          :or   {end      h/infinity
+                 mail-log []}}]
+  (loop [sim        sim
+         input-log  (take-while #(h/<= (first %) end) mail-log)
+         output-log []]
+    (if (seq input-log)
+      (let [[t mail]       (first input-log)
+            [sim mail-log] (step* sim t mail)]
+        (recur sim (rest input-log) (into output-log mail-log)))
+      (let [[sim mail-log] (step* sim end)]
+        [sim (into output-log mail-log)]))))

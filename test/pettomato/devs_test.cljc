@@ -12,6 +12,18 @@
    [pettomato.devs.simulators.atomic-simulator :refer [atomic-simulator]]
    [pettomato.devs.simulators.network-simulator :refer [network-simulator]]))
 
+(comment
+
+  (-> (m/buffer (h/*R 5))
+      atomic-simulator
+      (afap-root-coordinator :end (h/*R 35)
+                             :input-log [[(h/*R 10) {:in ["x"]}]
+                                         [(h/*R 20) {:in ["y"]}]])
+      doall)
+
+  )
+
+
 (deftest basic-tests
 
   (testing "Running a very simple atomic simulation."

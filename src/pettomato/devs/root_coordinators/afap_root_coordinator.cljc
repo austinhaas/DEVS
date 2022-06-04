@@ -15,7 +15,7 @@
     input-log - A seq of [sim-time mail] to be used as input to sim.
 
   Returns:
-    A lazy seq of [time mail], containing all messages sent to the root network.
+    mail-log
 
   \"Analytic simulations typically execute 'as-fast-as-possible,' meaning that
   the simulation attempts to complete its computations as quickly as it
@@ -29,5 +29,5 @@
                  end       h/infinity
                  input-log []}}]
   (-> (sim/initialize sim start)
-      (sim/step* :end end :mail-log input-log)
-      (sim/output->mail-log)))
+      (sim/step** :end end :mail-log input-log)
+      second))
