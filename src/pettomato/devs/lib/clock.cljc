@@ -1,24 +1,10 @@
 (ns pettomato.devs.lib.clock
   "A simulation clock that is paced by wall-time.
 
-  Supports time scaling, e.g., to run a simulation at double speed.
-
-  Most functions take wall-time as an argument. Wall-time must be
-  nondecreasing. Choose a consistent and reliable source, such
-  as `(.getTime (java.util.Date.))`.
-
-  Wall-time isn't managed internally for two reasons:
-
-  1. Some host platform APIs that can be used to drive this (e.g.,
-  requestAnimationFrame, for ClojureScript) provide an integer that
-  represents the elapsed time. It would be convoluted to implement
-  anything more complicated than taking that value as a parameter.
-
-  2. You may want more control over the way time advances, rather than
-  getting wall-time indiscriminately on every function call. For
-  example, you might want to get wall-time once, at the top of an
-  animation frame, and then call several API fns with that value."
+  Supports pausing and time scaling, e.g., to run a simulation at
+  double speed."
   (:require
+   [pettomato.devs.lib.date :as date]
    [pettomato.devs.lib.debug :refer [ex-assert]]
    [pettomato.devs.lib.hyperreal :as h]))
 
@@ -29,35 +15,52 @@
 (defn clock
   "Returns a new simulation clock.
 
-  Args:
-
-    wall-time - Initial wall-time. A number.
-
-    sim-time - Initial sim-time. A hyperreal number.
-
   Keyword args:
+
+    sim-time - Initial sim-time. A hyperreal
+  number. Default: (hyperreal) zero.
+
+    wall-time-fn - A function of no args that returns the current
+  wall-time. See `pettomato.devs.lib.clock` for more info.
+
+    paused? - Is the clock initially paused? A boolean. Default:
+  false.
 
     scale-factor - Scale factor. A number. Default: 1.0.
 
-  A scale factor of 2, will cause the sim-time to advance by 2 seconds for every
-  1 second of wall-time; in other words, sim-time will advance twice as fast as
-  wall-time. A scale factor of 0.5 will cause the sim-time to advance by 1
-  second for every 2 seconds of wall-time; half as fast. A scale factor of -1
-  will cause sim-time to advance towards negative infinity; i.e., in reverse."
-  [wall-time sim-time & {:keys [scale-factor]
-                         :or   {scale-factor 1.0}}]
+  A scale factor of 2, will cause the sim-time to advance by 2 seconds
+  for every 1 second of wall-time; in other words, sim-time will
+  advance twice as fast as wall-time. A scale factor of 0.5 will cause
+  the sim-time to advance by 1 second for every 2 seconds of
+  wall-time; half as fast. A scale factor of -1 will cause sim-time to
+  advance towards negative infinity; i.e., in reverse."
+  [& {:keys [sim-time wall-time-fn paused? scale-factor]
+      :or   {sim-time     h/zero
+             wall-time-fn date/timestamp
+             paused?      false
+             scale-factor 1.0}}]
   (ex-assert (h/hyperreal? sim-time))
-  {:wall-time    wall-time
+  (ex-assert (fn? wall-time-fn))
+  (ex-assert (boolean? paused?))
+  (ex-assert (number? scale-factor))
+  {:wall-time    (wall-time-fn)
    :sim-time     sim-time
+   :wall-time-fn wall-time-fn
+   :paused?      paused?
    :scale-factor scale-factor})
 
-(defn set-wall-time
+(defn paused?
+  "Returns true if the clock is paused, otherwise false."
+  [clock]
+  (:paused? clock))
+
+(defn- set-wall-time
   "Set wall-time, and consequently sim-time. Returns new clock.
 
   Throws an exception if wall-time is less than the previously
   supplied wall-time. Returns a new clock."
-  [clock wall-time]
-  (let [curr-wall-time wall-time
+  [clock]
+  (let [curr-wall-time ((:wall-time-fn clock))
         prev-wall-time (:wall-time clock)]
     (cond
       (< curr-wall-time
@@ -66,6 +69,7 @@
                                           :prev-wall-time prev-wall-time}))
       (= curr-wall-time
          prev-wall-time) clock
+      (paused? clock)    (assoc clock :wall-time curr-wall-time)
       :else              (let [wall-time-delta (- curr-wall-time prev-wall-time)
                                sim-time-delta  (h/*R (* wall-time-delta (:scale-factor clock)))
                                prev-sim-time   (:sim-time clock)
@@ -74,32 +78,33 @@
                                   :wall-time curr-wall-time
                                   :sim-time  curr-sim-time)))))
 
-(defn get-sim-time
-  "Returns the current simulation time.
+(defn pause
+  "Pause the clock."
+  [clock]
+  (-> clock
+      set-wall-time
+      (assoc :paused? true)))
 
-  Call `set-wall-time` to advance the clock to the current time before
-  calling this function, or pass wall-time as an argument."
-  ([clock]
-   (:sim-time clock))
-  ([clock wall-time]
-   (:sim-time (set-wall-time clock wall-time))))
+(defn unpause
+  "Unpause the clock."
+  [clock]
+  (-> clock
+      set-wall-time
+      (assoc :paused? false)))
+
+(defn get-sim-time
+  "Returns the current simulation time."
+  [clock]
+  (:sim-time (set-wall-time clock)))
 
 (defn get-scale-factor
-  "Returns clock's scale factor."
+  "Returns the clock's scale factor."
   [clock]
   (:scale-factor clock))
 
 (defn set-scale-factor
-  "Set clock's scale factor.
-
-  Call `set-wall-time` to advance the clock to the current time before
-  calling this function, or pass wall-time as an argument.
-
-  This can be used to pause/unpause the simulation."
-  ([clock scale-factor]
-   (-> clock
-       (assoc :scale-factor scale-factor)))
-  ([clock wall-time scale-factor]
-   (-> clock
-       (set-wall-time wall-time)
-       (assoc :scale-factor scale-factor))))
+  "Set the clock's scale factor."
+  [clock scale-factor]
+  (-> clock
+      set-wall-time
+      (assoc :scale-factor scale-factor)))
