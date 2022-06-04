@@ -3,20 +3,21 @@
 
   Supports time scaling, e.g., to run a simulation at double speed.
 
-  Wall-time is supplied as an argument to most functions. It must be
+  Most functions take wall-time as an argument. Wall-time must be
   nondecreasing. Choose a consistent and reliable source, such
   as `(.getTime (java.util.Date.))`.
 
   Wall-time isn't managed internally for two reasons:
 
-  1. Some host platform APIs that we can use to drive this (e.g.,
-  requestAnimationFrame, for ClojureScript) provide an integer to
-  represent the elapsed time. It would be silly to do anything more
-  complicated than taking that value as a parameter.
+  1. Some host platform APIs that can be used to drive this (e.g.,
+  requestAnimationFrame, for ClojureScript) provide an integer that
+  represents the elapsed time. It would be convoluted to implement
+  anything more complicated than taking that value as a parameter.
 
-  2. It may be undesirable to update wall-time on every function
-  call. You may want to get wall-time once, for example, at the top of
-  an animation frame, and then call several API fns with that value."
+  2. You may want more control over the way time advances, rather than
+  getting wall-time indiscriminately on every function call. For
+  example, you might want to get wall-time once, at the top of an
+  animation frame, and then call several API fns with that value."
   (:require
    [pettomato.devs.lib.debug :refer [ex-assert]]
    [pettomato.devs.lib.hyperreal :as h]))
@@ -76,8 +77,8 @@
 (defn get-sim-time
   "Returns the current simulation time.
 
-  Call `set-wall-time` to advance the clock before calling this
-  function, or pass wall-time."
+  Call `set-wall-time` to advance the clock to the current time before
+  calling this function, or pass wall-time as an argument."
   ([clock]
    (:sim-time clock))
   ([clock wall-time]
@@ -91,8 +92,14 @@
 (defn set-scale-factor
   "Set clock's scale factor.
 
+  Call `set-wall-time` to advance the clock to the current time before
+  calling this function, or pass wall-time as an argument.
+
   This can be used to pause/unpause the simulation."
-  [clock wall-time scale-factor]
-  (-> clock
-      (set-wall-time wall-time)
-      (assoc :scale-factor scale-factor)))
+  ([clock scale-factor]
+   (-> clock
+       (assoc :scale-factor scale-factor)))
+  ([clock wall-time scale-factor]
+   (-> clock
+       (set-wall-time wall-time)
+       (assoc :scale-factor scale-factor))))

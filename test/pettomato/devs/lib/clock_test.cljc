@@ -41,7 +41,7 @@
 
   (testing "setting initially to 1.0, then changing to 2.0"
     (is (= 2.0 (-> (clock/clock 0 h/zero :scale-factor 1.0)
-                   (clock/set-scale-factor 0 2.0)
+                   (clock/set-scale-factor 2.0)
                    clock/get-scale-factor))))
 
   (testing "sim advances slower than wall-time"
@@ -65,15 +65,25 @@
   (testing "Changing scale-factor while running"
     (is (h/= (h/*R 1500)
              (-> (clock/clock 0 h/zero :scale-factor 1.0)
-                 (clock/set-scale-factor 1000 0.5)
+                 (clock/set-wall-time 1000)
+                 (clock/set-scale-factor 0.5) ; arity 1
+                 (clock/set-wall-time 2000)
+                 clock/get-sim-time)
+             (-> (clock/clock 0 h/zero :scale-factor 1.0)
+                 (clock/set-scale-factor 1000 0.5) ; arity 2
                  (clock/set-wall-time 2000)
                  clock/get-sim-time))))
 
   (testing "pause the clock"
     (is (h/= (h/*R 2000)
              (-> (clock/clock 0 h/zero)
+                 (clock/set-wall-time 2000)
+                 (clock/set-scale-factor 0) ; arity 1
+                 (clock/set-wall-time 3000)
+                 clock/get-sim-time)
+             (-> (clock/clock 0 h/zero)
                  (clock/set-wall-time 1000)
-                 (clock/set-scale-factor 2000 0)
+                 (clock/set-scale-factor 2000 0) ; arity 2
                  (clock/set-wall-time 3000)
                  clock/get-sim-time))))
 
