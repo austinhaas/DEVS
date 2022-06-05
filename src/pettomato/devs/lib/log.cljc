@@ -62,7 +62,8 @@
   "Low-level logging function. Calls *handler* on (merge *context*
   context). Returns nil."
   [context]
-  (*handler* (merge *context* context))
+  (locking *handler*
+    (*handler* (merge *context* context)))
   nil)
 
 ;;------------------------------------------------------------------------------
