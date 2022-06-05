@@ -13,10 +13,7 @@
 ;; Building blocks
 
 (def print-fn
-  #?(:clj  (fn [x]
-             (binding [*print-level* 10
-                       *print-length* 10]
-               (println x)))
+  #?(:clj  println
      :cljs js/console.log))
 
 (defn format-date [context] (update context :date date/format-date))
