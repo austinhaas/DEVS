@@ -23,7 +23,7 @@ cljs-browser-repl : ## Start a REPL server for ClojureScript (browser)
 
 .PHONY: test-clj
 test-clj : ## Run Clojure tests
-	$(clojure) -M:clj-runner:test
+	$(clojure) -X:clj-runner:test
 
 .PHONY: test-cljs
 test-cljs : ## Run ClojureScript tests
