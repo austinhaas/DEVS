@@ -80,7 +80,7 @@
      false)))
 
 (defn pp-mail-log
-  "Pretty-print an event log."
+  "Pretty-print a mail-log."
   [mail-log & {:keys [key-sort-fn
                       time-width]
                :or   {key-sort-fn (fn [a b] (compare (str a) (str b)))
