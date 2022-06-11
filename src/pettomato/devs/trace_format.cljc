@@ -1,4 +1,4 @@
-(ns pettomato.devs.lib.trace-format
+(ns pettomato.devs.trace-format
   "A library for formatting trace events."
   (:require [pettomato.devs.lib.string :refer [pad-left format-str]]))
 

@@ -8,8 +8,8 @@
    [pettomato.devs.examples :as ex]
    [pettomato.devs.examples.digital-circuit :as circ]
    [pettomato.devs.lib.hyperreal :as h]
-   [pettomato.devs.lib.mail :refer [mail-log=]]
-   [pettomato.devs.lib.random :as rand]))
+   [pettomato.devs.lib.random :as rand]
+   [pettomato.devs.mail :refer [mail-log=]]))
 
 (deftest primitive-function-box-tests
 

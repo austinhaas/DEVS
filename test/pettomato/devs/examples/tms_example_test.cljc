@@ -9,8 +9,8 @@
    [pettomato.devs.examples.tms-example :as tms]
    [pettomato.devs.lib.hyperreal :as h]
    [pettomato.devs.lib.log :as log]
-   [pettomato.devs.lib.mail :refer [pp-mail-log]]
-   [pettomato.devs.lib.random :as rand]))
+   [pettomato.devs.lib.random :as rand]
+   [pettomato.devs.mail :refer [pp-mail-log]]))
 
 (deftest tms-example-test
   (rand/with-random-seed 0

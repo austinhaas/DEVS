@@ -1,11 +1,11 @@
-(ns pettomato.devs.lib.mail-test
+(ns pettomato.devs.mail-test
   (:require
    #?(:clj
       [clojure.test :refer [deftest is testing]]
       :cljs
       [cljs.test :refer-macros [deftest is testing]])
    [pettomato.devs.lib.hyperreal :as h]
-   [pettomato.devs.lib.mail :as mail]))
+   [pettomato.devs.mail :as mail]))
 
 (deftest merge-local-mail-tests
   (is (mail/local-mail=

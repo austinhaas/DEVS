@@ -1,4 +1,4 @@
-(ns pettomato.devs.lib.mail
+(ns pettomato.devs.mail
   "Functions for mail data structures.
 
   A mail data structure is a map from ids to a map from ports to a

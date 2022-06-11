@@ -1,10 +1,10 @@
-(ns pettomato.devs.lib.clock-test
+(ns pettomato.devs.clock-test
   (:require
    #?(:clj
       [clojure.test :refer [deftest is testing]]
       :cljs
       [cljs.test :refer-macros [deftest is testing]])
-   [pettomato.devs.lib.clock :as clock]
+   [pettomato.devs.clock :as clock]
    [pettomato.devs.lib.hyperreal :as h]))
 
 ;; Some of these tests are problematic in CLJS, because we can't

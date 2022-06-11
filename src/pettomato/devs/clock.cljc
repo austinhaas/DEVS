@@ -1,4 +1,4 @@
-(ns pettomato.devs.lib.clock
+(ns pettomato.devs.clock
   "A simulation clock that is paced by wall-time.
 
   Supports pausing and time scaling, e.g., to run a simulation at

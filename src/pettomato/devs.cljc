@@ -5,15 +5,15 @@
    [clojure.set :as set]
    #?(:cljs [goog.string :as gstring :refer [format]])
    #?(:cljs [goog.string.format])
-   [pettomato.devs.lib.clock :as clock]
+   [pettomato.devs.clock :as clock]
    [pettomato.devs.lib.coll :refer [prune]]
    [pettomato.devs.lib.date :as date]
    [pettomato.devs.lib.debug :refer [ex-assert]]
    [pettomato.devs.lib.hyperreal :as h]
    [pettomato.devs.lib.log :as log]
-   [pettomato.devs.lib.mail :as mail]
    [pettomato.devs.lib.priority-queue :as pq]
-   [pettomato.devs.lib.trace :as trace])
+   [pettomato.devs.mail :as mail]
+   [pettomato.devs.trace :as trace])
   #?(:clj (:import [java.io Writer])))
 
 ;;------------------------------------------------------------------------------

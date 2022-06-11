@@ -9,7 +9,7 @@
    [pettomato.devs :as devs]
    [pettomato.devs.examples :as ex]
    [pettomato.devs.lib.hyperreal :as h]
-   [pettomato.devs.lib.mail :refer [mail-log=]]))
+   [pettomato.devs.mail :refer [mail-log=]]))
 
 (deftest basic-tests
 

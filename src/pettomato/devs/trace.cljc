@@ -1,6 +1,6 @@
-(ns pettomato.devs.lib.trace
+(ns pettomato.devs.trace
   "Tracing for DEVS."
-  #?(:cljs (:require-macros pettomato.devs.lib.trace)))
+  #?(:cljs (:require-macros pettomato.devs.trace)))
 
 (def ^:dynamic *trace-enabled* false)
 
