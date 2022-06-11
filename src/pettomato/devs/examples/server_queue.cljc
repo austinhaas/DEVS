@@ -1,17 +1,15 @@
-(ns pettomato.devs.examples.models.server-queue
+(ns pettomato.devs.examples.server-queue
   "A dynamic structure example."
   (:require
-   [pettomato.devs.examples.models :as m]
+   [pettomato.devs :as devs]
+   [pettomato.devs.examples :as ex]
    [pettomato.devs.lib.coll :refer [queue]]
    [pettomato.devs.lib.hyperreal :as h]
-   [pettomato.devs.lib.log :as log]
-   [pettomato.devs.models.atomic-model :refer [time-advance]]
-   [pettomato.devs.models.executive-model :refer [def-executive-model]]
-   [pettomato.devs.models.network-model :refer [network-model]]))
+   [pettomato.devs.lib.log :as log]))
 
 ;;; worker
 
-(def ^:private worker m/buffer+)
+(def ^:private worker ex/buffer+)
 
 ;;; server
 
@@ -75,9 +73,9 @@
         (update :workers conj worker)
         (update-in [:output :out] into jobs))))
 
-(def-executive-model Server [id queue workers capacity output structure-changes total-elapsed]
+(devs/def-executive-model Server [id queue workers capacity output structure-changes total-elapsed]
   (internal-update [state]
-    (let [t (h/+ total-elapsed (time-advance state))]
+    (let [t (h/+ total-elapsed (devs/time-advance state))]
       (-> (assoc state
                  :output {}
                  :structure-changes []
@@ -108,7 +106,7 @@
   "An model that processes jobs by delegating them to a dynamic pool of
   workers."
   [id]
-  (network-model
+  (devs/network-model
    id
    [(map->Server {:id                id
                   :queue             queue ;; A FIFO of jobs.

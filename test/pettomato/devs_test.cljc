@@ -3,14 +3,13 @@
    #?(:clj
       [clojure.test :refer [deftest is testing]]
       :cljs
-      [cljs.test :refer-macros [deftest is testing]])
-   [pettomato.devs.examples.models :as m]
+      [cljs.test :refer-macros [deftest is testing async]])
+   #?(:cljs [cljs.core.async :as async :refer-macros [go]])
+   #?(:cljs [goog.async.Delay :as gdelay])
+   [pettomato.devs :as devs]
+   [pettomato.devs.examples :as ex]
    [pettomato.devs.lib.hyperreal :as h]
-   [pettomato.devs.lib.mail :refer [mail-log=]]
-   [pettomato.devs.models.network-model :refer [network-model]]
-   [pettomato.devs.root-coordinators.afap-root-coordinator :refer [afap-root-coordinator]]
-   [pettomato.devs.simulators.atomic-simulator :refer [atomic-simulator]]
-   [pettomato.devs.simulators.network-simulator :refer [network-simulator]]))
+   [pettomato.devs.lib.mail :refer [mail-log=]]))
 
 (deftest basic-tests
 
@@ -21,32 +20,32 @@
           [(h/*R 6 0)  {:out ["x"]}]
           [(h/*R 8 0)  {:out ["x"]}]
           [(h/*R 10 0) {:out ["x"]}]]
-         (-> (m/generator (repeat [(h/*R 2 0) ["x"]]))
-             atomic-simulator
-             (afap-root-coordinator :end (h/*R 10 0))))))
+         (-> (ex/generator (repeat [(h/*R 2 0) ["x"]]))
+             devs/atomic-simulator
+             (devs/afap-root-coordinator :end (h/*R 10 0))))))
 
   (testing "Specifying a non-zero start time."
     (is (mail-log=
          [[(h/*R 7 0) {:out ["x"]}]
           [(h/*R 9 0) {:out ["x"]}]]
-         (-> (m/generator (repeat [(h/*R 2 0) ["x"]]))
-             atomic-simulator
-             (afap-root-coordinator :start (h/*R 5 0) :end (h/*R 10 0))))))
+         (-> (ex/generator (repeat [(h/*R 2 0) ["x"]]))
+             devs/atomic-simulator
+             (devs/afap-root-coordinator :start (h/*R 5 0) :end (h/*R 10 0))))))
 
   (testing "A simple network."
     (is (mail-log=
          [[(h/*R 15 0) {:out ["x"]}]
           [(h/*R 25 0) {:out ["y"]}]]
-         (let [gen (m/generator [[(h/*R 10) ["x"]]
-                                 [(h/*R 10) ["y"]]])
-               buf (m/buffer (h/*R 5))
-               net (m/static-network-model
+         (let [gen (ex/generator [[(h/*R 10) ["x"]]
+                                  [(h/*R 10) ["y"]]])
+               buf (ex/buffer (h/*R 5))
+               net (devs/static-network-model
                     {:gen [gen h/zero]
                      :buf [buf h/zero]}
                     [[:gen :out :buf :in]
                      [:buf :out :network :out]])]
-           (-> (network-simulator net)
-               afap-root-coordinator))))))
+           (-> (devs/network-simulator net)
+               devs/afap-root-coordinator))))))
 
 (deftest initial-elapsed-tests
 
@@ -54,91 +53,91 @@
     (is (mail-log=
          [[(h/*R 5)  {:out ["x"]}]
           [(h/*R 15) {:out ["y"]}]]
-         (let [gen (m/generator [[(h/*R 10) ["x"]]
-                                 [(h/*R 10) ["y"]]])]
-           (-> (atomic-simulator gen :elapsed (h/*R 5))
-               afap-root-coordinator)))))
+         (let [gen (ex/generator [[(h/*R 10) ["x"]]
+                                  [(h/*R 10) ["y"]]])]
+           (-> (devs/atomic-simulator gen :elapsed (h/*R 5))
+               devs/afap-root-coordinator)))))
 
   (testing "Atomic: tn can't be before start time. "
     (is (thrown? #?(:clj  clojure.lang.ExceptionInfo
                     :cljs ExceptionInfo)
-                 (-> (m/generator (repeat [(h/*R 2) ["x"]]))
-                     (atomic-simulator :elapsed (h/*R 3))
-                     (afap-root-coordinator :end (h/*R 10))))))
+                 (-> (ex/generator (repeat [(h/*R 2) ["x"]]))
+                     (devs/atomic-simulator :elapsed (h/*R 3))
+                     (devs/afap-root-coordinator :end (h/*R 10))))))
 
   (testing "Atomic: tn can't be equal to start time. "
     (is (thrown? #?(:clj  clojure.lang.ExceptionInfo
                     :cljs ExceptionInfo)
-                 (-> (m/generator (repeat [(h/*R 2) ["x"]]))
-                     (atomic-simulator :elapsed (h/*R 2))
-                     (afap-root-coordinator :end (h/*R 10))))))
+                 (-> (ex/generator (repeat [(h/*R 2) ["x"]]))
+                     (devs/atomic-simulator :elapsed (h/*R 2))
+                     (devs/afap-root-coordinator :end (h/*R 10))))))
 
   (testing "A network simulation."
     (is (mail-log=
          [[(h/*R 13 0) {:out ["x"]}]
           [(h/*R 23 0) {:out ["y"]}]]
-         (let [gen (m/generator [[(h/*R 10) ["x"]]
-                                 [(h/*R 10) ["y"]]])
-               buf (m/buffer (h/*R 5))
-               net (m/static-network-model
+         (let [gen (ex/generator [[(h/*R 10) ["x"]]
+                                  [(h/*R 10) ["y"]]])
+               buf (ex/buffer (h/*R 5))
+               net (devs/static-network-model
                     {:gen [gen h/zero]
                      :buf [buf h/zero]}
                     [[:gen :out :buf :in]
                      [:buf :out :network :out]])]
-           (-> (network-simulator net :elapsed (h/*R 2))
-               afap-root-coordinator)))))
+           (-> (devs/network-simulator net :elapsed (h/*R 2))
+               devs/afap-root-coordinator)))))
 
   (testing "Network: tn can't be before start time."
     (is (thrown? #?(:clj  clojure.lang.ExceptionInfo
                     :cljs ExceptionInfo)
-                 (let [gen (m/generator [[(h/*R 10) ["x"]]])
-                       net (m/static-network-model
+                 (let [gen (ex/generator [[(h/*R 10) ["x"]]])
+                       net (devs/static-network-model
                             {:gen [gen h/zero]}
                             [[:gen :out :network :out]])]
-                   (-> (network-simulator net :elapsed (h/*R 20))
-                       afap-root-coordinator)))))
+                   (-> (devs/network-simulator net :elapsed (h/*R 20))
+                       devs/afap-root-coordinator)))))
 
   (testing "Network: tn can't be equal start time."
     (is (thrown? #?(:clj  clojure.lang.ExceptionInfo
                     :cljs ExceptionInfo)
-                 (let [gen (m/generator [[(h/*R 10) ["x"]]])
-                       net (m/static-network-model
+                 (let [gen (ex/generator [[(h/*R 10) ["x"]]])
+                       net (devs/static-network-model
                             {:gen [gen h/zero]}
                             [[:gen :out :network :out]])]
-                   (-> (network-simulator net :elapsed (h/*R 10))
-                       afap-root-coordinator)))))
+                   (-> (devs/network-simulator net :elapsed (h/*R 10))
+                       devs/afap-root-coordinator)))))
 
   (testing "An atomic model within a network simulation."
     (is (mail-log=
          [[(h/*R 13 0) {:out ["x"]}]
           [(h/*R 23 0) {:out ["y"]}]]
-         (let [gen (m/generator [[(h/*R 10) ["x"]]
-                                 [(h/*R 10) ["y"]]])
-               buf (m/buffer (h/*R 5))
-               net (m/static-network-model
+         (let [gen (ex/generator [[(h/*R 10) ["x"]]
+                                  [(h/*R 10) ["y"]]])
+               buf (ex/buffer (h/*R 5))
+               net (devs/static-network-model
                     {:gen [gen (h/*R 2)]
                      :buf [buf h/zero]}
                     [[:gen :out :buf :in]
                      [:buf :out :network :out]])]
-           (-> (network-simulator net)
-               afap-root-coordinator))))))
+           (-> (devs/network-simulator net)
+               devs/afap-root-coordinator))))))
 
 (deftest elapsed-time-tests
 
   (testing "The model can keep track of total elapsed time."
     (is (mail-log=
          [[(h/*R 15) {:out [1 2 3]}]]
-         (let [gen (m/generator [[(h/*R 5) [[(h/*R 10) 1]]]
-                                 [(h/*R 1) [[(h/*R 9)  2]]]
-                                 [(h/*R 3) [[(h/*R 6)  3]]]])
-               buf (m/buffer+)
-               net (m/static-network-model
+         (let [gen (ex/generator [[(h/*R 5) [[(h/*R 10) 1]]]
+                                  [(h/*R 1) [[(h/*R 9)  2]]]
+                                  [(h/*R 3) [[(h/*R 6)  3]]]])
+               buf (ex/buffer+)
+               net (devs/static-network-model
                     {:gen [gen h/zero]
                      :buf [buf h/zero]}
                     [[:gen :out :buf :in]
                      [:buf :out :network :out]])]
-           (-> (network-simulator net)
-               afap-root-coordinator))))))
+           (-> (devs/network-simulator net)
+               devs/afap-root-coordinator))))))
 
 (deftest route-function-tests
 
@@ -146,16 +145,16 @@
     (is (mail-log=
          [[(h/*R 15 0) {:out [["x"]]}]
           [(h/*R 25 0) {:out [["y"]]}]]
-         (let [gen (m/generator [[(h/*R 10) ["x"]]
-                                 [(h/*R 10) ["y"]]])
-               buf (m/buffer+)
-               net (m/static-network-model
+         (let [gen (ex/generator [[(h/*R 10) ["x"]]
+                                  [(h/*R 10) ["y"]]])
+               buf (ex/buffer+)
+               net (devs/static-network-model
                     {:gen [gen h/zero]
                      :buf [buf h/zero]}
                     [[:gen :out :buf :in (map (fn [x] [(h/*R 5) x]))]
                      [:buf :out :network :out (map vector)]])]
-           (-> (network-simulator net)
-               afap-root-coordinator))))))
+           (-> (devs/network-simulator net)
+               devs/afap-root-coordinator))))))
 
 (deftest confluence-tests
 
@@ -163,30 +162,30 @@
     (is (mail-log=
          [[(h/*R 20 0) {:out ["x"]}]
           [(h/*R 30 0) {:out ["y"]}]]
-         (let [gen (m/generator [[(h/*R 10) ["x"]]
-                                 [(h/*R 10) ["y"]]])
-               buf (m/buffer (h/*R 10))
-               net (m/static-network-model
+         (let [gen (ex/generator [[(h/*R 10) ["x"]]
+                                  [(h/*R 10) ["y"]]])
+               buf (ex/buffer (h/*R 10))
+               net (devs/static-network-model
                     {:gen [gen h/zero]
                      :buf [buf h/zero]}
                     [[:gen :out :buf :in]
                      [:buf :out :network :out]])]
-           (-> (network-simulator net)
-               afap-root-coordinator)))))
+           (-> (devs/network-simulator net)
+               devs/afap-root-coordinator)))))
 
   (testing "External before internal."
     (is (mail-log=
          [[(h/*R 20 0) {:out ["x"]}]]
-         (let [gen (m/generator [[(h/*R 10) ["x"]]
-                                 [(h/*R 10) ["y"]]])
-               buf (m/buffer2 (h/*R 10))
-               net (m/static-network-model
+         (let [gen (ex/generator [[(h/*R 10) ["x"]]
+                                  [(h/*R 10) ["y"]]])
+               buf (ex/buffer2 (h/*R 10))
+               net (devs/static-network-model
                     {:gen [gen h/zero]
                      :buf [buf h/zero]}
                     [[:gen :out :buf :in]
                      [:buf :out :network :out]])]
-           (-> (network-simulator net)
-               afap-root-coordinator))))))
+           (-> (devs/network-simulator net)
+               devs/afap-root-coordinator))))))
 
 (deftest deeply-nested-structure
 
@@ -196,19 +195,19 @@
           [(h/*R 9) {:out [[:buf-1 [:buf-2 [:buf-3 2]]]]}]]
          (let [f   (fn [buf i]
                      (let [id (keyword (str "buf-" i))]
-                       (m/static-network-model
+                       (devs/static-network-model
                         {id [buf h/zero]}
                         [[:network :in id :in (map (fn [x] [id x]))]
                          [id :out :network :out]])))
-               gen (m/generator (for [i (range)] [(h/*R 2) [i]]))
-               buf (-> (m/buffer (h/*R 3)) (f 1) (f 2) (f 3))
-               net (m/static-network-model
+               gen (ex/generator (for [i (range)] [(h/*R 2) [i]]))
+               buf (-> (ex/buffer (h/*R 3)) (f 1) (f 2) (f 3))
+               net (devs/static-network-model
                     {:gen   [gen h/zero]
                      :buf-0 [buf h/zero]}
                     [[:gen :out :buf-0 :in]
                      [:buf-0 :out :network :out]])]
-           (-> (network-simulator net)
-               (afap-root-coordinator :end (h/*R 10))))))))
+           (-> (devs/network-simulator net)
+               (devs/afap-root-coordinator :end (h/*R 10))))))))
 
 (deftest dynamic-network-tests
 
@@ -216,36 +215,36 @@
     (is (mail-log=
          [[(h/*R 7 1) {:out [0]}]
           [(h/*R 9 1) {:out [1]}]]
-         (let [gen (m/generator
-                    [[(h/*R 5) [[:add-model :gen-1 [(m/generator
+         (let [gen (ex/generator
+                    [[(h/*R 5) [[:add-model :gen-1 [(ex/generator
                                                      (for [i (range)] [(h/*R 2) [i]]))
                                                     h/zero]]
                                 [:connect [:gen-1 :out :network :out]]]]
                      [(h/*R 5) [[:disconnect [:gen-1 :out :network :out]]
                                 [:rem-model :gen-1]]]])
-               net (m/simple-network-model
+               net (devs/simple-network-model
                     :exec
                     {:gen [gen h/zero]}
                     [[:gen :out :exec :in]])]
-           (-> (network-simulator net)
-               afap-root-coordinator)))))
+           (-> (devs/network-simulator net)
+               devs/afap-root-coordinator)))))
 
   (testing "Dynamic behavior; order doesn't matter."
     (is (mail-log=
          [[(h/*R 7 1) {:out [0]}]
           [(h/*R 9 1) {:out [1]}]]
-         (let [gen (m/generator [[(h/*R 5) [[:connect [:gen-1 :out :network :out]]
-                                            [:add-model :gen-1 [(m/generator
-                                                                 (for [i (range)] [(h/*R 2) [i]]))
-                                                                h/zero]]]]
-                                 [(h/*R 5) [[:rem-model :gen-1]
-                                            [:disconnect [:gen-1 :out :network :out]]]]])
-               net (m/simple-network-model
+         (let [gen (ex/generator [[(h/*R 5) [[:connect [:gen-1 :out :network :out]]
+                                             [:add-model :gen-1 [(ex/generator
+                                                                  (for [i (range)] [(h/*R 2) [i]]))
+                                                                 h/zero]]]]
+                                  [(h/*R 5) [[:rem-model :gen-1]
+                                             [:disconnect [:gen-1 :out :network :out]]]]])
+               net (devs/simple-network-model
                     :exec
                     {:gen [gen h/zero]}
                     [[:gen :out :exec :in]])]
-           (-> (network-simulator net)
-               afap-root-coordinator)))))
+           (-> (devs/network-simulator net)
+               devs/afap-root-coordinator)))))
 
   (testing "Remove an atomic model just before it can emit a message."
     ;; In order to remove :gen before it can send its next message,
@@ -255,49 +254,49 @@
     ;; it is scheduled to emit its message.
     (is (mail-log=
          []
-         (let [sc-gen (m/generator [[(h/*R 10 -2) [[:disconnect [:gen :out :network :out]]
-                                                   [:rem-model :gen]]]])
-               net    (m/simple-network-model
+         (let [sc-gen (ex/generator [[(h/*R 10 -2) [[:disconnect [:gen :out :network :out]]
+                                                    [:rem-model :gen]]]])
+               net    (devs/simple-network-model
                        :exec
                        {:sc-gen [sc-gen h/zero]
-                        :gen    [(m/generator [[(h/*R 10) ["x"]]])
+                        :gen    [(ex/generator [[(h/*R 10) ["x"]]])
                                  h/zero]}
                        [[:sc-gen :out :exec :in]
                         [:gen :out :network :out]])]
-           (-> (network-simulator net)
-               afap-root-coordinator)))))
+           (-> (devs/network-simulator net)
+               devs/afap-root-coordinator)))))
 
   (testing "Remove an atomic model when it is imminent."
     ;; The message is still sent, because outgoing mail is collected
     ;; and delivered before structure changes are applied.
     (is (mail-log=
          [[(h/*R 10) {:out ["x"]}]]
-         (let [sc-gen (m/generator [[(h/*R 10 -1) [[:disconnect [:gen :out :network :out]]
-                                                   [:rem-model :gen]]]])
-               net    (m/simple-network-model
+         (let [sc-gen (ex/generator [[(h/*R 10 -1) [[:disconnect [:gen :out :network :out]]
+                                                    [:rem-model :gen]]]])
+               net    (devs/simple-network-model
                        :exec
                        {:sc-gen [sc-gen h/zero]
-                        :gen    [(m/generator [[(h/*R 10) ["x"]]])
+                        :gen    [(ex/generator [[(h/*R 10) ["x"]]])
                                  h/zero]}
                        [[:sc-gen :out :exec :in]
                         [:gen :out :network :out]])]
-           (-> (network-simulator net)
-               afap-root-coordinator)))))
+           (-> (devs/network-simulator net)
+               devs/afap-root-coordinator)))))
 
   (testing "Remove an atomic model after it is imminent."
     (is (mail-log=
          [[(h/*R 10) {:out ["x"]}]]
-         (let [sc-gen (m/generator [[(h/*R 10 -1) [[:disconnect [:gen :out :network :out]]
-                                                   [:rem-model :gen]]]])
-               net    (m/simple-network-model
+         (let [sc-gen (ex/generator [[(h/*R 10 -1) [[:disconnect [:gen :out :network :out]]
+                                                    [:rem-model :gen]]]])
+               net    (devs/simple-network-model
                        :exec
                        {:sc-gen [sc-gen h/zero]
-                        :gen    [(m/generator [[(h/*R 10) ["x"]]])
+                        :gen    [(ex/generator [[(h/*R 10) ["x"]]])
                                  h/zero]}
                        [[:sc-gen :out :exec :in]
                         [:gen :out :network :out]])]
-           (-> (network-simulator net)
-               afap-root-coordinator)))))
+           (-> (devs/network-simulator net)
+               devs/afap-root-coordinator)))))
 
   (testing "Remove a message recipient before it is imminent."
     ;; In this case, :buf will receive the message and process it, but
@@ -305,21 +304,21 @@
     ;; changes are processed.
     (is (mail-log=
          []
-         (let [sc-gen (m/generator [[(h/*R 10 -1) [[:disconnect [:buf :out :network :out]]
-                                                   [:disconnect [:gen :out :buf :in]]
-                                                   [:rem-model :buf]]]])
-               net    (m/simple-network-model
+         (let [sc-gen (ex/generator [[(h/*R 10 -1) [[:disconnect [:buf :out :network :out]]
+                                                    [:disconnect [:gen :out :buf :in]]
+                                                    [:rem-model :buf]]]])
+               net    (devs/simple-network-model
                        :exec
                        {:sc-gen [sc-gen h/zero]
-                        :gen    [(m/generator [[(h/*R 10) ["x"]]])
+                        :gen    [(ex/generator [[(h/*R 10) ["x"]]])
                                  h/zero]
-                        :buf    [(m/buffer (h/*R 5))
+                        :buf    [(ex/buffer (h/*R 5))
                                  h/zero]}
                        [[:sc-gen :out :exec :in]
                         [:gen :out :buf :in]
                         [:buf :out :network :out]])]
-           (-> (network-simulator net)
-               afap-root-coordinator)))))
+           (-> (devs/network-simulator net)
+               devs/afap-root-coordinator)))))
 
   (testing "Moving a sender from one network to another. #1"
     (is (mail-log=
@@ -330,29 +329,29 @@
           [(h/*R 7 1)  {:out-1 ["x"]}]
           [(h/*R 8 1)  {:out-2 ["x"]}]
           [(h/*R 9 1)  {:out-2 ["x"]}]]
-         (let [net-1 (m/simple-network-model
+         (let [net-1 (devs/simple-network-model
                       :exec
-                      {:sc-gen [(m/generator [[(h/*R 2) [[:add-model :gen [(m/generator (repeat 10 [(h/*R 1) ["x"]]))
-                                                                           h/zero]]
-                                                         [:connect [:gen :out :network :out]]]]
-                                              [(h/*R 5) [[:rem-model :gen]
-                                                         [:disconnect [:gen :out :network :out]]]]])
+                      {:sc-gen [(ex/generator [[(h/*R 2) [[:add-model :gen [(ex/generator (repeat 10 [(h/*R 1) ["x"]]))
+                                                                            h/zero]]
+                                                          [:connect [:gen :out :network :out]]]]
+                                               [(h/*R 5) [[:rem-model :gen]
+                                                          [:disconnect [:gen :out :network :out]]]]])
                                 h/zero]}
                       [[:sc-gen :out :exec :in]])
-               net-2 (m/simple-network-model
+               net-2 (devs/simple-network-model
                       :exec
-                      {:sc-gen [(m/generator [[(h/*R 7) [[:add-model :gen [(m/generator (repeat 10 [(h/*R 1) ["x"]]))
-                                                                           h/zero]]
-                                                         [:connect [:gen :out :network :out]]]]])
+                      {:sc-gen [(ex/generator [[(h/*R 7) [[:add-model :gen [(ex/generator (repeat 10 [(h/*R 1) ["x"]]))
+                                                                            h/zero]]
+                                                          [:connect [:gen :out :network :out]]]]])
                                 h/zero]}
                       [[:sc-gen :out :exec :in]])
-               net   (m/static-network-model
+               net   (devs/static-network-model
                       {:net-1 [net-1 h/zero]
                        :net-2 [net-2 h/zero]}
                       [[:net-1 :out :network :out-1]
                        [:net-2 :out :network :out-2]])]
-           (-> (network-simulator net)
-               (afap-root-coordinator :end (h/*R 10)))))))
+           (-> (devs/network-simulator net)
+               (devs/afap-root-coordinator :end (h/*R 10)))))))
 
   (testing "Moving a sender from one network to another. #2"
     ;; This works because the second generator is started with an
@@ -363,29 +362,29 @@
           [(h/*R 9 1)  {:out-1 ["x"]}]
           [(h/*R 11 1) {:out-2 ["x"]}]
           [(h/*R 13 1) {:out-2 ["x"]}]]
-         (let [net-1 (m/simple-network-model
+         (let [net-1 (devs/simple-network-model
                       :exec
-                      {:sc-gen [(m/generator [[(h/*R 5) [[:add-model :gen [(m/generator (repeat 10 [(h/*R 2) ["x"]]))
-                                                                           h/zero]]
-                                                         [:connect [:gen :out :network :out]]]]
-                                              [(h/*R 5) [[:rem-model :gen]
-                                                         [:disconnect [:gen :out :network :out]]]]])
+                      {:sc-gen [(ex/generator [[(h/*R 5) [[:add-model :gen [(ex/generator (repeat 10 [(h/*R 2) ["x"]]))
+                                                                            h/zero]]
+                                                          [:connect [:gen :out :network :out]]]]
+                                               [(h/*R 5) [[:rem-model :gen]
+                                                          [:disconnect [:gen :out :network :out]]]]])
                                 h/zero]}
                       [[:sc-gen :out :exec :in]])
-               net-2 (m/simple-network-model
+               net-2 (devs/simple-network-model
                       :exec
-                      {:sc-gen [(m/generator [[(h/*R 10) [[:add-model :gen [(m/generator (repeat 10 [(h/*R 2) ["x"]]))
-                                                                            (h/*R 1)]] ; important
-                                                          [:connect [:gen :out :network :out]]]]])
+                      {:sc-gen [(ex/generator [[(h/*R 10) [[:add-model :gen [(ex/generator (repeat 10 [(h/*R 2) ["x"]]))
+                                                                             (h/*R 1)]] ; important
+                                                           [:connect [:gen :out :network :out]]]]])
                                 h/zero]}
                       [[:sc-gen :out :exec :in]])
-               net   (m/static-network-model
+               net   (devs/static-network-model
                       {:net-1 [net-1 h/zero]
                        :net-2 [net-2 h/zero]}
                       [[:net-1 :out :network :out-1]
                        [:net-2 :out :network :out-2]])]
-           (-> (network-simulator net)
-               (afap-root-coordinator :end (h/*R 15)))))))
+           (-> (devs/network-simulator net)
+               (devs/afap-root-coordinator :end (h/*R 15)))))))
 
   (testing "Move a receiver from one network to another."
     ;; This is a bit of a hack. Currently, we don't have a way to
@@ -401,27 +400,27 @@
           a2    (atom [])
           tx1   (map (fn [x] (swap! a1 conj x) x))
           tx2   (map (fn [x] (swap! a2 conj x) x))
-          net-1 (m/simple-network-model
+          net-1 (devs/simple-network-model
                  :exec
-                 {:sc-gen [(m/generator [[(h/*R 5 -2) [[:rem-model :buf]
-                                                       [:disconnect [:network :in :buf :in tx1]]
-                                                       [:disconnect [:buf :out :network :out]]]]])
+                 {:sc-gen [(ex/generator [[(h/*R 5 -2) [[:rem-model :buf]
+                                                        [:disconnect [:network :in :buf :in tx1]]
+                                                        [:disconnect [:buf :out :network :out]]]]])
                            h/zero]
-                  :buf    [(m/buffer (h/*R 1))
+                  :buf    [(ex/buffer (h/*R 1))
                            h/zero]}
                  [[:sc-gen :out :exec :in]
                   [:network :in :buf :in tx1]
                   [:buf :out :network :out]])
-          net-2 (m/simple-network-model
+          net-2 (devs/simple-network-model
                  :exec
-                 {:sc-gen [(m/generator [[(h/*R 5 -2) [[:add-model :buf [(m/buffer (h/*R 1))
-                                                                         h/zero]]
-                                                       [:connect [:network :in :buf :in tx2]]
-                                                       [:connect [:buf :out :network :out]]]]])
+                 {:sc-gen [(ex/generator [[(h/*R 5 -2) [[:add-model :buf [(ex/buffer (h/*R 1))
+                                                                          h/zero]]
+                                                        [:connect [:network :in :buf :in tx2]]
+                                                        [:connect [:buf :out :network :out]]]]])
                            h/zero]}
                  [[:sc-gen :out :exec :in]])
-          net   (m/static-network-model
-                 {:gen   [(m/generator (for [i (range 10)] [(h/*R 2) [(str "msg-" i)]]))
+          net   (devs/static-network-model
+                 {:gen   [(ex/generator (for [i (range 10)] [(h/*R 2) [(str "msg-" i)]]))
                           h/zero]
                   :net-1 [net-1 h/zero]
                   :net-2 [net-2 h/zero]}
@@ -435,8 +434,8 @@
             ;; state when we moved it.
             [(h/*R 7) {:out-2 ["msg-2"]}]
             [(h/*R 9) {:out-2 ["msg-3"]}]]
-           (-> (network-simulator net)
-               (afap-root-coordinator :end (h/*R 10))
+           (-> (devs/network-simulator net)
+               (devs/afap-root-coordinator :end (h/*R 10))
                doall)))
       (is (= [["msg-0" "msg-1"] ["msg-2" "msg-3" "msg-4"]]
              [@a1 @a2]))))
@@ -447,10 +446,10 @@
           [(h/*R 15) {:out [6]}]
           [(h/*R 17) {:out [7]}]
           [(h/*R 19) {:out [8]}]]
-         (let [sc-gen (m/generator
-                       [[(h/*R 10) [[:add-model :net-1 [(m/simple-network-model
+         (let [sc-gen (ex/generator
+                       [[(h/*R 10) [[:add-model :net-1 [(devs/simple-network-model
                                                          :exec
-                                                         {:buf [(m/buffer (h/*R 1)) h/zero]}
+                                                         {:buf [(ex/buffer (h/*R 1)) h/zero]}
                                                          [[:network :in :buf :in]
                                                           [:buf :out :network :out]])
                                                         h/zero]]
@@ -459,14 +458,14 @@
                         [(h/*R 10) [[:rem-model :net-1]
                                     [:disconnect [:gen :out :net-1 :in]]
                                     [:disconnect [:net-1 :out :network :out]]]]])
-               gen    (m/generator (for [i (range)] [(h/*R 2) [i]]))
-               net    (m/simple-network-model
+               gen    (ex/generator (for [i (range)] [(h/*R 2) [i]]))
+               net    (devs/simple-network-model
                        :exec
                        {:sc-gen [sc-gen h/zero]
                         :gen    [gen    h/zero]}
                        [[:sc-gen :out :exec :in]])]
-           (-> (network-simulator net)
-               (afap-root-coordinator :end (h/*R 30)))))))
+           (-> (devs/network-simulator net)
+               (devs/afap-root-coordinator :end (h/*R 30)))))))
 
   (testing "ad-hoc network structure change test"
     ;; Note that messages get dropped when they have been delivered to a delay,
@@ -492,10 +491,10 @@
           [(h/*R 18) {:gen-out ["msg-18"]}]
           [(h/*R 19) {:gen-out ["msg-19"] :del-2-out ["msg-17"]}]
           [(h/*R 20) {:gen-out ["msg-20"]}]]
-         (let [gen    (m/generator (for [i (range)] [(h/*R 1) [(str "msg-" (inc i))]]))
-               del-1  (m/buffer (h/*R 1))
-               del-2  (m/buffer (h/*R 2))
-               sc-gen (m/generator
+         (let [gen    (ex/generator (for [i (range)] [(h/*R 1) [(str "msg-" (inc i))]]))
+               del-1  (ex/buffer (h/*R 1))
+               del-2  (ex/buffer (h/*R 2))
+               sc-gen (ex/generator
                        (cycle [[(h/*R 5 -1) [[:disconnect [:gen :out :del-1 :in]]
                                              [:disconnect [:del-1 :out :network :del-1-out]]
                                              [:rem-model :del-1]
@@ -508,7 +507,7 @@
                                              [:add-model :del-1 [del-1 h/zero]]
                                              [:connect [:gen :out :del-1 :in]]
                                              [:connect [:del-1 :out :network :del-1-out]]]]]))
-               net    (m/simple-network-model
+               net    (devs/simple-network-model
                        :exec
                        {:gen    [gen h/zero]
                         :del-1  [del-1 h/zero]
@@ -517,5 +516,170 @@
                         [:gen :out :del-1 :in]
                         [:gen :out :network :gen-out]
                         [:del-1 :out :network :del-1-out]])]
-           (-> (network-simulator net)
-               (afap-root-coordinator :start (h/*R 0) :end (h/*R 20))))))))
+           (-> (devs/network-simulator net)
+               (devs/afap-root-coordinator :start (h/*R 0) :end (h/*R 20))))))))
+
+(deftest invalid-network-models
+
+  (is (thrown-with-msg? #?(:clj clojure.lang.ExceptionInfo
+                           :cljs ExceptionInfo)
+                        #"Executive must be an executive model."
+                        (devs/network-model :exec
+                                            [(ex/buffer (h/*R 5)) h/zero])))
+
+  (is (thrown-with-msg? #?(:clj clojure.lang.ExceptionInfo
+                           :cljs ExceptionInfo)
+                        #"All models in routes must appear in models \(except for :network\)."
+                        (devs/network-model :exec
+                                            [(devs/simple-executive) h/zero]
+                                            {:x (ex/buffer (h/*R 5))}
+                                            [[:network :in :y :in]])))
+
+  (is (thrown-with-msg? #?(:clj clojure.lang.ExceptionInfo
+                           :cljs ExceptionInfo)
+                        #"A model cannot use the same port for both input and output."
+                        (devs/network-model :exec
+                                            [(devs/simple-executive) h/zero]
+                                            {:x (ex/buffer (h/*R 5))}
+                                            [[:network :in :x :in]
+                                             [:x :in :network :out]])))
+
+  (is (thrown-with-msg? #?(:clj clojure.lang.ExceptionInfo
+                           :cljs ExceptionInfo)
+                        #"A network input port cannot connect directly to a network output port"
+                        (devs/network-model :exec
+                                            [(devs/simple-executive) h/zero]
+                                            {:x (ex/buffer (h/*R 5))}
+                                            [[:network :in :network :out]]))))
+
+#?(:cljs
+   (defn special-delay!
+     "Takes a function f of no arguments and evaluates it after
+  initial-delay milliseconds. f should return an integer specifying
+  the time (in milliseconds) to wait before invoking f again, and so
+  on."
+     [f initial-delay]
+     (let [handle (atom nil)]
+       (letfn [(step [d]
+                 (if (infinite? d)
+                   (reset! handle nil)
+                   (->> (goog.async.Delay. #(step (f)) d)
+                        (reset! handle)
+                        .start)))]
+         (step initial-delay))
+       handle)))
+
+#?(:cljs
+   (defn cancel-special-delay! [handle]
+     (.stop @handle)
+     nil))
+
+#?(:clj
+   (defn start-loop-fn [pkg]
+     (doto (Thread.
+            (fn []
+              (try
+                (while (not (Thread/interrupted))
+                  (let [delta (devs/wall-time-until-next-event pkg)]
+                    (if (infinite? delta)
+                      (.interrupt (Thread/currentThread))
+                      (do (Thread/sleep delta)
+                          (devs/step! pkg)))))
+                (catch java.lang.InterruptedException e
+                  nil))))
+       .start))
+   :cljs
+   (defn start-loop-fn [pkg]
+     (special-delay!
+      #(-> pkg devs/step! devs/wall-time-until-next-event)
+      (devs/wall-time-until-next-event pkg))))
+
+#?(:clj
+   (defn stop-loop-fn [handle]
+     (doto handle .interrupt .join)
+     nil)
+   :cljs
+   (defn stop-loop-fn [handle]
+     (when @handle
+       (cancel-special-delay! handle))))
+
+(deftest race-condition-test
+
+  ;; To create an artificial delay, we put a buffer in a network and
+  ;; include a route transducer that sleeps. As a result, the
+  ;; root-coordinator will still be processing the first send-mail!
+  ;; call when the second one is made. We validate that the first one
+  ;; completed successfully before the 2nd was processed, because the
+  ;; output was what we would expect without all the threads.
+
+  #?(:clj
+     (let [out (atom [])
+           pkg (-> (devs/static-network-model
+                    {:buf [(ex/buffer (h/*R 300))
+                           h/zero]}
+                    [[:network :in :buf :in (map (fn [msg] (Thread/sleep 100) msg))]
+                     [:buf :out :network :out]])
+                   devs/network-simulator
+                   (devs/flexible-root-coordinator
+                    :output-fn     (partial swap! out into)
+                    :paused?       true
+                    :start-loop-fn start-loop-fn
+                    :stop-loop-fn  stop-loop-fn))]
+       (devs/unpause! pkg)
+       (future
+         (devs/send-mail! pkg {:in [:one]}))
+       (future
+         (Thread/sleep 10)
+         (devs/send-mail! pkg {:in [:two]}))
+       (future
+         (Thread/sleep 500)
+         (devs/pause! pkg))
+       (Thread/sleep 600)
+       (is (= 1 (count @out)))
+       (let [[t mail] (first @out)]
+         (is (h/<= (h/*R 300) t (h/*R 400)))
+         (is (= mail {:out [:one]}))))))
+
+(deftest rt-test
+
+  #?(:clj
+     (let [out (atom [])
+           pkg (-> (devs/static-network-model
+                    {:buf [(ex/buffer (h/*R 100))
+                           h/zero]}
+                    [[:network :in :buf :in]
+                     [:buf :out :network :out]])
+                   devs/network-simulator
+                   (devs/flexible-root-coordinator
+                    :output-fn     (partial swap! out into)
+                    :start-loop-fn start-loop-fn
+                    :stop-loop-fn  stop-loop-fn))]
+       (Thread/sleep 100)
+       (devs/send-mail! pkg {:in [:one]})
+       (Thread/sleep 200)
+       (is (= 1 (count @out)))
+       (let [[t mail] (first @out)]
+         (is (h/<= (h/*R 200) t (h/*R 300)))
+         (is (= mail {:out [:one]}))))
+     :cljs
+     (let [out (atom [])
+           pkg (-> (devs/static-network-model
+                    {:buf [(ex/buffer (h/*R 100))
+                           h/zero]}
+                    [[:network :in :buf :in]
+                     [:buf :out :network :out]])
+                   devs/network-simulator
+                   (devs/flexible-root-coordinator
+                    :output-fn     (partial swap! out into)
+                    :start-loop-fn start-loop-fn
+                    :stop-loop-fn  stop-loop-fn))]
+       (async done
+              (go
+                (async/<! (async/timeout 100))
+                (devs/send-mail! pkg {:in [:one]})
+                (async/<! (async/timeout 200))
+                (is (= 1 (count @out)))
+                (let [[t mail] (first @out)]
+                  (is (h/<= (h/*R 200) t (h/*R 300)))
+                  (is (= mail {:out [:one]})))
+                (done))))))

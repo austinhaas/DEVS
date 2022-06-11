@@ -1,16 +1,10 @@
-(ns pettomato.devs.examples.models.digital-circuit
+(ns pettomato.devs.examples.digital-circuit
   "This is loosely based on SICP, Ch. 3.3.4."
   (:require
-   [pettomato.devs.examples.models :as m]
+   [pettomato.devs :as devs]
+   [pettomato.devs.examples :as ex]
    [pettomato.devs.lib.hyperreal :as h]
-   [pettomato.devs.lib.log :as log]
-   [pettomato.devs.models.atomic-model :refer [def-atomic-model
-                                               internal-update
-                                               external-update
-                                               output
-                                               time-advance]]
-   [pettomato.devs.root-coordinators.afap-root-coordinator :refer [afap-root-coordinator]]
-   [pettomato.devs.simulators.network-simulator :refer [network-simulator]]))
+   [pettomato.devs.lib.log :as log]))
 
 ;; This is supposed to be physically accurate in the sense that it takes time
 ;; for signals to propagate. There will be an initial period of "settling".
@@ -29,7 +23,7 @@
 ;;------------------------------------------------------------------------------
 ;; Primitive function boxes
 
-(def-atomic-model Inverter [delay sigma has-power? input output last-output]
+(devs/def-atomic-model Inverter [delay sigma has-power? input output last-output]
   (internal-update [state]
     (assoc state
            :sigma h/infinity
@@ -57,7 +51,7 @@
   (assert (h/hyperreal? delay))
   (->Inverter delay h/infinity false false nil nil))
 
-(def-atomic-model AndGate [delay sigma has-power? input-1 input-2 output last-output]
+(devs/def-atomic-model AndGate [delay sigma has-power? input-1 input-2 output last-output]
   (internal-update [state]
     (assoc state
            :sigma h/infinity
@@ -87,7 +81,7 @@
   (assert (h/hyperreal? delay))
   (->AndGate delay h/infinity false false false nil nil))
 
-(def-atomic-model OrGate [delay sigma has-power? input-1 input-2 output last-output]
+(devs/def-atomic-model OrGate [delay sigma has-power? input-1 input-2 output last-output]
   (internal-update [state]
     (assoc state
            :sigma h/infinity
@@ -124,7 +118,7 @@
   "S will become 1 whenever precisely one of A and B is 1, and C will become 1
   whenever A and B are both 1. - SICP, p. 274"
   [inverter-delay and-gate-delay or-gate-delay]
-  (m/static-network-model
+  (devs/static-network-model
    {:or    [(or-gate  or-gate-delay)  h/zero]
     :and-1 [(and-gate and-gate-delay) h/zero]
     :and-2 [(and-gate and-gate-delay) h/zero]
@@ -144,7 +138,7 @@
     [:and-2   :out :network :s   ]]))
 
 (defn full-adder [inverter-delay and-gate-delay or-gate-delay]
-  (m/static-network-model
+  (devs/static-network-model
    {:ha-1 [(half-adder inverter-delay and-gate-delay or-gate-delay)
            h/zero]
     :ha-2 [(half-adder inverter-delay and-gate-delay or-gate-delay)
@@ -192,7 +186,7 @@
                       (range n-bits)
                       (range 1 n-bits))
         routes   (concat routes-1 routes-2)]
-    (m/static-network-model models routes)))
+    (devs/static-network-model models routes)))
 
 (defn encode
   "Converts an number into seq of \"bits\"."
@@ -231,14 +225,14 @@
         a-gens (map-indexed
                 (fn [i b]
                   [(keyword (str "a-gen-" i))
-                   [(m/generator [[(h/*R 1000) [b]]]) h/zero]])
+                   [(ex/generator [[(h/*R 1000) [b]]]) h/zero]])
                 a-bits)
         b-gens (map-indexed
                 (fn [i b]
                   [(keyword (str "b-gen-" i))
-                   [(m/generator [[(h/*R 1000) [b]]]) h/zero]])
+                   [(ex/generator [[(h/*R 1000) [b]]]) h/zero]])
                 b-bits)
-        models (merge {:gen-pwr [(m/generator [[(h/*R 1) [true]]])
+        models (merge {:gen-pwr [(ex/generator [[(h/*R 1) [true]]])
                                  h/zero]
                        :rca     [(ripple-carry-adder n-bits
                                                      inverter-delay
@@ -260,7 +254,7 @@
                        b-gens)
                       (for [i (range n-bits)]
                         [[:rca [:s i] :network [:s i]]]))]
-    (->> (m/static-network-model models routes)
-         network-simulator
-         afap-root-coordinator
+    (->> (devs/static-network-model models routes)
+         devs/network-simulator
+         devs/afap-root-coordinator
          (decode-mail n-bits))))

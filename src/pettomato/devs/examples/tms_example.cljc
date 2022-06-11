@@ -1,18 +1,16 @@
-(ns pettomato.devs.examples.models.tms-example
+(ns pettomato.devs.examples.tms-example
   "A dynamic structure example from Theory of Modeling and Simulation,
   2nd Ed., pp. 237-240.
 
   This server moves workers from a static pool of workers to where the
   work is."
   (:require
-   [pettomato.devs.examples.models :as m]
+   [pettomato.devs :as devs]
+   [pettomato.devs.examples :as ex]
    [pettomato.devs.lib.hyperreal :as h]
-   [pettomato.devs.lib.log :as log]
-   [pettomato.devs.models.atomic-model :refer [def-atomic-model time-advance]]
-   [pettomato.devs.models.executive-model :refer [def-executive-model]]
-   [pettomato.devs.models.network-model :refer [network-model]]))
+   [pettomato.devs.lib.log :as log]))
 
-(def ^:private server m/buffer+)
+(def ^:private server ex/buffer+)
 
 (defn- add-server [state id]
   (log/tracef "add-server: %s" id)
@@ -73,7 +71,7 @@
               (idle (second port))
               maybe-process-next))))
 
-(def-executive-model Queue [id idle queue output structure-changes total-elapsed]
+(devs/def-executive-model Queue [id idle queue output structure-changes total-elapsed]
   (internal-update [state]
     ;; It is not necessary to update total-elapsed here, since the
     ;; elapsed time could only be h/zero. IS THAT WRONG? Should we
@@ -110,7 +108,7 @@
     (reduce add-server state server-ids)))
 
 (defn node [n-servers]
-  (network-model
+  (devs/network-model
    :queue
    [(queue :queue n-servers) h/zero]
    {}
@@ -146,7 +144,7 @@
                                                   (update-in [:in-transit-to 0] inc))
       :else                                   state)))
 
-(def-atomic-model Control [queue-sizes idle-sizes output threshold]
+(devs/def-atomic-model Control [queue-sizes idle-sizes output threshold]
   (internal-update [state]
     (update state :output empty))
   (external-update [state elapsed mail]
@@ -173,7 +171,7 @@
                  :threshold   threshold}))
 
 (defn network [n-servers-per-node threshold]
-  (m/static-network-model
+  (devs/static-network-model
    {:control [(control threshold) h/zero]
     :node-1  [(node n-servers-per-node) h/zero]
     :node-2  [(node n-servers-per-node) h/zero]}

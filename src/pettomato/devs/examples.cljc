@@ -1,13 +1,11 @@
-(ns pettomato.devs.examples.models
+(ns pettomato.devs.examples
   "Some useful models."
   (:require
-   [pettomato.devs.models.atomic-model :refer [def-atomic-model internal-update external-update time-advance]]
-   [pettomato.devs.models.executive-model :refer [def-executive-model structure-changes]]
-   [pettomato.devs.models.network-model :refer [network-model]]
+   [pettomato.devs :as devs]
    [pettomato.devs.lib.hyperreal :as h]
    [pettomato.devs.lib.priority-queue :as pq]))
 
-(def-atomic-model Generator [xs]
+(devs/def-atomic-model Generator [xs]
   (internal-update [state] (update state :xs next))
   (output [state] (when (first xs) {:out (second (first xs))}))
   (time-advance [state] (or (ffirst xs) h/infinity)))
@@ -19,7 +17,7 @@
   [xs]
   (->Generator xs))
 
-(def-atomic-model Buffer [delta buffer sigma]
+(devs/def-atomic-model Buffer [delta buffer sigma]
   (internal-update [state] (assoc state :buffer nil :sigma h/infinity))
   (external-update [state elapsed mail]
     (if buffer
@@ -40,7 +38,7 @@
   [delta]
   (->Buffer delta nil h/infinity))
 
-(def-atomic-model Buffer2 [delta buffer sigma]
+(devs/def-atomic-model Buffer2 [delta buffer sigma]
   (internal-update [state] (assoc state :buffer nil :sigma h/infinity))
   (external-update [state elapsed mail]
     (if buffer
@@ -49,8 +47,8 @@
              :buffer (rand-nth (:in mail))
              :sigma  delta)))
   (confluent-update [state mail]
-    (-> (external-update state (time-advance state) mail)
-        (internal-update)))
+    (-> (devs/external-update state (devs/time-advance state) mail)
+        (devs/internal-update)))
   (output [state] {:out [buffer]})
   (time-advance [state] sigma))
 
@@ -62,10 +60,10 @@
   [delta]
   (->Buffer2 delta nil h/infinity))
 
-(def-atomic-model Buffer+ [total-elapsed queue]
+(devs/def-atomic-model Buffer+ [total-elapsed queue]
   (internal-update [state]
     (-> state
-        (update :total-elapsed h/+ (time-advance state))
+        (update :total-elapsed h/+ (devs/time-advance state))
         (update :queue pq/pop)))
   (external-update [state elapsed mail]
     (let [total-elapsed (h/+ total-elapsed elapsed)]
@@ -89,33 +87,3 @@
   []
   (map->Buffer+ {:total-elapsed h/zero
                  :queue         (pq/priority-queue h/comparator)}))
-
-(def-executive-model SimpleExec [structure-changes]
-  (internal-update [state] (update state :structure-changes empty))
-  (external-update [state elapsed mail] (update state :structure-changes into (:in mail)))
-  (time-advance [state] (if (seq structure-changes) h/epsilon h/infinity))
-  (structure-changes [state] structure-changes))
-
-(defn simple-executive
-  "A network executive that accepts structure change messages on
-  port :in and provides them as-is to the network simulator."
-  []
-  (->SimpleExec []))
-
-(def-executive-model StaticExec [])
-
-(defn static-executive []
-  (->StaticExec))
-
-(defn simple-network-model
-  "A network model with a simple-executive."
-  ([executive-id]
-   (simple-network-model executive-id [] []))
-  ([executive-id models routes]
-   (network-model executive-id [(simple-executive) h/zero] models routes)))
-
-(defn static-network-model
-  "A network model for static networks. The model has a network
-  executive, but it is inaccessible and does nothing."
-  [models routes]
-  (network-model (gensym) [(static-executive) h/zero] models routes))
