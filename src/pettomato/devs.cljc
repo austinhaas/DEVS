@@ -3,6 +3,7 @@
   (:require
    [clojure.pprint]
    [clojure.set :as set]
+   #?(:cljs [goog.async.Delay :as gdelay])
    #?(:cljs [goog.string :as gstring :refer [format]])
    #?(:cljs [goog.string.format])
    [pettomato.devs.clock :as clock]
@@ -768,7 +769,7 @@ if it doesn't receive any external messages before then."))
       second))
 
 ;;------------------------------------------------------------------------------
-;; Flexible Root-Coordinator
+;; Real-Time Root-Coordinator
 
 ;; Locking isn't necessary for CLJS (does it do anything at all?), but
 ;; it doesn't hurt either (AFAICT), so it's simpler to leave it in.
@@ -781,9 +782,50 @@ if it doesn't receive any external messages before then."))
     (doseq [[t mail] mail-log]
       (log/infof "out> %s %s" t mail))))
 
-(declare start-loop!)
+(declare start-loop!
+         step!
+         wall-time-until-next-event)
 
-(defn flexible-root-coordinator
+(defn- start-loop-fn [pkg]
+ #?(:clj
+    (doto (Thread.
+           (fn []
+             (try
+               (while (not (Thread/interrupted))
+                 (let [delta (wall-time-until-next-event pkg)]
+                   (if (infinite? delta)
+                     (.interrupt (Thread/currentThread))
+                     (do (Thread/sleep delta)
+                         (step! pkg)))))
+               (catch java.lang.InterruptedException e
+                 nil))))
+      .start)
+    :cljs
+    (letfn [(special-delay! [f initial-delay]
+              (let [handle (atom nil)]
+                (letfn [(step [d]
+                          (if (infinite? d)
+                            (reset! handle nil)
+                            (->> (goog.async.Delay. #(step (f)) d)
+                                 (reset! handle)
+                                 .start)))]
+                  (step initial-delay))
+                handle))]
+      (special-delay!
+       #(-> pkg step! wall-time-until-next-event)
+       (wall-time-until-next-event pkg)))))
+
+(defn- stop-loop-fn [handle]
+ #?(:clj
+    (do (doto handle .interrupt .join)
+        nil)
+    :cljs
+    (when @handle
+      (.stop @handle)
+      nil)))
+
+(defn rt-root-coordinator
+  "A root-coordinator that is gated by real-time."
   [sim & {:keys [sim-time
                  wall-time-fn
                  paused?
@@ -791,11 +833,13 @@ if it doesn't receive any external messages before then."))
                  output-fn
                  start-loop-fn
                  stop-loop-fn]
-          :or   {sim-time     h/zero
-                 wall-time-fn date/timestamp
-                 paused?      false
-                 scale-factor 1.0
-                 output-fn    default-print-mail}}]
+          :or   {sim-time      h/zero
+                 wall-time-fn  date/timestamp
+                 paused?       false
+                 scale-factor  1.0
+                 output-fn     default-print-mail
+                 start-loop-fn start-loop-fn
+                 stop-loop-fn  stop-loop-fn}}]
   (let [clock (clock/clock :sim-time sim-time
                            :paused? paused?
                            :scale-factor scale-factor
