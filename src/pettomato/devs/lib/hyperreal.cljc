@@ -2,39 +2,32 @@
   "An implementation of hyperreal numbers.
 
   The hyperreal numbers are the real numbers extended with
-  infinitesimal (ε) and infinity (ω).
+  infinitesimal and infinity.
 
-  Hyperreal numbers are represented as the sum of three components:
-  Aω+r+Bε. They are implemented as a record with three fields:
+  Infinitesimal (ε) is the smallest positive hyperreal number.
 
-  - `infinity` is an integer coefficient indicating the number of
-  infinity units in the number; A in Aω+r+Bε.
+  Infinity (ω) represents a hyperreal number larger than any real
+  number.
 
-  - `standard` is a real number; r in Aω+r+Bε.
+  This library provides the following hyperreal numbers as constants:
 
-  - `infinitesimal` is an integer coefficient indicating the number of
-  infinitesimal units in the number; B in Aω+r+Bε.
+  `zero`
+  `epsilon`
+  `negative-infinity`
+  `positive-infinity`
+  `infinity`
 
-  For example, with constructor *R, (*R 1 2 3) = 1ω+2+3ε, and (*R 0
-  5.2 0) = 0ω+5.2+0ε = 5.2.
+  A constructor, `*R`, can be used to create all non-infinite
+  hyperreal numbers. For example, `(*R 1 2)` creates a hyperreal
+  number with 1 standard unit and 2 infinitesimal units.
 
-  (*R 0 0 1), meaning ε, or `epsilon`, is the smallest positive
-  hyperreal number. There is no largest hyperreal number; `infinity`
-  is taken to be an unknown quantity that is larger than all real
-  numbers, but less than infinity+1 and infinity*2.
+  Hyperreal numbers may be printed as +∞, -∞, 5, or 5ε2.
 
-  Hyperreal numbers may be printed as *ℝ<infinity standard
-  infinitesimal>.
+  Note that infinitesimal and infinity are treated differently in
+  arithmetic: ε+ε=2ε, but ω+x=ω.
 
-  The component number types are not enforced, but should be
-  respected. Importantly, never use special numeric values like
-  Double/POSITIVE_INFINITY and (.-POSITIVE_INFINITY js/Number),
-  because that will produce erroneous results and it would
-  unjustifiably complicate the code to support it.
-
-  Also note that the real number implementation is based on the host
-  platform, so the real numbers are represented as floating-point
-  numbers with all their associated deficiencies.
+  The real numbers are implemented as floating point numbers on the
+  host platform.
 
   Reference:
 
@@ -44,39 +37,43 @@
   (:refer-clojure :exclude [= + - < <= comparator min max zero? pos? infinite?])
   (:require
    [clojure.core :as clj]
-   [clojure.pprint]
-   #?(:cljs [goog.string :as gstring :refer [format]])
-   #?(:cljs [goog.string.format]))
-  #?(:clj (:import [java.io Writer])))
+   [pettomato.devs.lib.debug :refer [ex-assert]]
+   [pettomato.devs.lib.print :as print]))
 
 (defrecord Hyperreal [infinity standard infinitesimal]
   Object
-  (toString [this] (str "*ℝ<" infinity " " standard " " infinitesimal ">")))
+  (toString [this]
+    (cond
+      (clj/pos? infinity)       "+∞"
+      (clj/neg? infinity)       "-∞"
+      (clj/zero? infinitesimal) (str standard)
+      :else                     (str standard "ε" infinitesimal))))
 
-(defn format-hyperreal ^String [x]
-  (format "*ℝ<%s %s %s>" (:infinity x) (:standard x) (:infinitesimal x)))
+#?(:clj (print/add-print-handlers-clj Hyperreal)
+   :cljs (print/add-print-handlers-cljs Hyperreal))
 
-#?(:clj
-   (defn pretty-print-hyperreal [^Hyperreal x ^java.io.Writer w]
-     (.write w (format-hyperreal x))))
+(defn hyperreal? [x] (instance? Hyperreal x))
 
-#?(:clj
-   (defmethod print-method Hyperreal [^Hyperreal x ^java.io.Writer w]
-     (pretty-print-hyperreal x w)))
+(def zero              (Hyperreal. 0 0 0))
+(def epsilon           (Hyperreal. 0 0 1))
+(def infinity          (Hyperreal. 1 0 0))
+(def positive-infinity (Hyperreal. 1 0 0))
+(def negative-infinity (Hyperreal. -1 0 0))
 
-#?(:clj
-   (. clojure.pprint/simple-dispatch
-      addMethod
-      Hyperreal
-      #(pretty-print-hyperreal %1 *out*)))
+(defn- make-hyperreal [infinity standard infinitesimal]
+  (ex-assert (not (clj/infinite? standard))
+             "standard part cannot be infinite")
+  (ex-assert (not (clj/infinite? infinitesimal))
+             "infinitesimal part cannot be infinite")
+  (cond
+    (clj/pos? infinity) positive-infinity
+    (clj/neg? infinity) negative-infinity
+    :else               (Hyperreal. 0 standard infinitesimal)))
 
 (defn *R
   "Construct a hyperreal number from its components."
-  ([standard]                        (Hyperreal.        0 standard             0))
-  ([standard infinitesimal]          (Hyperreal.        0 standard infinitesimal))
-  ([infinity standard infinitesimal] (Hyperreal. infinity standard infinitesimal)))
-
-(defn hyperreal? [x] (instance? Hyperreal x))
+  ([standard]               (Hyperreal. 0 standard             0))
+  ([standard infinitesimal] (Hyperreal. 0 standard infinitesimal)))
 
 (defn standard
   "Returns the closest standard real number to hyperreal number x,
@@ -84,14 +81,8 @@
   [x]
   (cond
     (clj/zero? (:infinity x)) (:standard x)
-    (clj/pos?  (:infinity x)) #?(:clj  Double/POSITIVE_INFINITY
-                                 :cljs (.-POSITIVE_INFINITY js/Number))
-    (clj/neg?  (:infinity x)) #?(:clj  Double/NEGATIVE_INFINITY
-                                 :cljs (.-NEGATIVE_INFINITY js/Number))))
-
-(def zero     (*R 0 0 0))
-(def epsilon  (*R 0 0 1))
-(def infinity (*R 1 0 0))
+    (clj/pos?  (:infinity x)) ##Inf
+    (clj/neg?  (:infinity x)) ##-Inf))
 
 (defn =
   ([x] true)
@@ -110,21 +101,24 @@
   ([] zero)
   ([x] x)
   ([x y]
-   (*R (clj/+ (:infinity      x) (:infinity      y))
-       (clj/+ (:standard      x) (:standard      y))
-       (clj/+ (:infinitesimal x) (:infinitesimal y))))
+   (make-hyperreal
+    (clj/+ (:infinity      x) (:infinity      y))
+    (clj/+ (:standard      x) (:standard      y))
+    (clj/+ (:infinitesimal x) (:infinitesimal y))))
   ([x y & more]
    (reduce + (+ x y) more)))
 
 (defn -
   ([x]
-   (*R (clj/- (:infinity      x))
-       (clj/- (:standard      x))
-       (clj/- (:infinitesimal x))))
+   (make-hyperreal
+    (clj/- (:infinity      x))
+    (clj/- (:standard      x))
+    (clj/- (:infinitesimal x))))
   ([x y]
-   (*R (clj/- (:infinity      x) (:infinity      y))
-       (clj/- (:standard      x) (:standard      y))
-       (clj/- (:infinitesimal x) (:infinitesimal y))))
+   (make-hyperreal
+    (clj/- (:infinity      x) (:infinity      y))
+    (clj/- (:standard      x) (:standard      y))
+    (clj/- (:infinitesimal x) (:infinitesimal y))))
   ([x y & more]
    (reduce - (- x y) more)))
 
@@ -132,8 +126,10 @@
   ([x] true)
   ([x y]
    (cond
-     (clj/< (:infinity      x) (:infinity      y)) true
-     (clj/< (:infinity      y) (:infinity      x)) false
+     (clj/pos? (:infinity x))                      false
+     (clj/pos? (:infinity y))                      true
+     (clj/neg? (:infinity y))                      false
+     (clj/neg? (:infinity x))                      true
      (clj/< (:standard      x) (:standard      y)) true
      (clj/< (:standard      y) (:standard      x)) false
      (clj/< (:infinitesimal x) (:infinitesimal y)) true

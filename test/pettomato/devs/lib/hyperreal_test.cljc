@@ -6,22 +6,13 @@
       [cljs.test :refer-macros [deftest is testing]])
    [pettomato.devs.lib.hyperreal :as h :refer [*R]]))
 
-;; TODO: Add a lot more tests.
-
-(def real-infinity
-  "Infinity in the real number system on the host platform."
-  #?(:clj  Double/POSITIVE_INFINITY
-    :cljs (.-POSITIVE_INFINITY js/Number)))
-
 (deftest hyperreal-tests
 
   (testing "constructor"
 
-    (is (h/= h/zero (*R 0 0 0) (*R 0 0) (*R 0)))
+    (is (h/= h/zero (*R 0 0) (*R 0)))
 
-    (is (h/= h/epsilon (*R 0 0 1) (*R 0 1)))
-
-    (is (h/= h/infinity (*R 1 0 0))))
+    (is (h/= h/epsilon (*R 0 1))))
 
   (testing "hyperreal?"
 
@@ -31,7 +22,7 @@
 
     (is (true? (h/hyperreal? h/infinity)))
 
-    (is (true? (h/hyperreal? (*R 1 2 3))))
+    (is (true? (h/hyperreal? (*R 1 2))))
 
     (is (false? (h/hyperreal? 27))))
 
@@ -39,13 +30,9 @@
 
     (is (= 0 (h/standard h/zero)))
 
-    (is (= 1 (h/standard (*R 0 1 2))))
+    (is (= 1 (h/standard (*R 1 2))))
 
-    (is (= real-infinity (h/standard (*R 1 2 3))))
-
-    (is (= real-infinity (h/standard h/infinity)))
-
-    (is (= real-infinity (h/standard (*R 99 0 0)))))
+    (is (= ##Inf (h/standard h/infinity))))
 
   (testing "="
 
@@ -53,7 +40,7 @@
 
     (is (h/= h/zero h/zero))
 
-    (is (h/= (*R 1 2 3) (*R 1 2 3) (*R 1 2 3)))
+    (is (h/= (*R 1 2) (*R 1 2) (*R 1 2)))
 
     (is (false? (h/= h/infinity (*R 0 1)))))
 
@@ -61,37 +48,31 @@
 
     (is (h/< h/zero))
 
-    (is (h/< (*R -1 0 -1)
-             (*R -1)
+    (is (h/< (*R -1)
              (*R -1 1)
              h/zero
              h/epsilon
              (*R 1 -1)
              (*R 1)
              (*R 1 1)
-             h/infinity
-             (*R 1 0 1))))
+             h/infinity)))
 
   (testing "<="
 
     (is (h/<= h/zero))
 
     ;; Same arguments as `<` test.
-    (is (h/<= (*R -1 0 -1)
-              (*R -1)
+    (is (h/<= (*R -1)
               (*R -1 1)
               h/zero
               h/epsilon
               (*R 1 -1)
               (*R 1)
               (*R 1 1)
-              h/infinity
-              (*R 1 0 1)))
+              h/infinity))
 
     ;; Same args as above, but every arg twice.
-    (is (h/<= (*R -1 0 -1)
-              (*R -1 0 -1)
-              (*R -1)
+    (is (h/<= (*R -1)
               (*R -1)
               (*R -1 1)
               (*R -1 1)
@@ -106,9 +87,7 @@
               (*R 1 1)
               (*R 1 1)
               h/infinity
-              h/infinity
-              (*R 1 0 1)
-              (*R 1 0 1))))
+              h/infinity)))
 
   (testing "comparator"
 
@@ -143,7 +122,7 @@
 
   (testing "pos?"
 
-    (is (false? (h/pos? (*R 0 0 -1))))
+    (is (false? (h/pos? (*R 0 -1))))
 
     (is (false? (h/pos? h/zero)))
 
@@ -151,7 +130,7 @@
 
     (is (h/pos? h/infinity))
 
-    (is (h/pos? (*R 1 -999 0))))
+    (is (h/pos? (*R 1 -999))))
 
   (testing "infinite?"
 
@@ -161,6 +140,6 @@
 
     (is (h/infinite? h/infinity))
 
-    (is (h/infinite? (*R 1 -999 0)))
+    (is (h/infinite? h/positive-infinity))
 
-    (is (h/infinite? (*R -1 0 0)))))
+    (is (h/infinite? h/negative-infinity))))

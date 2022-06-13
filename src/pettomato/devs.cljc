@@ -1,7 +1,7 @@
 (ns pettomato.devs
   #?(:cljs (:require-macros [pettomato.devs :refer [def-executive-model]]))
   (:require
-   [clojure.pprint]
+   [clojure.pprint :as pprint]
    [clojure.set :as set]
    #?(:cljs [goog.async.Delay :as gdelay])
    #?(:cljs [goog.string :as gstring :refer [format]])
@@ -12,6 +12,7 @@
    [pettomato.devs.lib.debug :refer [ex-assert]]
    [pettomato.devs.lib.hyperreal :as h]
    [pettomato.devs.lib.log :as log]
+   [pettomato.devs.lib.print :as print]
    [pettomato.devs.lib.priority-queue :as pq]
    [pettomato.devs.mail :as mail]
    [pettomato.devs.trace :as trace])
@@ -381,27 +382,16 @@ if it doesn't receive any external messages before then."))
                    {:tl tl :tn tn})
         (assoc sim :state state :tl tl :tn tn))))
   (time-of-last-event [sim] tl)
-  (time-of-next-event [sim] tn))
+  (time-of-next-event [sim] tn)
+  Object
+  (toString [sim]
+    #?(:clj  (format "#pettomato.devs.simulators.AtomicSimulator<0x%x>{}"
+                     (System/identityHashCode sim))
+       :cljs (format "#pettomato.devs.simulators.AtomicSimulator<%s>{}"
+                     (.toString (hash sim) 16)))))
 
-(defn format-atomic-simulator ^String [x]
-  #?(:clj  (format "#pettomato.devs.simulators.AtomicSimulator<0x%x>{}"
-                   (System/identityHashCode x))
-     :cljs (format "#pettomato.devs.simulators.AtomicSimulator<%s>{}"
-                   (.toString (hash x) 16))))
-
-#?(:clj
-   (defn print-atomic-simulator [^AtomicSimulator x ^java.io.Writer w]
-     (.write w (format-atomic-simulator x))))
-
-#?(:clj
-   (defmethod print-method AtomicSimulator [^AtomicSimulator x ^java.io.Writer w]
-     (print-atomic-simulator x w)))
-
-#?(:clj
-   (. clojure.pprint/simple-dispatch
-      addMethod
-      AtomicSimulator
-      #(print-atomic-simulator % *out*)))
+#?(:clj (print/add-print-handlers-clj AtomicSimulator)
+   :cljs (print/add-print-handlers-cljs AtomicSimulator))
 
 (defn atomic-simulator
   "Wrap an atomic model in an atomic simulator.
@@ -470,27 +460,16 @@ if it doesn't receive any external messages before then."))
   IExecutiveSimulator
   (get-structure-changes [sim t]
     (ex-assert (h/= t tn) "synchronization error" {:t t :tn tn})
-    (structure-changes state)))
+    (structure-changes state))
+  Object
+  (toString [sim]
+    #?(:clj  (format "#pettomato.devs.simulators.ExecutiveSimulator<0x%x>{}"
+                     (System/identityHashCode sim))
+       :cljs (format "#pettomato.devs.simulators.ExecutiveSimulator<%s>{}"
+                     (.toString (hash sim) 16)))))
 
-(defn format-executive-simulator ^String [x]
-  #?(:clj  (format "#pettomato.devs.simulators.ExecutiveSimulator<0x%x>{}"
-                   (System/identityHashCode x))
-     :cljs (format "#pettomato.devs.simulators.ExecutiveSimulator<%s>{}"
-                   (.toString (hash x) 16))))
-
-#?(:clj
-   (defn print-executive-simulator [^ExecutiveSimulator x ^java.io.Writer w]
-     (.write w (format-executive-simulator x))))
-
-#?(:clj
-   (defmethod print-method ExecutiveSimulator [^ExecutiveSimulator x ^java.io.Writer w]
-     (print-executive-simulator x w)))
-
-#?(:clj
-   (. clojure.pprint/simple-dispatch
-      addMethod
-      ExecutiveSimulator
-      #(print-executive-simulator % *out*)))
+#?(:clj (print/add-print-handlers-clj ExecutiveSimulator)
+   :cljs (print/add-print-handlers-cljs ExecutiveSimulator))
 
 (defn executive-simulator
   "Wrap a network executive model in a network executive simulator.
@@ -817,7 +796,7 @@ if it doesn't receive any external messages before then."))
 
 (defn- stop-loop-fn [handle]
  #?(:clj
-    (do (doto handle .interrupt .join)
+    (do (doto ^Thread handle .interrupt .join)
         nil)
     :cljs
     (when @handle
