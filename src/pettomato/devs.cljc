@@ -522,20 +522,16 @@ if it doesn't receive any external messages before then."))
              m)
      [(conj acc m)])))
 
+(defn- flatten-routes [parent-sim]
+  (concat (unroll-nested-map (:network-input-routes parent-sim))
+          (unroll-nested-map (:network-output-routes parent-sim))
+          (unroll-nested-map (:local-routes parent-sim))))
+
 (defn- get-connections [parent-sim id]
-  {:network-input-routes  (->> (:network-input-routes parent-sim)
-                               unroll-nested-map
-                               (filter (fn [[sk sp rk rp tx]]
-                                         (= id rk))))
-   :network-output-routes (->> (:network-output-routes parent-sim)
-                               unroll-nested-map
-                               (filter (fn [[sk sp rk rp tx]]
-                                         (= id sk))))
-   :local-routes          (->> (:local-routes parent-sim)
-                               unroll-nested-map
-                               (filter (fn [[sk sp rk rp tx]]
-                                         (or (= id sk)
-                                             (= id rk)))))})
+  (->> (flatten-routes parent-sim)
+       (filter (fn [[sk sp rk rp tx]]
+                 (or (= id sk)
+                     (= id rk))))))
 
 (defn- has-model? [parent-sim id]
   (or (= :network id)
@@ -569,7 +565,7 @@ if it doesn't receive any external messages before then."))
              "Can't remove the network executive.")
   (let [sim (get-in parent-sim [:id->sim id])]
     (ex-assert sim "id not found" {:id id})
-    (ex-assert (->> (get-connections parent-sim id) vals (not-any? seq))
+    (ex-assert (empty? (get-connections parent-sim id))
                "Cannot remove connected model."
                {:id          id
                 :connections (get-connections parent-sim id)})
