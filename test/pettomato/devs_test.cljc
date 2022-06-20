@@ -549,6 +549,22 @@
                         (devs/network-model :exec
                                             [(devs/simple-executive) h/zero]
                                             {:x (ex/buffer (h/*R 5))}
+                                            [[:network :in :network :out]])))
+
+  (is (thrown-with-msg? #?(:clj clojure.lang.ExceptionInfo
+                           :cljs ExceptionInfo)
+                        #"Invalid elapsed time for network executive."
+                        (devs/network-model :exec
+                                            [(devs/simple-executive) (h/*R -1)]
+                                            {:x (ex/buffer (h/*R 5))}
+                                            [[:network :in :network :out]])))
+
+  (is (thrown-with-msg? #?(:clj clojure.lang.ExceptionInfo
+                           :cljs ExceptionInfo)
+                        #"Invalid elapsed time for network executive."
+                        (devs/network-model :exec
+                                            [(devs/simple-executive) h/infinity]
+                                            {:x (ex/buffer (h/*R 5))}
                                             [[:network :in :network :out]]))))
 
 (deftest rt-test
