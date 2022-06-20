@@ -11,7 +11,6 @@
    [pettomato.devs.mail :refer [mail-log=]]))
 
 (deftest basic-tests
-
   (testing "Running a very simple atomic simulation."
     (is (mail-log=
          [[(h/*R 2 0)  {:out ["x"]}]
@@ -679,3 +678,37 @@
              devs/network-simulator
              (devs/afap-root-coordinator
               :input-log [[(h/*R 10) {:bad ["x"]}]]))))))
+
+(deftest step-tests
+
+  (is (thrown-with-msg? #?(:clj clojure.lang.ExceptionInfo
+                           :cljs ExceptionInfo)
+                        #"Cannot step sim, because time-of-next-event is infinite."
+                        (-> (ex/buffer (h/*R 5))
+                            devs/atomic-simulator
+                            (devs/initialize h/zero)
+                            devs/step)))
+
+  (is (thrown-with-msg? #?(:clj clojure.lang.ExceptionInfo
+                           :cljs ExceptionInfo)
+                        #"Synchronization error."
+                        (-> (ex/generator (repeat [(h/*R 2 0) ["x"]]))
+                            devs/atomic-simulator
+                            (devs/initialize h/zero)
+                            (devs/step (h/*R -1) {}))))
+
+  (is (thrown-with-msg? #?(:clj clojure.lang.ExceptionInfo
+                           :cljs ExceptionInfo)
+                        #"Synchronization error."
+                        (-> (ex/generator (repeat [(h/*R 2 0) ["x"]]))
+                            devs/atomic-simulator
+                            (devs/initialize h/zero)
+                            (devs/step (h/*R 3) {}))))
+
+  (is (thrown-with-msg? #?(:clj clojure.lang.ExceptionInfo
+                           :cljs ExceptionInfo)
+                        #"Sim must be imminent or receiving mail."
+                        (-> (ex/generator (repeat [(h/*R 2 0) ["x"]]))
+                            devs/atomic-simulator
+                            (devs/initialize h/zero)
+                            (devs/step (h/*R 1) {})))))
