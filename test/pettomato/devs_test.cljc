@@ -625,3 +625,25 @@
        (let [[t mail] (first @out)]
          (is (h/<= (h/*R 300) t (h/*R 400)))
          (is (= mail {:out [:one]}))))))
+
+(deftest no-receiver
+
+  (testing "Simulators shouldn't do anything if there is no receiver for a message."
+    (is (mail-log=
+         []
+         ;; Atomic Simulators don't handle this properly, currently,
+         ;; because there is no way to determine if a message is
+         ;; applicable (i.e., if a model has a corresponding input
+         ;; port).
+         #_
+         (-> (ex/buffer (h/*R 5))
+             devs/atomic-simulator
+             (devs/afap-root-coordinator
+              :input-log [[(h/*R 10) {:bad ["x"]}]]))
+         (-> (devs/static-network-model
+              {:buf [(ex/buffer (h/*R 5)) h/zero]}
+              [[:network :in :buf :in]
+               [:buf :out :network :out]])
+             devs/network-simulator
+             (devs/afap-root-coordinator
+              :input-log [[(h/*R 10) {:bad ["x"]}]]))))))
