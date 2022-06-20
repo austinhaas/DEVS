@@ -14,24 +14,19 @@ See the docstrings for documentation.
 
 See the tests for example usage.
 
-See [this namespace](./src/pettomato/devs/examples/) for example models.
+See [this namespace](./src/pettomato/devs/examples.cljc) for example models.
 
 See [these notes](./doc/notes.org) for more information on the implementation.
-
-### Model names
-
-Model names can be any form. Keywords, symbols, and strings are obvious choices,
-but vectors like [:agent 1] are also permitted.
 
 ### Logging system
 
 A flexible logging system can be used to trace a simulation.
 
-See [pettomato.devs.lib.log](./src/pettomato/devs/lib/log.cljc) and [pettomato.devs.lib.logging](./src/pettomato/devs/lib/logging.cljc).
+See [pettomato.devs.trace](./src/pettomato/devs/trace.cljc) and [pettomato.devs.trace-format](./src/pettomato/devs/trace_format.cljc).
 
 ## Development
 
-Run `make` to get a list of commands.
+Run `make` to display available commands.
 
 ## Reference
 
@@ -51,6 +46,6 @@ Run `make` to get a list of commands.
 
 ## License
 
-Copyright © 2021 Austin Haas
+Copyright © 2022 Austin Haas
 
 Distributed under the Eclipse Public License either version 1.0 or (at your option) any later version.
