@@ -72,8 +72,8 @@
 
 (defn *R
   "Construct a hyperreal number from its components."
-  ([standard]               (Hyperreal. 0 standard             0))
-  ([standard infinitesimal] (Hyperreal. 0 standard infinitesimal)))
+  ([standard]               (make-hyperreal 0 standard             0))
+  ([standard infinitesimal] (make-hyperreal 0 standard infinitesimal)))
 
 (defn standard
   "Returns the closest standard real number to hyperreal number x,

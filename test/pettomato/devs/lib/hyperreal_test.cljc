@@ -12,7 +12,17 @@
 
     (is (h/= h/zero (*R 0 0) (*R 0)))
 
-    (is (h/= h/epsilon (*R 0 1))))
+    (is (h/= h/epsilon (*R 0 1)))
+
+    (is (thrown-with-msg? #?(:clj  clojure.lang.ExceptionInfo
+                             :cljs ExceptionInfo)
+                          #"standard part cannot be infinite"
+                          (*R ##Inf)))
+
+    (is (thrown-with-msg? #?(:clj  clojure.lang.ExceptionInfo
+                             :cljs ExceptionInfo)
+                          #"infinitesimal part cannot be infinite"
+                          (*R 0 ##Inf))))
 
   (testing "hyperreal?"
 
@@ -32,7 +42,9 @@
 
     (is (= 1 (h/standard (*R 1 2))))
 
-    (is (= ##Inf (h/standard h/infinity))))
+    (is (= ##Inf (h/standard h/infinity)))
+
+    (is (= ##-Inf (h/standard h/negative-infinity))))
 
   (testing "="
 
@@ -42,7 +54,46 @@
 
     (is (h/= (*R 1 2) (*R 1 2) (*R 1 2)))
 
-    (is (false? (h/= h/infinity (*R 0 1)))))
+    (is (false? (h/= h/infinity (*R 0 1))))
+
+    (is (false? (h/= h/epsilon
+                     (*R 0 1)
+                     (*R 0 2)
+                     (*R 0 2)))))
+
+  (testing "+"
+
+    (is (h/= h/zero (h/+)))
+
+    (is (h/= h/zero (h/+ h/zero)))
+
+    (is (h/= h/zero (h/+ h/positive-infinity h/negative-infinity)))
+
+    (is (h/= h/positive-infinity (h/+ h/positive-infinity
+                                      h/positive-infinity
+                                      h/epsilon)))
+
+    (is (h/= (*R 1 9)
+             (h/+ (*R 1)
+                  (*R 0 2)
+                  (*R 0 3)
+                  (*R 0 4)))))
+
+  (testing "-"
+
+    (is (h/= (*R 1) (h/- (*R -1))))
+
+    (is (h/= (*R 0 -1) (h/- h/epsilon)))
+
+    (is (h/= h/negative-infinity
+             (h/- h/positive-infinity)
+             (h/- h/zero h/infinity)))
+
+    (is (h/= (*R 1 9)
+             (h/- (*R 10 10)
+                  (*R 5 5)
+                  h/zero
+                  (*R 4 -4)))))
 
   (testing "<"
 
@@ -119,6 +170,16 @@
     (is (= h/zero (h/max h/zero)))
 
     (is (= h/infinity (h/max h/epsilon h/infinity h/zero))))
+
+  (testing "zero?"
+
+    (is (false? (h/zero? (*R 1))))
+
+    (is (true? (h/zero? h/zero)))
+
+    (is (true? (h/zero? (h/*R 0))))
+
+    (is (true? (h/zero? (h/*R 0 0)))))
 
   (testing "pos?"
 
