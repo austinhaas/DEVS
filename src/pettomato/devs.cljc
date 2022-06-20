@@ -510,6 +510,37 @@ if it doesn't receive any external messages before then."))
     (network-model? model)   network-simulator
     :else                    (throw (ex-info "Unknown model type." {:id id}))))
 
+(defn- unroll-nested-map
+  "Flattens a nested associative structure into a sequence of vectors.
+
+  Assumes all branches have equal depth and leaves are not maps."
+  ([m]
+   (unroll-nested-map m []))
+  ([m acc]
+   (if (map? m)
+     (mapcat (fn [[k v]] (unroll-nested-map v (conj acc k)))
+             m)
+     [(conj acc m)])))
+
+(defn- get-connections [parent-sim id]
+  {:network-input-routes  (->> (:network-input-routes parent-sim)
+                               unroll-nested-map
+                               (filter (fn [[sk sp rk rp tx]]
+                                         (= id rk))))
+   :network-output-routes (->> (:network-output-routes parent-sim)
+                               unroll-nested-map
+                               (filter (fn [[sk sp rk rp tx]]
+                                         (= id sk))))
+   :local-routes          (->> (:local-routes parent-sim)
+                               unroll-nested-map
+                               (filter (fn [[sk sp rk rp tx]]
+                                         (or (= id sk)
+                                             (= id rk)))))})
+
+(defn- has-model? [parent-sim id]
+  (or (= :network id)
+      (get-in parent-sim [:id->sim id])))
+
 (defn- add-model [parent-sim id [model elapsed] t]
   ;; Adding a model at time t means that the state of the model is
   ;; already determined at time t. In other words, we do not add a
@@ -538,6 +569,10 @@ if it doesn't receive any external messages before then."))
              "Can't remove the network executive.")
   (let [sim (get-in parent-sim [:id->sim id])]
     (ex-assert sim "id not found" {:id id})
+    (ex-assert (->> (get-connections parent-sim id) vals (not-any? seq))
+               "Cannot remove connected model."
+               {:id          id
+                :connections (get-connections parent-sim id)})
     (as-> parent-sim s
       (update s :id->sim dissoc id)
       (update s :queue pq/delete (time-of-next-event sim) id)
@@ -549,6 +584,14 @@ if it doesn't receive any external messages before then."))
   f is optional; defaults to the identity function."
   [parent-sim [sk sp rk rp f]]
   (trace/connect [sk sp rk rp f])
+  (ex-assert (has-model? parent-sim sk)
+             "Cannot connect unknown model."
+             {:unknown-id sk
+              :route      [sk sp rk rp f]})
+  (ex-assert (has-model? parent-sim rk)
+             "Cannot connect unknown model."
+             {:unknown-id rk
+              :route      [sk sp rk rp f]})
   (let [f (or f identity)]
     (cond
       (= :network sk)

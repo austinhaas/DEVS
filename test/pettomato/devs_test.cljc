@@ -99,7 +99,7 @@
   (testing "Network: tn can't be before start time."
     (is (thrown-with-msg? #?(:clj  clojure.lang.ExceptionInfo
                              :cljs ExceptionInfo)
-                          #"tn can't be in the past.*"
+                          #"tn can't be in the past"
                           (let [gen (ex/generator [[(h/*R 10) ["x"]]])
                                 net (devs/static-network-model
                                      {:gen [gen h/zero]}
@@ -110,7 +110,7 @@
   (testing "Network: tn can't be equal start time."
     (is (thrown-with-msg? #?(:clj  clojure.lang.ExceptionInfo
                              :cljs ExceptionInfo)
-                          #"tn can't be in the past.*"
+                          #"tn can't be in the past"
                           (let [gen (ex/generator [[(h/*R 10) ["x"]]])
                                 net (devs/static-network-model
                                      {:gen [gen h/zero]}
@@ -528,7 +528,53 @@
                         [:gen :out :network :gen-out]
                         [:del-1 :out :network :del-1-out]])]
            (-> (devs/network-simulator net)
-               (devs/afap-root-coordinator :start (h/*R 0) :end (h/*R 20))))))))
+               (devs/afap-root-coordinator :start (h/*R 0) :end (h/*R 20)))))))
+
+  (testing "Must disconnect a model before removing it."
+
+    (is (thrown-with-msg? #?(:clj clojure.lang.ExceptionInfo
+                             :cljs ExceptionInfo)
+                          #"Cannot remove connected model"
+                          (let [gen (ex/generator
+                                     [[(h/*R 5) [[:add-model :gen-1 [(ex/generator
+                                                                      (for [i (range)] [(h/*R 2) [i]]))
+                                                                     h/zero]]
+                                                 [:connect [:gen-1 :out :network :out]]]]
+                                      [(h/*R 5) [[:rem-model :gen-1]]]])
+                                net (devs/simple-network-model
+                                     :exec
+                                     {:gen [gen h/zero]}
+                                     [[:gen :out :exec :in]])]
+                            (-> (devs/network-simulator net)
+                                devs/afap-root-coordinator)))))
+
+  (testing "Cannot connect an unknown model as input."
+
+    (is (thrown-with-msg? #?(:clj clojure.lang.ExceptionInfo
+                             :cljs ExceptionInfo)
+                          #"Cannot connect unknown model"
+                          (let [gen (ex/generator
+                                     [[(h/*R 5) [[:connect [:network :in :foo :in]]]]])
+                                net (devs/simple-network-model
+                                     :exec
+                                     {:gen [gen h/zero]}
+                                     [[:gen :out :exec :in]])]
+                            (-> (devs/network-simulator net)
+                                devs/afap-root-coordinator)))))
+
+  (testing "Cannot connect an unknown model as output."
+
+    (is (thrown-with-msg? #?(:clj clojure.lang.ExceptionInfo
+                             :cljs ExceptionInfo)
+                          #"Cannot connect unknown model"
+                          (let [gen (ex/generator
+                                     [[(h/*R 5) [[:connect [:foo :out :network :out]]]]])
+                                net (devs/simple-network-model
+                                     :exec
+                                     {:gen [gen h/zero]}
+                                     [[:gen :out :exec :in]])]
+                            (-> (devs/network-simulator net)
+                                devs/afap-root-coordinator))))))
 
 (deftest invalid-network-models
 
