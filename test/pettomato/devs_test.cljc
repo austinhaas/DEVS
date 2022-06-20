@@ -11,6 +11,7 @@
    [pettomato.devs.mail :refer [mail-log=]]))
 
 (deftest basic-tests
+
   (testing "Running a very simple atomic simulation."
     (is (mail-log=
          [[(h/*R 2 0)  {:out ["x"]}]
@@ -56,19 +57,29 @@
            (-> (devs/atomic-simulator gen :elapsed (h/*R 5))
                devs/afap-root-coordinator)))))
 
+  (testing "Atomic: initial-elapsed must be >= 0."
+    (is (thrown-with-msg? #?(:clj  clojure.lang.ExceptionInfo
+                             :cljs ExceptionInfo)
+                          #"initial-elapsed must be <= 0"
+                          (-> (ex/generator (repeat [(h/*R 2) ["x"]]))
+                              (devs/atomic-simulator :elapsed (h/*R -1))
+                              (devs/afap-root-coordinator :end (h/*R 10))))))
+
   (testing "Atomic: tn can't be before start time. "
-    (is (thrown? #?(:clj  clojure.lang.ExceptionInfo
-                    :cljs ExceptionInfo)
-                 (-> (ex/generator (repeat [(h/*R 2) ["x"]]))
-                     (devs/atomic-simulator :elapsed (h/*R 3))
-                     (devs/afap-root-coordinator :end (h/*R 10))))))
+    (is (thrown-with-msg? #?(:clj  clojure.lang.ExceptionInfo
+                             :cljs ExceptionInfo)
+                          #"NIA violation"
+                          (-> (ex/generator (repeat [(h/*R 2) ["x"]]))
+                              (devs/atomic-simulator :elapsed (h/*R 3))
+                              (devs/afap-root-coordinator :end (h/*R 10))))))
 
   (testing "Atomic: tn can't be equal to start time. "
-    (is (thrown? #?(:clj  clojure.lang.ExceptionInfo
-                    :cljs ExceptionInfo)
-                 (-> (ex/generator (repeat [(h/*R 2) ["x"]]))
-                     (devs/atomic-simulator :elapsed (h/*R 2))
-                     (devs/afap-root-coordinator :end (h/*R 10))))))
+    (is (thrown-with-msg? #?(:clj  clojure.lang.ExceptionInfo
+                             :cljs ExceptionInfo)
+                          #"NIA violation"
+                          (-> (ex/generator (repeat [(h/*R 2) ["x"]]))
+                              (devs/atomic-simulator :elapsed (h/*R 2))
+                              (devs/afap-root-coordinator :end (h/*R 10))))))
 
   (testing "A network simulation."
     (is (mail-log=
@@ -86,24 +97,26 @@
                devs/afap-root-coordinator)))))
 
   (testing "Network: tn can't be before start time."
-    (is (thrown? #?(:clj  clojure.lang.ExceptionInfo
-                    :cljs ExceptionInfo)
-                 (let [gen (ex/generator [[(h/*R 10) ["x"]]])
-                       net (devs/static-network-model
-                            {:gen [gen h/zero]}
-                            [[:gen :out :network :out]])]
-                   (-> (devs/network-simulator net :elapsed (h/*R 20))
-                       devs/afap-root-coordinator)))))
+    (is (thrown-with-msg? #?(:clj  clojure.lang.ExceptionInfo
+                             :cljs ExceptionInfo)
+                          #"tn can't be in the past.*"
+                          (let [gen (ex/generator [[(h/*R 10) ["x"]]])
+                                net (devs/static-network-model
+                                     {:gen [gen h/zero]}
+                                     [[:gen :out :network :out]])]
+                            (-> (devs/network-simulator net :elapsed (h/*R 20))
+                                devs/afap-root-coordinator)))))
 
   (testing "Network: tn can't be equal start time."
-    (is (thrown? #?(:clj  clojure.lang.ExceptionInfo
-                    :cljs ExceptionInfo)
-                 (let [gen (ex/generator [[(h/*R 10) ["x"]]])
-                       net (devs/static-network-model
-                            {:gen [gen h/zero]}
-                            [[:gen :out :network :out]])]
-                   (-> (devs/network-simulator net :elapsed (h/*R 10))
-                       devs/afap-root-coordinator)))))
+    (is (thrown-with-msg? #?(:clj  clojure.lang.ExceptionInfo
+                             :cljs ExceptionInfo)
+                          #"tn can't be in the past.*"
+                          (let [gen (ex/generator [[(h/*R 10) ["x"]]])
+                                net (devs/static-network-model
+                                     {:gen [gen h/zero]}
+                                     [[:gen :out :network :out]])]
+                            (-> (devs/network-simulator net :elapsed (h/*R 10))
+                                devs/afap-root-coordinator)))))
 
   (testing "An atomic model within a network simulation."
     (is (mail-log=
