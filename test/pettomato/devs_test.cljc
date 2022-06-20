@@ -553,6 +553,22 @@
 
   (is (thrown-with-msg? #?(:clj clojure.lang.ExceptionInfo
                            :cljs ExceptionInfo)
+                        #"Executive must be an executive model."
+                        (devs/network-model :exec
+                                            [(ex/buffer (h/*R 5)) h/zero]
+                                            {:x (ex/buffer (h/*R 5))}
+                                            [[:network :in :network :out]])))
+
+  (is (thrown-with-msg? #?(:clj clojure.lang.ExceptionInfo
+                           :cljs ExceptionInfo)
+                        #"Invalid elapsed time for network executive."
+                        (devs/network-model :exec
+                                            [(devs/simple-executive) 0]
+                                            {:x (ex/buffer (h/*R 5))}
+                                            [[:network :in :network :out]])))
+
+  (is (thrown-with-msg? #?(:clj clojure.lang.ExceptionInfo
+                           :cljs ExceptionInfo)
                         #"Invalid elapsed time for network executive."
                         (devs/network-model :exec
                                             [(devs/simple-executive) (h/*R -1)]
