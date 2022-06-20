@@ -35,30 +35,6 @@
   "Like clojure.core/merge, but for mail data structures."
   (partial merge-with merge-local-mail))
 
-(defn route-mail
-  "Takes routes and outbound mail. Returns inbound mail.
-
-  routes        - sk -> sp -> rk -> rp -> txs
-  outbound mail - sk -> sp -> vs
-  inbound mail  - rk -> rp -> vs
-
-  s   - sender
-  r   - receiver
-  k   - key (id)
-  p   - port
-  txs - transducers (to apply to the values on the route)
-  vs  - values"
-  [routes mail]
-  (reduce (fn [m [rk rp vs]]
-            (update-in m [rk rp] into vs))
-          {}
-          (for [[sk sp->vs]  mail
-                [sp vs]      sp->vs
-                [rk rp->txs] (get-in routes [sk sp])
-                [rp txs]     rp->txs
-                tx           txs]
-            [rk rp (into [] tx vs)])))
-
 (defn mail-log=
   "Compare mail-log data structures for equality."
   ([el] true)

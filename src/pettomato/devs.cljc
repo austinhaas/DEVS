@@ -635,6 +635,30 @@ if it doesn't receive any external messages before then."))
       (reduce add-model  parent-sim (:add-model  xs))
       (reduce connect    parent-sim (:connect    xs)))))
 
+(defn- route-mail
+  "Takes routes and outbound mail. Returns inbound mail.
+
+  routes        - sk -> sp -> rk -> rp -> txs
+  outbound mail - sk -> sp -> vs
+  inbound mail  - rk -> rp -> vs
+
+  s   - sender
+  r   - receiver
+  k   - key (id)
+  p   - port
+  txs - transducers (to apply to the values on the route)
+  vs  - values"
+  [routes mail]
+  (reduce (fn [m [rk rp vs]]
+            (update-in m [rk rp] into vs))
+          {}
+          (for [[sk sp->vs]  mail
+                [sp vs]      sp->vs
+                [rk rp->txs] (get-in routes [sk sp])
+                [rp txs]     rp->txs
+                tx           txs]
+            [rk rp (into [] tx vs)])))
+
 (defrecord NetworkSimulator [model initial-elapsed
                              id->sim queue
                              local-routes network-input-routes network-output-routes
@@ -668,7 +692,7 @@ if it doesn't receive any external messages before then."))
            (select-keys id->sim)
            (reduce-kv (fn [m id sim] (assoc m id (binding [trace/*context* (update trace/*context* :path conj id)]
                                                    (collect-mail sim t)))) {})
-           (mail/route-mail network-output-routes)
+           (route-mail network-output-routes)
            :network)))
   (transition [sim mail t]
     (trace/with-transition [sim mail t]
@@ -689,8 +713,8 @@ if it doesn't receive any external messages before then."))
             local-mail        (->> (set/intersection imminent (set (keys local-routes))) ; The set of model ids that have local-routes could be cached.
                                    (select-keys id->sim)
                                    (reduce-kv (fn [m id sim] (assoc m id (collect-mail sim t))) {})
-                                   (mail/route-mail local-routes))
-            network-mail      (mail/route-mail network-input-routes {:network mail})
+                                   (route-mail local-routes))
+            network-mail      (route-mail network-input-routes {:network mail})
             all-mail          (mail/merge-mail imm-mail local-mail network-mail)
             structure-changes (if (contains? imminent (:executive-id model))
                                 (get-structure-changes (get (:id->sim sim) (:executive-id model)) t)
