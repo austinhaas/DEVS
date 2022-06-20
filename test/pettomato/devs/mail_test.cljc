@@ -41,8 +41,9 @@
   (testing "Single input"
     (is (true? (mail/mail-log= sample-mail-log))))
 
-  (testing "Three equal inputs"
+  (testing "Four equal inputs"
     (is (true? (mail/mail-log= sample-mail-log
+                               sample-mail-log
                                sample-mail-log
                                sample-mail-log))))
 
