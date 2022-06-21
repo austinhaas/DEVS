@@ -1,132 +1,83 @@
 * Notes for modelers
 ** On message simultaneity
-
-   Messages received at the same sim-time are considered simultaneous.
-
-   Models should not depend on the order that simultaneous messages are
-   processed.
-
-   A model may receive multiple bags of messages before sim-time advances.
-
-   At least one of the papers says that the system preserves sender message
-   order, but we aren't doing that. I don't understand why we would want that
-   and supporting it would complicate the implementation. For example, we
-   couldn't use maps to represent message bags, because the order of messages
-   associated with different ports is unspecified.
+   - Messages received at the same sim-time are considered simultaneous.
+   - Models should not depend on the order that simultaneous messages
+     are processed.
 * Implementation Notes
-** The network structure change implementation may be flawed.
+** On the Non-Instantaneous Change Assumption (NIA)
+   - Reference
 
-   - Structural changes are processed after nonstructural changes, within a
-     single step of the simulation. If there are multiple steps before time
-     advances, which is common, then structural changes will be interleaved with
-     nonstructural changes within the same time point!
-
-   - This may lead to undesirable behavior. For example, consider a model that
-     outputs a value after a delay. If that model is imminent at the same time
-     it is removed, whether or not the output is produced may depend on if the
-     model employs a transitory state (ta=0) before it produces output.
-
-   - We could change the implementation such that network structure changes are
-     processed after all known messages at time t are processed, but we cannot
-     guarantee that a new message won't arrive at t. In general, we've made an
-     assumption that until a new event occurs after t, there could always be
-     another event at t.
-
-     - I don't know if this assumption holds. In the case of a non-RT sim, we
-       definitely can know when there will not be another event at time t.
-
-     - It should be easy to support the desired behavior. It adds a constraint:
-       timestamps must increase; but that doesn't seem restrictive. It may be
-       sufficient to document it.
-
-** On receiving mail multiple times before time advances
-   - An external state transition function may be invoked multiple times, with
-     distinct bags of mail, before simulation time advances.
-     - Example: A model replies to queries without advancing time.
-   - It is the responsibility of the modeler to ensure that messages received at
-     the same logical time are handled correctly.
-     - Often, this is trivial. For example, if a model accumulates values from
-       messages (e.g., summation), then it may not matter if concurrent messages
-       arrive together or separately.
-   - Consider two models that exchange a series of messages without advancing
-     time. There is a logical (causal) relationship between the messages. Not
-     sure what the recommendation here is, but models should be designed so this
-     isn't an issue.
-** On using non-namespaced keywords :network and :structure in routes.
-
-   Namespaced keywords would help elevate these symbols and keep them from
-   clashing with user-defined model names, but namespaced keywords are more
-   cumbersome to use and they reduce legibility significantly when printing mail
-   and routes.
-
+     Barros, Fernando J. \"On the representation of time in modeling &
+     simulation.\" 2016 winter simulation conference (WSC). IEEE, 2016.
+   - Every state must have a positive duration.
+   - Message delivery is instantaneous.
+   - A model cannot be immediately imminent.
+     - If a simulation starts at t, then all of the models are already
+       determined at t.
+** On the hyperreal time base.
+*** Reference
+    Barros, Fernando J. \"On the representation of time in modeling &
+    simulation.\" 2016 winter simulation conference (WSC). IEEE, 2016.
+*** Problem statement
+    - Zero-length delays cannot represent causation.
+    - In standard DEVS, users must understand that the transition
+      function may be called multiple times before time advances.
+    - With dynamic structure, if an event causes a model to be removed
+      immediately, there is a chicken and egg paradox.
+*** Solution: Use a hyperreal time base.
+    - The hyperreal implementation is like Barros, but not the simulation
+      semantics.
+    - Differences from Barros:
+      - Barros allows zero-length delays, but imposes an infinitesimal delay (ε)
+        to every transition. We don't allow zero-length delays, and so don't
+        need to add an additional delay.
+      - Barros requires three steps (of duration ε) for a model to respond to
+        external input with an output. (See Mealy Machine example.) I think this
+        is to split the updates into something like: original model, w/ input,
+        new state w/ output, new state. Our version follows the usual DEVS
+        semantics, but with the constraint against zero-length delays.
+*** On disallowing zero-length delays.
+      - Rationale: There's no such thing in the real-world. (I think) that is
+        mostly equivalent to Barros; in that system, the modeler can specify a
+        zero-length delay, but the system imposes an infinitesimal duration. The
+        modeler still needs to be aware of this delay, so that they can subtract
+        it from the next delay, if they want the outputs to align to whole
+        numbers.
+      - With this constraint, each simulator will only be updated once per time
+        point.
+      - Consequence: the earliest response to an external event is t+ε.
+    - I like that the hyperreal values are all on the number line. They have a
+      solid mathematical and physical basis (Barros).
+    - My rationale is that zero-length delays are fundamentally flawed, and
+      using the hyperreal base lets us avoid problems and add clarity without
+      sacrificing anything that wasn't already broken. For example, if a model
+      is triggered when exactly 5 inputs arrive at the "same time", then that
+      notion of simultaneity should be modeled with some interval (e.g., events
+      occurring within 100ms), and not rely on the inputs arriving at exactly
+      the same point in time, which is impossible in the real world.
+    - I don't see the value in accomodating these zero-delay events. Superdense
+      time, IIUC, works around them, so that modelers can continue to ignore the
+      inherent problem. Barros allows them in some sense, but still adds an
+      infinitesimal delay, so in what sense does it really allow them?
 ** On two types of graphs
 
-   There are two types of graphs in this system:
+   There are two graphs:
 
-   1. The model hierarchy, where every model is either an atomic model or a
-      network model that is composed of models that may be atomic models and
-      network models.
+   1. The model network hierarchy, where nodes are models and edges
+      are parent-child relationships.
 
-   2. The connection topology, defined by the message routes.
-
-   Additionally, networks are not explicit in the implementation. For example,
-   networks do not have state and they do not send or receive messages. A
-   connection may be made between a model and its containing network, and a
-   network may connect to another model. The result is that messages flow from
-   one model to another; the containing network is just an abstraction.
-
-** On efficient organization of mixed real-time and non-real-time systems
-
-   Real-time components are updated every time the simulation advances.
-
-   It is assumed that the overwhelming majority of real-time systems will
-   include non-real-time components.
-
-   It would be inefficient to update non-real-time components every time the
-   simulation advances.
-
-   In a mixed system, the root must be a real-time simulator.
-
-   In a mixed system, the non-real-time components will likely be grouped
-   together, possibly into a single branch. The only overhead should be
-   associated with whatever connects the root of that branch to the parent
-   real-time simulator.
-
-** On flattening the network hierarchy
-
-   To exploit parallization, all models are updated at the same time, regardless
-   of where they are situated in the network hierarchy.
-
-   Likewise, it may be more efficient to store all model state in a single
-   array, rather than a hierarchy of arrays.
+   2. The connection topology, where nodes are models and edges are
+      message routes.
 
 ** On message routing across networks
-   - Because networks are abstract, it shouldn't take any (logical) time for a
-     message to cross networks. That precludes letting simulators step in such a
-     way that updates the simulator entirely and returns network mail.
+   - It shouldn't take any (logical) time for a message to cross networks.
+     - That entails collecting all simulator output BEFORE invoking
+       transitions.
      - I'm pretty sure that some of the algorithms in the literature do not
        account for this.
-** On network structure changes
-
-   Network structure changes are requested via the model output function, like
-   any other message.
-
-   Alternatively, structure changes could be implemented as a system-level
-   message (like the state transition functions) and incorporated into the
-   simulation update algorithm. That's how they are typically described in the
-   literature.
-
-   I chose to implement the network structure changes as normal messages because
-   it seemed much simpler to implement, model, and comprehend. It basically
-   piggybacks on the existing system. For example, the message routing system
-   can be used without modification. And nothing else is needed to efficiently
-   determine which models are requesting structure changes or managing their
-   lifecycle; the normal system of time-advance, output, and internal-update is
-   used.
-
 ** On optimization
 
-   Different system models will have different resource requirements.
+   Different models will have different resource requirements.
 
    A one-size-fits-all solution isn't feasible.
 
@@ -137,190 +88,35 @@
    infrequently, then it may not be worthwhile to collapse routes in the
    implementation.
 
-** On using protocols to define model implementations
-
-   Protocols seem like an obvious choice for implementing models, but there
-   isn't a natural way to supply a default confluent function, which would
-   depend on the other two state transition functions.
-
-   I suspect this would also blur the distinction between model and state and
-   possibly preclude flattening the network and static analysis.
-
 ** On the implementation of abstract simulators
 
-   The abstract simulators described in the literature are mathematical
-   structures defining a class of concrete implementations.
+   The abstract simulators described in the literature are
+   mathematical structures defining a class of concrete
+   implementations.
 
-   For example, a distributed implementation might employ callbacks instead of
-   function calls.
+   For example, a distributed implementation might employ callbacks
+   instead of function calls.
 
-   This library does not include every useful simulator implementation.
+   This library does not include every useful simulator
+   implementation.
 
-** On real-time simulators
-
-   A fixed time step can simplify real-time implementations, especially when
-   there is a human-in-the-loop. This resembles a traditional game architecture.
-
-   Currently, we are using the transition function to communicate the current
-   sim time to real-time components. A consequence is that every real-time
-   sim/model must handle "no-op" transitions, where the mail bag is empty.
-
-   Note that the fixed time step doesn't mean that the resolution of RT events
-   is limited to the resolution of the time step. After stepping forward in real
-   time, but before advancing sim time, the simulator will query every RT
-   component for its time-of-next-event, so RT models have an opportunity to
-   emit an event that occurs since the last update but before the next. (This
-   does seem to be contingent on a way to query for the current sim time.)
-
-   A different architecture may be desired. For example, it may be preferred to
-   wrap each sim in an atom that could be updated by an external process. The
-   sim may be a proxy; the "real" model state might be external. The sim clock
-   could also be wrapped in an atom, and shared with other processes, so that
-   they could query for the current sim time, outside of the DEVS simulation
-   flow. (That assumes all processes are on the same machine.)
-
-   A real-time, human-in-the-loop simulator must do two things:
-
-   1. Synchronize time, periodically. For example, a real-time display needs to
-      be brought up to date.
-
-   2. Query real-time models for time-of-next-event on demand. For example, so
-      that a human has an opportunity to emit new, previously unanticipated
-      events.
-
-   There are a few drawbacks to this approach:
-
-   - Specifying which models are real-time is complicated and obscure.
-
-   - Handling no-op transitions is sub-optimal and it is not obvious to the
-     modeler why it is needed.
-
-   - The update frequency is specified globally; models can't differ.
-
-** On compressing routes
-   - I think I determined that this wouldn't make as big of an impact as I
-     originally assumed.
-   - We shouldn't restrict connections, because compressed routes may violate
-     those restrictions.
-*** Incomplete code, with documentation and notes.
-(defn connect
-  [pkg [snd-name snd-port rcv-name rcv-port input-fn]]
-  ;; In the connections graph, nodes are [name port] pairs (not models!). A path
-  ;; between two models is either simple: between two atomic models in the same
-  ;; network, or it may be composed of multiple segments that span networks.
-
-  ;; A proper path suffix is a path that terminates in an atomic model.
-
-  ;; fwd is a trie and a DAG. Each path in the trie represents one forward edge
-  ;; in the DAG. The height of the DAG is equal to the depth of the network
-  ;; hierarchy. The graph may contain incomplete paths, which start and/or end
-  ;; with a network.
-
-  ;; opt is a compressed version of fwd. The opt DAG has depth = 1. opt replaces
-  ;; each proper suffix path in fwd with a single compressed edge from the
-  ;; current node to a terminal node.
-
-  ;; For example, if fwd = {A-B, B-C, C-D}, then opt = {A-D, B-D, C-D}.
-
-  ;; If D is a network, however, then opt = {}, because there are no paths from
-  ;; any node to a terminal.
-
-  ;; opt really is {A-D_1, B-D_1, C-D_1}, because there can be more than one
-  ;; path from a node to another.
-
-  ;; The basic idea is to get all of the suffix paths below the new
-  ;; connection, if there are any, and then start moving up,
-  ;; following the reverse graph, recording compressed connections.
-
-  ;; We may need another data structure to map from component-fns ->
-  ;; combined-fns, to support delete, since we can't expect function
-  ;; compositions to compare equally.
-
-  (let [network? (fn [x] (not (contains? (:state pkg) x)))]
-    ;; Use paths as canonical names for models in a flattened
-    ;; hierarchy. Substitute internal :network references with the model's
-    ;; external name.
-    (let [snd-path (if (= :network snd-name)
-                     *path*
-                     (conj *path* snd-name))
-          rcv-path (if (= :network rcv-name)
-                     *path*
-                     (conj *path* rcv-name))]
-      (let [{:keys [fwd rev opt]} pkg]
-        (let [fwd (assoc-in fwd [snd-path snd-port rcv-path rcv-port] input-fn)
-              rev (assoc-in rev [rcv-path rcv-port snd-path snd-port] input-fn)
-              ;; Propagate compressed paths up through the network. This is an
-              ;; online algorithm. It precomputes all of the path traversals.
-
-              ;; Use a prefix table and a suffix table. That will be easier to
-              ;; understand.
-
-              ;; Find each set and compute prefixes X [new] x suffixes.
-
-              ;; The tradeoff with this approach is the memory use and the
-              ;; maintenance of the prefix and suffix tables, with no guarantee
-              ;; that any of it will ever be needed. This may be optimal for
-              ;; some simulations.
-
-              ;; For example, there could be a signal that originates deep
-              ;; inside a model and travels deep down into many others, but the
-              ;; signal is rare, like an alarm. It could require a lot of work
-              ;; to build all of those connections and they may never be used.
-
-              ;; How could this be lazy?
-
-              ;; Would it be better to cache routes?
-
-              ;; We should abstract this API. There isn't a one-size-fits-all
-              ;; implementation. We just need connect, disconnect, and route.
-
-              ;; Also, optimizing this lookup is not the main reason to flatten
-              ;; the hierarchy, parallel updates is.
-
-              ;; This could be even more efficient through static analysis of
-              ;; the network topology: all possible models, ports, connections,
-              ;; etc.
-
-              ;; The simple method needs to batch values at each step of the
-              ;; traversal.
-
-
-              opt (loop [connections (cond
-                                       ;; If the new connection terminates at a network,
-                                       ;; get any compressed paths rooted there, and
-                                       ;; extend each with this new segment.
-                                       (network? rcv-path) (for [[rcv-path' rcv-port'->fs] (get-in opt [rcv-path rcv-port])
-                                                                 [rcv-port' fs]            rcv-port'->fs
-                                                                 f                         fs]
-                                                             [snd-path snd-port rcv-path' rcv-port' (comp f input-fn)])
-                                       ;; If the new connection terminates at an atomic
-                                       ;; model, then it is already compressed.
-                                       :else               [[snd-path snd-port rcv-path rcv-port input-fn]])
-                         opt         opt]
-                    (if (empty? connections)
-                      opt
-                      (let [[snd-path snd-port rcv-path rcv-port input-fn] (first connections)
-                            opt                                            (update-in opt [snd-path snd-port rcv-path rcv-port] (fnil conj #{}) input-fn)
-                            connections                                    (into (rest connections)
-                                                                                 (for [[snd-path' snd-port'->fs] (get-in rev [snd-path snd-port])
-                                                                                       [snd-port' fs]            snd-port'->fs
-                                                                                       f                         fs]
-                                                                                   [snd-path' snd-port' rcv-path rcv-port (comp input-fn f)]))]
-                        (recur connections opt))))]
-         (assoc pkg
-                :fwd fwd
-                :rev rev
-                :opt opt))))))
-** On implementing the mail bag as a seq vs. map
-
-   seq: [[:input-1 msg-1] [:input-1 msg-2] ...]
-
-     Pros: Can preserve message order. (Although, that would complicate
-     routing.)
-
-   map: {:input-1 [msg-1 msg-2 ...]}
-
-     Pros: Easier to batch process. More compact.
-
-   Can the implementation be hidden behind an abstraction? I doubt it would be
-   worth the cost.
+** On external events
+   - In this context, external events mean events that originate
+     outside the logical simulation, such as the press of a key.
+   - The support for external events is weak. There is top-level
+     support for messages to enter and exit the simulation.
+   - A more robust system might allow the modeler to specify an
+     external connection directly to a model. That would avoid needing
+     a route all the way from the root of the simulation to the target
+     model.
+     - I have not found a good way to implement that. Ultimately, you
+       need something very close to they way it works now.
+     - I considered automatically creating the route, but you can't
+       rely on every network implementing dynamic structure, and it
+       would be confusing to the user to see debug info about a route
+       they didn't know they created. So, better to just be explicit.
+     - I also considered implementing external events separate from
+       normal messages, but you want to handle all the messages
+       uniformly and synchonously, and it could be awkward to switch
+       between using external events or normal messages (e.g., to
+       replace user-input with a recording).
