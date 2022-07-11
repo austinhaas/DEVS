@@ -16,8 +16,6 @@
   simulation models are on the same update cycle."
   (:refer-clojure :exclude [empty? peek pop]))
 
-(declare insert)
-
 (defn priority-queue
   "Returns a new priority queue."
   ([]
