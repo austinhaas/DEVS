@@ -1,4 +1,6 @@
 * TODO
+** Consider passing the fns start-loop-fns needs to it as args.
+   - Instead of making those fns public.
 ** Set up a real-time, interactive cljs example.
 *** Implement external events
      - The root-coordinator converts events to normal messages.
