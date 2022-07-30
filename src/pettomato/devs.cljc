@@ -252,11 +252,12 @@ if it doesn't receive any external messages before then."))
   ([sim t mail]
    (let [tl (time-of-last-event sim)
          tn (time-of-next-event sim)]
-     (ex-assert (h/< tl t) "Synchronization error.")
-     (ex-assert (h/<= t tn) "Synchronization error.")
+     (ex-assert (h/< tl t) "Synchronization error." {:tl tl :t t :tn tn})
+     (ex-assert (h/<= t tn) "Synchronization error." {:tl tl :t t :tn tn})
      (ex-assert (or (h/= t tn)
                     (seq mail))
-                "Sim must be imminent or receiving mail.")
+                "Sim must be imminent or receiving mail."
+                {:tl tl :t t :tn tn})
      (let [mail' (if (h/= t tn)
                    (collect-mail sim t)
                    {})
