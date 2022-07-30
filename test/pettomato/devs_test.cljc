@@ -645,7 +645,7 @@
 
   #?(:clj
      (let [out (atom [])
-           pkg (-> (devs/static-network-model
+           rc  (-> (devs/static-network-model
                     {:buf [(ex/buffer (h/*R 100))
                            h/zero]}
                     [[:network :in :buf :in]
@@ -654,7 +654,7 @@
                    (devs/rt-root-coordinator
                     :output-fn (partial swap! out into)))]
        (Thread/sleep 100)
-       (devs/send-mail! pkg {:in [:one]})
+       (devs/send-mail! rc {:in [:one]})
        (Thread/sleep 200)
        (is (= 1 (count @out)))
        (let [[t mail] (first @out)]
@@ -662,7 +662,7 @@
          (is (= mail {:out [:one]}))))
      :cljs
      (let [out (atom [])
-           pkg (-> (devs/static-network-model
+           rc  (-> (devs/static-network-model
                     {:buf [(ex/buffer (h/*R 100))
                            h/zero]}
                     [[:network :in :buf :in]
@@ -673,7 +673,7 @@
        (async done
               (go
                 (async/<! (async/timeout 100))
-                (devs/send-mail! pkg {:in [:one]})
+                (devs/send-mail! rc {:in [:one]})
                 (async/<! (async/timeout 200))
                 (is (= 1 (count @out)))
                 (let [[t mail] (first @out)]
@@ -683,38 +683,115 @@
 
 (deftest rt-race-condition-test
 
-  ;; To create an artificial delay, we put a buffer in a network and
-  ;; include a route transducer that sleeps. As a result, the
-  ;; root-coordinator will still be processing the first send-mail!
-  ;; call when the second one is made. We validate that the first one
-  ;; completed successfully before the 2nd was processed, because the
-  ;; output was what we would expect without all the threads.
+  (testing "Multiple messages race-condition."
+    ;; To create an artificial delay, we put a buffer in a network and
+    ;; include a route transducer that sleeps. As a result, the
+    ;; root-coordinator will still be processing the first send-mail!
+    ;; call when the second one is made. We validate that the first
+    ;; one completed successfully before the 2nd was processed,
+    ;; because the output was what we would expect without all the
+    ;; threads.
+    #?(:clj
+       (let [out (atom [])
+             rc  (-> (devs/static-network-model
+                      {:buf [(ex/buffer (h/*R 300))
+                             h/zero]}
+                      [[:network :in :buf :in (map (fn [msg] (Thread/sleep 100) msg))]
+                       [:buf :out :network :out]])
+                     devs/network-simulator
+                     (devs/rt-root-coordinator
+                      :output-fn (partial swap! out into)
+                      :paused?   true))]
+         (devs/unpause! rc)
+         (future
+           (devs/send-mail! rc {:in [:one]}))
+         (future
+           (Thread/sleep 10)
+           (devs/send-mail! rc {:in [:two]}))
+         (future
+           (Thread/sleep 500)
+           (devs/pause! rc))
+         (Thread/sleep 600)
+         (is (= 1 (count @out)))
+         (let [[t mail] (first @out)]
+           (is (h/<= (h/*R 300) t (h/*R 400)))
+           (is (= mail {:out [:one]}))))))
 
-  #?(:clj
-     (let [out (atom [])
-           pkg (-> (devs/static-network-model
-                    {:buf [(ex/buffer (h/*R 300))
-                           h/zero]}
-                    [[:network :in :buf :in (map (fn [msg] (Thread/sleep 100) msg))]
-                     [:buf :out :network :out]])
-                   devs/network-simulator
-                   (devs/rt-root-coordinator
-                    :output-fn (partial swap! out into)
-                    :paused?   true))]
-       (devs/unpause! pkg)
-       (future
-         (devs/send-mail! pkg {:in [:one]}))
-       (future
-         (Thread/sleep 10)
-         (devs/send-mail! pkg {:in [:two]}))
-       (future
-         (Thread/sleep 500)
-         (devs/pause! pkg))
-       (Thread/sleep 600)
-       (is (= 1 (count @out)))
-       (let [[t mail] (first @out)]
-         (is (h/<= (h/*R 300) t (h/*R 400)))
-         (is (= mail {:out [:one]}))))))
+  (testing "send-mail vs. step! race-condition #1."
+    ;; Send a message to a sim that is initially paused. This shows
+    ;; that the message will be delivered at the next instant, because
+    ;; the state of the sim has already been determined for the
+    ;; initial sim-time.
+    (let [out     (atom [])
+          rc      (-> (devs/static-network-model
+                       {:buf [(ex/buffer (h/*R 10))
+                              h/zero]}
+                       [[:network :in :buf :in]
+                        [:buf :out :network :out]])
+                      devs/network-simulator
+                      (devs/rt-root-coordinator
+                       :output-fn (partial swap! out into)
+                       :paused?   true))
+          test-fn (fn []
+                    (is (= 1 (count @out)))
+                    (let [[t mail] (first @out)]
+                      (is (h/= (h/*R 10 1) t))
+                      (is (= mail {:out [:one]}))))]
+     #?(:clj
+        (do
+          (devs/send-mail! rc {:in [:one]})
+          (devs/unpause! rc)
+          (Thread/sleep 100)
+          (test-fn))
+        :cljs
+        (async done
+               (go
+                 (devs/send-mail! rc {:in [:one]})
+                 (devs/unpause! rc)
+                 (async/<! (async/timeout 100))
+                 (test-fn)
+                 (done))))))
+
+  (testing "send-mail vs. step! race-condition #2."
+    ;; Let the clock advance a bit, then pause and send a
+    ;; message. This shows that the message will be delivered
+    ;; immediately, since the sim would not have already been updated
+    ;; for the current sim-time.
+    (let [out     (atom [])
+          rc      (-> (devs/static-network-model
+                       {:buf [(ex/buffer (h/*R 10))
+                              h/zero]}
+                       [[:network :in :buf :in]
+                        [:buf :out :network :out]])
+                      devs/network-simulator
+                      (devs/rt-root-coordinator
+                       :output-fn (partial swap! out into)
+                       :paused?   false))
+          test-fn (fn [sim-time]
+                    (is (= 1 (count @out)))
+                    (let [[t mail] (first @out)]
+                      (is (h/= (h/+ sim-time (h/*R 10)) t))
+                      (is (= mail {:out [:one]}))))]
+     #?(:clj
+        (do
+          (Thread/sleep 100)
+          (devs/pause! rc)
+          (let [sim-time (devs/get-sim-time rc)]
+            (devs/send-mail! rc {:in [:one]})
+            (devs/unpause! rc)
+            (Thread/sleep 100)
+            (test-fn sim-time)))
+        :cljs
+        (async done
+               (go
+                 (async/<! (async/timeout 100))
+                 (devs/pause! rc)
+                 (let [sim-time (devs/get-sim-time rc)]
+                   (devs/send-mail! rc {:in [:one]})
+                   (devs/unpause! rc)
+                   (async/<! (async/timeout 100))
+                   (test-fn sim-time))
+                 (done)))))))
 
 (deftest no-receiver
 

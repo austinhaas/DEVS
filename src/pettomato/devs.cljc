@@ -834,17 +834,17 @@ if it doesn't receive any external messages before then."))
          step!
          wall-time-until-next-event)
 
-(defn- start-loop-fn [pkg]
+(defn- start-loop-fn [rc]
  #?(:clj
     (doto (Thread.
            (fn []
              (try
                (while (not (Thread/interrupted))
-                 (let [delta (wall-time-until-next-event pkg)]
+                 (let [delta (wall-time-until-next-event rc)]
                    (if (infinite? delta)
                      (.interrupt (Thread/currentThread))
                      (do (Thread/sleep delta)
-                         (step! pkg)))))
+                         (step! rc)))))
                (catch java.lang.InterruptedException e
                  nil))))
       .start)
@@ -860,8 +860,8 @@ if it doesn't receive any external messages before then."))
                   (step initial-delay))
                 handle))]
       (special-delay!
-       #(-> pkg step! wall-time-until-next-event)
-       (wall-time-until-next-event pkg)))))
+       #(-> rc step! wall-time-until-next-event)
+       (wall-time-until-next-event rc)))))
 
 (defn- stop-loop-fn [handle]
  #?(:clj
@@ -896,6 +896,7 @@ if it doesn't receive any external messages before then."))
         rc    (atom
                {:clock         clock
                 :sim           sim
+                :msg-queue     (pq/priority-queue h/comparator)
                 :output-fn     output-fn
                 :start-loop-fn start-loop-fn
                 :stop-loop-fn  stop-loop-fn
@@ -912,11 +913,16 @@ if it doesn't receive any external messages before then."))
   (swap! rc assoc :loop-handle ((:stop-loop-fn @rc) (:loop-handle @rc)))
   rc)
 
+(defn get-sim-time [rc]
+  (-> rc deref :clock clock/get-sim-time))
+
 (defn wall-time-until-next-event [rc]
-  (let [{:keys [clock sim]} @rc
-        next-sim-time       (time-of-next-event sim)
-        curr-sim-time       (clock/get-sim-time clock)
-        scale-factor        (clock/get-scale-factor clock)]
+  (let [{:keys [clock sim msg-queue]} @rc
+        next-sim-time (if-let [t (pq/peek-key msg-queue)]
+                        (h/min t (time-of-next-event sim))
+                        (time-of-next-event sim))
+        curr-sim-time (clock/get-sim-time clock)
+        scale-factor  (clock/get-scale-factor clock)]
     (if (h/< curr-sim-time next-sim-time)
       (let [delta (h/- next-sim-time curr-sim-time)]
         (if (h/infinite? delta)
@@ -925,20 +931,27 @@ if it doesn't receive any external messages before then."))
       0)))
 
 (defn step!
-  ([rc]
-   (locking lock
-     (let [{:keys [clock sim output-fn]} @rc
-           [sim mail] (step* sim (clock/get-sim-time clock))]
-       (swap! rc assoc :sim sim)
-       (output-fn mail)
-       rc)))
-  ([rc mail]
-   (locking lock
-     (let [{:keys [clock sim output-fn]} @rc
-           [sim mail] (step* sim (clock/get-sim-time clock) mail)]
-       (swap! rc assoc :sim sim)
-       (output-fn mail)
-       rc))))
+  [rc]
+  (locking lock
+    (let [{:keys [clock sim msg-queue output-fn]} @rc
+
+          t                    (clock/get-sim-time clock)
+          [msg-queue mail-log] (loop [msg-queue msg-queue
+                                      mail-log  []]
+                                 (if (or (pq/empty? msg-queue)
+                                         (h/< t (pq/peek-key msg-queue)))
+                                   [msg-queue mail-log]
+                                   (recur (pq/pop msg-queue)
+                                          (conj mail-log
+                                                [(pq/peek-key msg-queue)
+                                                 (reduce (partial merge-with into)
+                                                         (pq/peek msg-queue))]))))
+          [sim mail]           (step** sim
+                                       :end      t
+                                       :mail-log mail-log)]
+      (swap! rc (fn [rc] (assoc rc :sim sim :msg-queue msg-queue)))
+      (output-fn mail)
+      rc)))
 
 (defn paused? [rc]
   (-> rc deref :clock clock/paused?))
@@ -957,13 +970,29 @@ if it doesn't receive any external messages before then."))
       (start-loop! rc))
     rc))
 
+(defn- queue-mail!
+  "Adds mail to the msg-queue, to be ingested the next time `step!` is
+  called. The mail will be delivered at the current sim-time, unless
+  the sim has already been updated at sim-time, in which case, the
+  mail will be delivered at the next instant: sim-time + ε."
+  [rc mail]
+  (swap! rc (fn [rc]
+              (let [{:keys [clock sim msg-queue]} rc
+                    t  (clock/get-sim-time clock)
+                    tl (time-of-last-event sim)
+                    t' (if (h/= t tl)
+                         (h/+ t h/epsilon)
+                         t)]
+                (update rc :msg-queue pq/insert t' mail)))))
+
 (defn send-mail! [rc mail]
   (locking lock
-    (stop-loop! rc)
-    (step! rc mail)
-    (when (not (paused? rc))
-      (start-loop! rc))
-    rc))
+    (if (paused? rc)
+      (queue-mail! rc mail)
+      (do (stop-loop! rc)
+          (queue-mail! rc mail)
+          (start-loop! rc))))
+  rc)
 
 (defn set-scale-factor! [rc scale-factor]
   (locking lock
