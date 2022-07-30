@@ -14,7 +14,7 @@
   needed to update entries that had not yet reached the top of the
   queue. And many events map to a small number of keys, because many
   simulation models are on the same update cycle."
-  (:refer-clojure :exclude [empty? into peek pop]))
+  (:refer-clojure :exclude [empty empty? into peek pop]))
 
 (defn priority-queue
   "Returns a new priority queue."
@@ -45,6 +45,10 @@
     (if (clojure.core/empty? (get pq k))
       (dissoc pq k)
       pq)))
+
+(defn empty
+  [pq]
+  (clojure.core/empty pq))
 
 (defn change-priority
   "Change the priority of item v from k1 to k2."
