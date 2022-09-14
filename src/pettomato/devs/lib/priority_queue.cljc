@@ -8,12 +8,10 @@
   This implementation supports efficient delete and update, and
   assumes that many values map to the same key.
 
-  This implementaton was motivated by a particular discrete-event
-  simulation, where the priority queue's keys represent the time of
-  the next update and the values are simulation models. Delete is
-  needed to update entries that had not yet reached the top of the
-  queue. And many events map to a small number of keys, because many
-  simulation models are on the same update cycle."
+  This implementation was motivated by a particular discrete-event
+  simulation system, where simulation models are indexed by the time
+  of their next update. Many events map to a small number of keys,
+  when simulation models are on the same update cycle."
   (:refer-clojure :exclude [empty empty? into peek pop]))
 
 (defn priority-queue
