@@ -38,9 +38,22 @@
   (:require
    [clojure.core :as clj]
    [pettomato.devs.lib.debug :refer [ex-assert]]
-   [pettomato.devs.lib.print :as print]))
+   [pettomato.devs.lib.print :as print])
+  #?(:clj
+     (:import
+      java.lang.Comparable)))
+
+(declare comparator hyperreal?)
 
 (defrecord Hyperreal [infinity standard infinitesimal]
+  #?(:clj Comparable)
+  #?(:clj (compareTo [this other]
+            (comparator this other)))
+  #?(:cljs IComparable)
+  #?(:cljs (-compare [x y]
+             (if (hyperreal? y)
+               (comparator x y)
+               (throw (js/Error. (str "Cannot compare " x " to " y))))))
   Object
   (toString [this]
     (cond

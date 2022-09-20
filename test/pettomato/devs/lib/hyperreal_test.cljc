@@ -146,17 +146,26 @@
     (is (= -1 (h/comparator h/zero     h/epsilon)))
     (is (=  1 (h/comparator h/infinity h/epsilon)))
 
+    (is (=  0 (compare h/zero     h/zero)))
+    (is (= -1 (compare h/zero     h/epsilon)))
+    (is (=  1 (compare h/infinity h/epsilon)))
+
     (let [vals-in-order [(*R -10 500)
                          (*R 0 -100)
                          (*R 0 0)
                          (*R 0 10)
                          (*R 10 -10000)
                          h/infinity]]
-      (is (every? (fn [[a b]] (h/= a b))
+      (is (every? (fn [[a b c]] (h/= a b c))
                   (map vector
                        vals-in-order
+                       ;; Using explicit comparator.
                        (->> (shuffle vals-in-order)
                             (apply sorted-set-by h/comparator)
+                            seq)
+                       ;; Using Comparable/IComparable.
+                       (->> (shuffle vals-in-order)
+                            (apply sorted-set)
                             seq))))))
 
   (testing "min"
