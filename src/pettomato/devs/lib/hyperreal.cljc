@@ -196,3 +196,11 @@
 (defn infinite?
   "Returns true if the infinity component of x is not 0."
   [x] (not (clj/zero? (:infinity x))))
+
+(defn infinitesimal?
+  "Returns true if the infinitesimal component of x is not 0, and the
+  infinity and standard components of x are both 0."
+  [x] (and
+       (clj/zero? (:infinity x))
+       (clj/zero? (:standard x))
+       (not (clj/zero? (:infinitesimal x)))))

@@ -208,8 +208,24 @@
 
     (is (false? (h/infinite? h/epsilon)))
 
-    (is (h/infinite? h/infinity))
+    (is (true? (h/infinite? h/infinity)))
 
-    (is (h/infinite? h/positive-infinity))
+    (is (true? (h/infinite? h/positive-infinity)))
 
-    (is (h/infinite? h/negative-infinity))))
+    (is (true? (h/infinite? h/negative-infinity))))
+
+  (testing "infinitesimal?"
+
+    (is (false? (h/infinitesimal? h/zero)))
+
+    (is (false? (h/infinitesimal? h/infinity)))
+
+    (is (false? (h/infinitesimal? (h/*R 1 1))))
+
+    (is (false? (h/infinitesimal? (h/*R 1 -1))))
+
+    (is (true? (h/infinitesimal? h/epsilon)))
+
+    (is (true? (h/infinitesimal? (h/*R 0 2))))
+
+    (is (true? (h/infinitesimal? (h/*R 0 -2))))))
