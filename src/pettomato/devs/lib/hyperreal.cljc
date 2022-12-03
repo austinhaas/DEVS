@@ -90,7 +90,9 @@
 
 (defn standard
   "Returns the closest standard real number to hyperreal number x,
-  where real number means floating point number on the host platform."
+  where real number means floating point number on the host platform.
+
+  The result is not a hyperreal number!"
   [x]
   (cond
     (clj/zero? (:infinity x)) (:standard x)
