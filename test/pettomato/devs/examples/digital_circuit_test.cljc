@@ -88,13 +88,13 @@
                            h/zero]
                :gen-val-2 [(ex/generator [[(h/*R 9) [true]]])
                            h/zero]
-               :ha  [(circ/half-adder (h/*R 0 2) (h/*R 0 3) (h/*R 0 5))
-                     h/zero]}
-                            [[:gen-pwr :out :ha :pwr]
-                             [:gen-val-1 :out :ha :a]
-                             [:gen-val-2 :out :ha :b]
-                             [:ha :s :network :s]
-                             [:ha :c :network :c]])
+               :ha        [(circ/half-adder (h/*R 0 2) (h/*R 0 3) (h/*R 0 5))
+                           h/zero]}
+              [[:gen-pwr :out :ha :pwr]
+               [:gen-val-1 :out :ha :a]
+               [:gen-val-2 :out :ha :b]
+               [:ha :s :network :s]
+               [:ha :c :network :c]])
              devs/network-simulator
              devs/afap-root-coordinator))))
 
@@ -112,13 +112,13 @@
                            h/zero]
                :gen-val-2 [(ex/generator [[(h/*R 9) [true]]])
                            h/zero]
-               :ha  [(circ/full-adder (h/*R 0 2) (h/*R 0 3) (h/*R 0 5))
-                     h/zero]}
-              [[:gen-pwr :out :ha :pwr]
-               [:gen-val-1 :out :ha :a]
-               [:gen-val-2 :out :ha :b]
-               [:ha :s :network :s]
-               [:ha :c :network :c]])
+               :fa        [(circ/full-adder (h/*R 0 2) (h/*R 0 3) (h/*R 0 5))
+                           h/zero]}
+              [[:gen-pwr :out :fa :pwr]
+               [:gen-val-1 :out :fa :a]
+               [:gen-val-2 :out :fa :b]
+               [:fa :s :network :s]
+               [:fa :c :network :c]])
              devs/network-simulator
              devs/afap-root-coordinator)))))
 
