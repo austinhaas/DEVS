@@ -843,7 +843,7 @@ if it doesn't receive any external messages before then."))
                  (let [delta (wall-time-until-next-event rc)]
                    (if (infinite? delta)
                      (.interrupt (Thread/currentThread))
-                     (do (Thread/sleep delta)
+                     (do (Thread/sleep (int delta))
                          (step! rc)))))
                (catch java.lang.InterruptedException e
                  nil))))
