@@ -1,13 +1,13 @@
-{:deps    {org.clojure/clojure       {:mvn/version "1.11.1"}
-           org.clojure/clojurescript {:mvn/version "1.11.60"}
+{:deps    {org.clojure/clojure       {:mvn/version "1.12.0-beta1"}
+           org.clojure/clojurescript {:mvn/version "1.11.132"}
            org.clojure/test.check    {:mvn/version "1.1.1"}}
  :aliases {:test                     {:extra-paths ["test"]}
            :clj-runner               {:extra-deps {io.github.cognitect-labs/test-runner
                                                    {:git/tag "v0.5.1" :git/sha "dfb30dd"}}
                                       :main-opts  ["-m" "cognitect.test-runner"]
                                       :exec-fn    cognitect.test-runner.api/test}
-           :cljs-runner              {:extra-deps {olical/cljs-test-runner {:mvn/version "3.8.0"}
-                                                   org.clojure/core.async  {:mvn/version "1.5.648"}}
+           :cljs-runner              {:extra-deps {olical/cljs-test-runner {:mvn/version "3.8.1"}
+                                                   org.clojure/core.async  {:mvn/version "1.6.673"}}
                                       :main-opts  ["-m" "cljs-test-runner.main"
                                                    "--out" ".cljs-test-runner-out"]}
            :clj-repl-server          {:exec-fn   clojure.core.server/start-server
@@ -29,7 +29,7 @@
                                                   :args          [{:opts     {:warn-on-undeclared false}
                                                                    :env-opts {}}]
                                                   :server-daemon false}}
-           :coverage                 {:extra-deps {cloverage/cloverage {:mvn/version "1.2.3"}}
+           :coverage                 {:extra-deps {cloverage/cloverage {:mvn/version "1.2.4"}}
                                       :main-opts  ["-m" "cloverage.coverage"
                                                    "--src-ns-path" "src"
                                                    "--test-ns-path" "test"]
@@ -38,4 +38,4 @@
                                                    :test-ns-path ["test"]}}
            :eastwood                 {:main-opts  ["-m" "eastwood.lint" {:source-paths ["src"]
                                                                          :add-linters  [:unused-fn-args :unused-locals :unused-namespaces :unused-private-vars]}]
-	                                    :extra-deps {jonase/eastwood {:mvn/version "1.2.3"}}}}}
+	                                    :extra-deps {jonase/eastwood {:mvn/version "1.4.2"}}}}}
