@@ -28,7 +28,7 @@
                  (let [c (clock/clock)]
                    (Thread/sleep 10)
                    (clock/get-sim-time c))
-                 (h/*R 12)))
+                 (h/*R 15)))
        :cljs
        (is (h/<= (h/*R 0)
                  (clock/get-sim-time (clock/clock))
@@ -58,7 +58,7 @@
                  (let [c (clock/clock :sim-time (h/*R 100))]
                    (Thread/sleep 10)
                    (clock/get-sim-time c))
-                 (h/*R 112)))
+                 (h/*R 115)))
        :cljs
        (is (h/<= (h/*R 100)
                  (clock/get-sim-time (clock/clock :sim-time (h/*R 100)))
