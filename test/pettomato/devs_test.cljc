@@ -46,6 +46,22 @@
            (-> (devs/network-simulator net)
                devs/afap-root-coordinator))))))
 
+(deftest absolute-script-tests
+  (is (mail-log=
+       [[(h/*R 2 0)  {:out ["x"]}]
+        [(h/*R 4 0)  {:out ["x"]}]
+        [(h/*R 6 0)  {:out ["x"]}]
+        [(h/*R 8 0)  {:out ["x"]}]
+        [(h/*R 10 0) {:out ["x"]}]]
+       (-> (ex/generator (ex/absolute-script->delta-script
+                          [[(h/*R 2 0) ["x"]]
+                           [(h/*R 4 0) ["x"]]
+                           [(h/*R 6 0) ["x"]]
+                           [(h/*R 8 0) ["x"]]
+                           [(h/*R 10 0) ["x"]]]))
+           devs/atomic-simulator
+           (devs/afap-root-coordinator :end (h/*R 10 0))))))
+
 (deftest initial-elapsed-tests
 
   (testing "An atomic simulation."

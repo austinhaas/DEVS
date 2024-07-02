@@ -17,6 +17,15 @@
   [xs]
   (->Generator xs))
 
+(defn absolute-script->delta-script
+  "Takes a (possibly lazy) sequence of [t output] pairs, and returns a
+  lazy seq of [delta output] pairs."
+  [script]
+  (map (fn [t-1 [t output]]
+         [(h/- t t-1) output])
+       (cons h/zero (map first script))
+       script))
+
 (devs/def-atomic-model Buffer [delta buffer sigma]
   (internal-update [state] (assoc state :buffer nil :sigma h/infinity))
   (external-update [state elapsed mail]
