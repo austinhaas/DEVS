@@ -1,4 +1,211 @@
 * TODO
+** Optimization: Better priority-queue implementation.
+*** Consider leftist-heap from PFDS.
+   - Delete is described here: https://en.wikipedia.org/wiki/Leftist_tree
+     - This depends on having a pointer to the node to be deleted. I
+       don't think there is any way to efficiently search for that
+       node.
+**** Consider a specialized delete operation
+     - I'm doubting the idea I had for this. I thought the size of the
+       "delete set" is fixed, since each model can only have one entry
+       in the heap, but that's not true; a model could have its
+       priority changed several times, resulting in multiple
+       insertions before any nodes are removed.
+
+     - Both of the proposals below suffer from the same drawback:
+       keeping a list of descendent values is going to require
+       significantly more storage, because there will be so much
+       redundancy.
+
+       - I think we could just have one map at the root, though.
+
+       - These also change the complexity of findMin from O(1) to (log
+         N) (or whatever it costs to check for membership in the
+         delete set.
+***** Proposal
+     - There can only be at most one "current" priority per model.
+     - Algorithm
+       - Keep a map from model to current priority.
+       - Whenever pop is called, keep popping if the root does not
+         match the current priority for the model at root.
+     - Con: A significant amout of redundancy.
+***** Proposal
+     - Every tree includes the set of all members.
+     - Search for a node using that set.
+     - Con: A significant amout of redundancy.
+*** Consider splay-heaps from PFDS.
+    - p. 52 "Splay trees, perhaps in combination with the ExplicitMin
+      functor, are the fastest known implementation of heaps for
+      applications that do not depend on persistence and that do not
+      call the merge function."
+      - I think our use case fits this description, but we still need
+        to account for delete.
+    - https://stackoverflow.com/questions/69891121/splay-tree-deletion
+*** Consider the red-black impl. that has delete.
+    - I think we can use ExplicitMin.
+    - Actually, maybe better, since we expect
+*** Notes
+    - The heap is almost always a fixed size.
+    - We only want to re-prioritize values.
+
+    - We may or may not want to include infinite priorities in the
+      heap.
+
+*** Proposal
+    - One leftist-heap (or splay-heap), for the main heap.
+    - A second (anti-)heap for deletes.
+    - Both heaps are total-ordered; i.e., the priorities/keys AND the
+      values are ordered.
+      - This way, the two heaps will always correspond.
+      - This should be no problem, since we use ids for values in this
+        case, and those should be comparable.
+
+    - Since it is O(1) to get the root, it is very efficient to check
+      if there is anything to delete.
+**** Benchmark
+     - Compare against existing implementation, and red-black with
+       deletes.
+     - Devise benchmark tests that simulate a DEVS workflow w/o having
+       to implement it as DEVS.
+     - Simulate pathological cases.
+       - E.g., 2000 models that are passivating and then suddenly
+         become active.
+       - 2000 models that have a low-priority and then get a new
+         higher priority.
+** File these notes
+*** Improve DEVS.
+**** Notes
+     - The state-var/action-based design may be exploitable in
+       determining if one event should trigger a rollback.
+     - This can also be used to look ahead and determine that a future
+       event is safe, because no external event could possibly
+       conflict.
+**** Good things about DEVS
+     - Separation of model and simulator.
+       - Allows different simulators to be used.
+     - The simulation topology is managed. Individual processes do
+       not need to be aware of each other.
+     - Process behavior can be specified asynchronously, but handled
+       synchronously.
+**** Problems with DEVS
+     - Users must understand the DEVS algorithm while modeling.
+       - I.e., the time-advance function is called, then, after the
+         delay, the output function is called, and then the internal
+         update function is called.
+     - Ports are defined implicitly. They aren't obvious or enforced.
+     - Sending messages is implemented across several functions.
+       - A message is scheduled by a state update function, delayed
+         by the time advance function, propagated via the output
+         function, and then the message buffer is cleared in the
+         internal state update function.
+     - The dynamic network, and the management of it, is not obvious.
+
+     - I think I made a very minimal, bare bones implementation of
+       DEVS. It might be easier to understand and use if it had more
+       structure.
+       - For example, the exec model needs a name; the network
+         simulator needs to know it, and the exec model also needs to
+         know it.
+           - Maybe this is how it should be: porcelain and plumbing.
+     - :N is a special symbol not explained anywhere.
+
+     - I just tried to create a simple state machine and it took
+       forever. So much trial and error. I'd like to output more
+       status messages, but it seems like a huge chore.
+       - Actually, this wasn't so hard.
+
+     - Not clear how to work with external real-time events.
+       - Learn more about RT-DEVS. It sounds like the coordinator is
+         responsible for managing that, but I'm unclear how that fits
+         into what I've made.
+       - RT-DEVS assigns one thread to each model. Each state has a
+         function associated with it and the coordinator only calls
+         int-update after the function returns.
+         - You also have to provide an interval that tells when this
+           function is expected to return and it is an error if the
+           actual is outside that.
+           - Is there any harm in setting a completely open interval?
+         - I'm wondering if I had previously flattened all of the
+           coordinators and that if that is going to be an obstacle.
+**** Proposal: Add more debugging tools.
+     - Trace everything that is happening.
+**** Proposal: Add more abstractions.
+     - Consider that some issues may be due to implementing models
+       using general, low-level operations, rather than building on
+       higher-level, domain-specific abstractions.
+     - Example: message queues, with `send` and `receive` functions.
+     - Example: A macro for processing messages using a given
+       strategy.
+     - Capture common patterns.
+     - I have trouble imagining anything superior to Clojure's basic
+       functions. For example, processing external messages can be
+       implemented simply with `reduce` and `case`. Or, a `group-by`
+       could be applied to batch process messages by type instead of
+       message order. Adding another layer on top of that just seems
+       to make things more complicated.
+       - Consider abstracting these things locally. I.e., the
+         modeler's responsibility.
+     - Example: The model clock could translate between absolute and
+       relative times.
+     - Example: (current-time)
+***** Consider pattern matching on messages.
+**** Proposal: Model constructors
+     - Map from high-level models to DEVS.
+     - Example: A state machine.
+     - Maybe this could cover 80% of the models.
+**** Consider how this might work the state monad.
+     - Sending and receiving messages could be done in an imperative
+       fashion. Users wouldn't need to think about an output
+       collection.
+     - Maybe time-advance could be hidden, too. Any messages sent
+       would be assumed to be sent immediately. Any internal update
+       would be scheduled explicitly, and automatically updated if
+       messages are received.
+     - Messages could be cleared from the state automatically.
+
+     - The output message buffer is cleared automatically. The
+       user-level `int-update` function is only called after a delay
+       that is specific to int-update. The underlying system
+       automatically manages the time-advance function.
+
+     - This could be implemented with functions that take and return
+       the state.
+       - (send state port msg) => state
+       - (recv state port) => [state msg] ;; maybe not these
+       - (recv state :next) => [state msg]
+
+     - I'm thinking this isn't worth it. I think we can get close
+       enough by threading `state` through some abstract operators
+       (like, `send`).
+
+**** Consider using an Erlang-like syntax.
+
+**** Proposal: System protocol
+     - Models will have a :system input port and a :system output
+       port.
+     - :system messages include things like :start, :stop, and
+       :suspend.
+     - Models will reply on the :system output port that an
+       instruction has been completed.
+     - Hierarchically, a model will propagate control signals down to
+       its dependents, and wait for their responses before issuing
+       its own to its parent.
+**** Proposal: State machine
+     - Assumptions
+       - First-class states are easier to reason about and work with.
+       - It's good to group `enter` and `exit` functions with states.
+       - It's good to separate the outputs from the states from the
+         state transition function.
+     - Create states as maps of functions.
+       - enter
+       - int-update
+       - ext-update
+       - exit
+     - Use a :system channel
+       - This doesn't make sense. The states aren't models.
+         - Consider using models.
+       - A :status channel?
+
 ** Consider passing the fns start-loop-fns needs to it as args.
    - Instead of making those fns public.
 ** Set up a real-time, interactive cljs example.

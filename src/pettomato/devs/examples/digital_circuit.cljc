@@ -3,8 +3,7 @@
   (:require
    [pettomato.devs :as devs]
    [pettomato.devs.examples :as ex]
-   [pettomato.devs.lib.hyperreal :as h]
-   [pettomato.devs.lib.log :as log]))
+   [pettomato.devs.lib.hyperreal :as h]))
 
 ;; This is supposed to be physically accurate in the sense that it takes time
 ;; for signals to propagate. There will be an initial period of "settling".
